@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Schulte Table</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="workspace" aria-labelledby="app-title">
+        <header class="topbar">
+          <div>
+            <h1 id="app-title" data-i18n="title">Schulte Table</h1>
+          </div>
+
+          <div class="topbar-controls">
+            <label class="picker">
+              <span data-i18n="variant">Variant</span>
+              <select id="variant-select" aria-label="Variant">
+                <option value="standard" data-i18n="variantStandard">1-25</option>
+                <option value="centerDot" data-i18n="variantCenterDot">1-24 + dot</option>
+              </select>
+            </label>
+
+            <label class="picker">
+              <span data-i18n="language">Language</span>
+              <select id="language-select" aria-label="Language">
+                <option value="en">English</option>
+                <option value="ru">Русский</option>
+                <option value="uk">Українська</option>
+                <option value="de">Deutsch</option>
+                <option value="fr">Français</option>
+              </select>
+            </label>
+          </div>
+        </header>
+
+        <div class="status-strip" aria-live="polite">
+          <div class="metric">
+            <span data-i18n="time">Time</span>
+            <strong id="timer">00:00.0</strong>
+          </div>
+          <div class="metric">
+            <span data-i18n="best">Best</span>
+            <strong id="best-time">--</strong>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <div id="schulte-grid" class="schulte-grid numbers-hidden" role="grid" aria-label="Schulte table" tabindex="0"></div>
+        </div>
+
+        <footer class="controls">
+          <p id="message" class="message" data-i18n="startMessage">Press Space or tap the table to reveal and start.</p>
+          <div class="button-row">
+            <button id="restart-button" type="button" data-i18n="restart">New table</button>
+          </div>
+        </footer>
+      </section>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>
