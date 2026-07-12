@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>√ Тренажёр корней</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:         #0e0e12;
+  --surface:    #16161c;
+  --border:     #2a2a35;
+  --accent:     #c8ff57;
+  --accent-dim: rgba(200,255,87,0.12);
+  --text:       #e8e8e0;
+  --muted:      #5a5a6a;
+  --ok:         #57ffa0;
+  --err:        #ff5757;
+  --warn:       #ffb357;
+}
+
+html, body {
+  height: 100%; height: 100dvh;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+}
+
+/* ════════════════════════════════════════
+   START SCREEN
+════════════════════════════════════════ */
+#start-screen {
+  height: 100%; height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(10px, 2.5vh, 22px);
+  padding: clamp(12px, 3vw, 32px);
+  overflow-y: auto;
+}
+
+.start-logo {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: clamp(2rem, 8vw, 3rem);
+  font-weight: 800;
+  color: var(--accent);
+  line-height: 1;
+}
+.start-sub {
+  color: var(--muted);
+  font-size: clamp(0.78rem, 2.2vw, 0.92rem);
+  text-align: center;
+  max-width: 340px;
+  line-height: 1.5;
+}
+
+.settings-block {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(6px, 1.5vh, 12px);
+  width: 100%;
+  max-width: 380px;
+}
+.settings-group { display: flex; flex-direction: column; gap: 5px; }
+.settings-label {
+  font-size: 0.6rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding-left: 2px;
+}
+.settings-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.pill {
+  padding: 5px 13px;
+  border-radius: 100px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: clamp(0.72rem, 2vw, 0.82rem);
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+}
+.pill.active { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+.pill:hover:not(.active) { border-color: var(--muted); color: var(--text); }
+
+.btn-primary {
+  padding: clamp(10px,2vh,14px) clamp(28px,6vw,48px);
+  background: var(--accent);
+  color: var(--bg);
+  border: none;
+  border-radius: 10px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: clamp(0.9rem, 2.5vw, 1.05rem);
+  font-weight: 700;
+  cursor: pointer;
+  letter-spacing: 0.04em;
+  transition: transform 0.1s, opacity 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn-primary:hover  { opacity: 0.88; }
+.btn-primary:active { transform: scale(0.97); }
+
+/* ════════════════════════════════════════
+   GAME SCREEN  —  portrait
+════════════════════════════════════════ */
+#game-screen {
+  display: none;
+  height: 100%; height: 100dvh;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* top bar: stats */
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: clamp(6px,1.5vh,12px) clamp(10px,3vw,20px);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  gap: 8px;
+}
+.logo-sm {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: clamp(0.75rem, 2vw, 0.95rem);
+  font-weight: 800;
+  color: var(--accent);
+}
+.stats-bar { display: flex; gap: clamp(10px,2.5vw,20px); }
+.stat { text-align: right; }
+.stat-val {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: clamp(0.85rem, 2.5vw, 1.05rem);
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1;
+}
+.stat-lbl {
+  font-size: clamp(0.52rem, 1.3vw, 0.62rem);
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+
+/* portrait body: ring area + controls */
+.game-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* ── LEFT/TOP column: ring + answer + feedback ── */
+.col-problem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(6px,1.5vh,14px);
+  padding: clamp(6px,1.5vh,14px) clamp(10px,3vw,20px);
+  flex-shrink: 0;
+}
+
+.ring-wrap {
+  position: relative;
+  width: clamp(110px, 22vw, 180px);
+  height: clamp(110px, 22vw, 180px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.ring-svg {
+  position: absolute; top:0; left:0;
+  width:100%; height:100%;
+  transform: rotate(-90deg);
+}
+.ring-track { fill:none; stroke:var(--border); stroke-width:3; }
+.ring-fill  {
+  fill:none; stroke:var(--accent); stroke-width:3; stroke-linecap:round;
+  transition: stroke-dashoffset 0.25s linear, stroke 0.3s;
+}
+.ring-fill.danger  { stroke: var(--err); }
+.ring-fill.warning { stroke: var(--warn); }
+
+.problem-display {
+  display:flex; flex-direction:column; align-items:center; gap:1px;
+}
+.root-type {
+  font-size: clamp(0.52rem, 1.3vw, 0.65rem);
+  letter-spacing:0.1em; text-transform:uppercase; color:var(--muted);
+}
+.problem-number {
+  font-family:'JetBrains Mono',monospace;
+  font-size: clamp(1.8rem, 5vw, 3rem);
+  font-weight:800; line-height:1; color:var(--text); letter-spacing:-0.03em;
+}
+.problem-prefix {
+  font-family:'JetBrains Mono',monospace;
+  font-size:clamp(0.7rem,1.8vw,0.95rem); color:var(--muted);
+}
+
+/* answer display box */
+.answer-display {
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:10px;
+  font-family:'JetBrains Mono',monospace;
+  font-size:clamp(1.4rem,4vw,2.2rem);
+  font-weight:700;
+  text-align:center;
+  padding: clamp(6px,1.5vh,12px) 16px;
+  width:100%; max-width:260px;
+  color:var(--text);
+  transition: border-color 0.2s, box-shadow 0.2s, color 0.2s;
+  user-select:none;
+}
+.answer-display.correct { border-color:var(--ok);  box-shadow:0 0 0 3px rgba(87,255,160,.15); color:var(--ok); }
+.answer-display.wrong   { border-color:var(--err); box-shadow:0 0 0 3px rgba(255,87,87,.15);  color:var(--err); }
+.answer-display.focused { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-dim); }
+.answer-placeholder { color:var(--muted); }
+
+.feedback {
+  font-family:'JetBrains Mono',monospace;
+  font-size:clamp(0.7rem,2vw,0.85rem);
+  min-height:1.2em; color:var(--muted); text-align:center;
+  transition:color 0.2s;
+}
+.feedback.ok      { color:var(--ok); }
+.feedback.err     { color:var(--err); }
+.feedback.timeout { color:var(--warn); }
+
+/* ── RIGHT/BOTTOM column: numpad + buttons ── */
+.col-controls {
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap: clamp(6px,1.2vh,10px);
+  padding: clamp(6px,1.5vh,14px) clamp(10px,3vw,20px);
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* control buttons row */
+.ctrl-btns {
+  display:flex;
+  gap:6px;
+  width:100%;
+  max-width:320px;
+  flex-shrink:0;
+}
+.btn-ctrl {
+  flex:1;
+  padding: clamp(7px,1.3vh,11px) 4px;
+  border-radius:8px;
+  border:1px solid var(--border);
+  background:var(--surface);
+  color:var(--muted);
+  font-family:'JetBrains Mono',monospace;
+  font-size:clamp(0.68rem,1.8vw,0.82rem);
+  font-weight:600;
+  cursor:pointer;
+  transition:border-color 0.15s, color 0.15s, background 0.15s;
+  white-space:nowrap;
+  -webkit-tap-highlight-color:transparent;
+}
+.btn-ctrl:hover   { border-color:var(--muted); color:var(--text); }
+.btn-ctrl:active  { background:#1e1e28; }
+.btn-ctrl.paused  { border-color:var(--warn); color:var(--warn); background:rgba(255,179,87,0.08); }
+
+/* autosubmit */
+.autosubmit-row {
+  display:flex; align-items:center;
+  width:100%; max-width:320px;
+  flex-shrink:0;
+}
+.autosubmit-row label {
+  font-size:clamp(0.68rem,1.8vw,0.8rem);
+  color:var(--muted);
+  cursor:pointer; user-select:none;
+  display:flex; align-items:center; gap:7px;
+}
+.autosubmit-row input[type=checkbox] {
+  appearance:none;
+  width:15px; height:15px;
+  border:1px solid var(--border); border-radius:3px;
+  background:var(--surface); cursor:pointer; flex-shrink:0;
+  position:relative; transition:border-color 0.15s, background 0.15s;
+}
+.autosubmit-row input[type=checkbox]:checked { background:var(--accent); border-color:var(--accent); }
+.autosubmit-row input[type=checkbox]:checked::after {
+  content:''; position:absolute;
+  left:3px; top:1px; width:7px; height:4px;
+  border-left:2px solid var(--bg); border-bottom:2px solid var(--bg);
+  transform:rotate(-45deg);
+}
+
+/* numpad */
+.numpad {
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap: clamp(4px,1vw,8px);
+  width:100%; max-width:320px;
+  flex:1; min-height:0;
+}
+.nk {
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:8px;
+  color:var(--text);
+  font-family:'JetBrains Mono',monospace;
+  font-size:clamp(1rem,3vw,1.4rem);
+  font-weight:700;
+  text-align:center;
+  cursor:pointer;
+  transition:background 0.1s, border-color 0.1s, transform 0.08s;
+  user-select:none;
+  -webkit-tap-highlight-color:transparent;
+  display:flex; align-items:center; justify-content:center;
+  min-height: clamp(36px,6vh,54px);
+}
+.nk:hover  { background:#1e1e28; border-color:var(--muted); }
+.nk:active { transform:scale(0.93); background:#22222e; }
+.nk.nk-ok  { background:var(--accent); color:var(--bg); border-color:var(--accent); font-size:clamp(0.8rem,2.2vw,1.05rem); font-weight:800; }
+.nk.nk-ok:hover { opacity:0.88; }
+.nk.nk-del { font-size:clamp(0.85rem,2.2vw,1.1rem); color:var(--muted); }
+.nk.nk-zero { grid-column:1/3; }
+
+/* history */
+.history {
+  width:100%; max-width:320px;
+  display:flex; flex-direction:column; gap:3px;
+  overflow-y:auto; flex-shrink:1; min-height:0;
+}
+.history::-webkit-scrollbar { width:3px; }
+.history::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
+.hist-item {
+  display:flex; justify-content:space-between; align-items:center;
+  padding:5px 10px;
+  border-radius:6px; background:var(--surface);
+  font-family:'JetBrains Mono',monospace;
+  font-size:clamp(0.62rem,1.6vw,0.74rem);
+  animation:slideIn 0.2s ease; flex-shrink:0;
+}
+@keyframes slideIn { from{opacity:0;transform:translateY(-4px)} to{opacity:1;transform:translateY(0)} }
+.hist-expr { color:var(--muted); }
+.hist-expr span { color:var(--text); }
+.hist-result { display:flex; gap:6px; align-items:center; }
+.hist-badge { padding:2px 5px; border-radius:3px; font-size:0.65rem; font-weight:700; letter-spacing:0.04em; }
+.hist-badge.ok  { background:rgba(87,255,160,.12); color:var(--ok); }
+.hist-badge.err { background:rgba(255,87,87,.12);  color:var(--err); }
+.hist-badge.tmo { background:rgba(255,179,87,.12); color:var(--warn); }
+.hist-time { color:var(--muted); font-size:0.62rem; }
+
+/* pause overlay inside ring */
+.pause-overlay {
+  position:absolute; inset:0;
+  display:none;
+  align-items:center; justify-content:center;
+  background:rgba(14,14,18,0.7);
+  border-radius:50%;
+  font-family:'JetBrains Mono',monospace;
+  font-size:clamp(0.8rem,2.5vw,1rem);
+  color:var(--warn);
+  letter-spacing:0.05em;
+  text-transform:uppercase;
+  pointer-events:none;
+}
+.pause-overlay.active { display:flex; }
+
+/* ════════════════════════════════════════
+   LANDSCAPE override
+════════════════════════════════════════ */
+@media (orientation: landscape) {
+  #game-screen { flex-direction: column; }
+
+  .game-body {
+    flex-direction: row;
+    align-items: stretch;
+    flex: 1;
+    min-height: 0;
+  }
+
+  .col-problem {
+    width: clamp(180px, 38%, 320px);
+    border-right: 1px solid var(--border);
+    flex-shrink: 0;
+    justify-content: center;
+  }
+
+  .ring-wrap {
+    width:  clamp(90px, 16vh, 150px);
+    height: clamp(90px, 16vh, 150px);
+  }
+
+  .col-controls {
+    flex: 1;
+    padding: clamp(6px,1vh,10px) clamp(8px,2vw,16px);
+    gap: clamp(4px,0.8vh,8px);
+  }
+
+  .numpad {
+    gap: clamp(3px,0.6vh,6px);
+  }
+  .nk {
+    min-height: clamp(28px,4.5vh,44px);
+    font-size: clamp(0.85rem,2vh,1.25rem);
+  }
+}
+
+/* ════════════════════════════════════════
+   UTILS
+════════════════════════════════════════ */
+.hidden { display:none !important; }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════
+     START SCREEN
+══════════════════════════════════════ -->
+<div id="start-screen">
+  <div class="start-logo">√ ?</div>
+  <p class="start-sub">Тренажёр быстрого извлечения квадратного и кубического корня из 3- и 4-значных чисел.</p>
+
+  <div class="settings-block">
+    <div class="settings-group">
+      <div class="settings-label">тип корня</div>
+      <div class="settings-row">
+        <button class="pill active" data-group="degree" data-val="2">√ квадратный</button>
+        <button class="pill"        data-group="degree" data-val="3">∛ кубический</button>
+        <button class="pill"        data-group="degree" data-val="both">оба</button>
+      </div>
+    </div>
+    <div class="settings-group">
+      <div class="settings-label">число цифр</div>
+      <div class="settings-row">
+        <button class="pill active" data-group="digits" data-val="3">3 цифры</button>
+        <button class="pill"        data-group="digits" data-val="4">4 цифры</button>
+        <button class="pill"        data-group="digits" data-val="both">3 и 4</button>
+      </div>
+    </div>
+    <div class="settings-group">
+      <div class="settings-label">лимит времени</div>
+      <div class="settings-row">
+        <button class="pill active" data-group="time" data-val="15">15 с</button>
+        <button class="pill"        data-group="time" data-val="20">20 с</button>
+        <button class="pill"        data-group="time" data-val="30">30 с</button>
+        <button class="pill"        data-group="time" data-val="0">∞</button>
+      </div>
+    </div>
+  </div>
+
+  <button class="btn-primary" id="btn-start">Начать</button>
+</div>
+
+<!-- ══════════════════════════════════════
+     GAME SCREEN
+══════════════════════════════════════ -->
+<div id="game-screen">
+
+  <!-- top bar -->
+  <div class="topbar">
+    <div class="logo-sm">√ root.train</div>
+    <div class="stats-bar">
+      <div class="stat"><div class="stat-val" id="score">0</div><div class="stat-lbl">очки</div></div>
+      <div class="stat"><div class="stat-val" id="streak">0</div><div class="stat-lbl">серия</div></div>
+      <div class="stat"><div class="stat-val" id="acc">—</div><div class="stat-lbl">точность</div></div>
+      <div class="stat"><div class="stat-val" id="avg-time">—</div><div class="stat-lbl">сред.вр.</div></div>
+    </div>
+  </div>
+
+  <!-- body: problem | controls -->
+  <div class="game-body">
+
+    <!-- LEFT/TOP: ring + answer -->
+    <div class="col-problem">
+      <div class="ring-wrap">
+        <svg class="ring-svg" viewBox="0 0 200 200">
+          <circle class="ring-track" cx="100" cy="100" r="94"/>
+          <circle class="ring-fill"  id="ring" cx="100" cy="100" r="94"/>
+        </svg>
+        <div class="problem-display">
+          <div class="root-type"   id="root-label">квадратный корень</div>
+          <div class="problem-prefix" id="root-prefix">√</div>
+          <div class="problem-number" id="problem-num">—</div>
+        </div>
+        <div class="pause-overlay" id="pause-overlay">пауза</div>
+      </div>
+
+      <div class="answer-display focused" id="answer-display">
+        <span class="answer-placeholder" id="answer-placeholder">?</span><span id="answer-text"></span>
+      </div>
+
+      <div class="feedback" id="feedback"></div>
+    </div>
+
+    <!-- RIGHT/BOTTOM: numpad + buttons + history -->
+    <div class="col-controls">
+
+      <!-- control buttons -->
+      <div class="ctrl-btns">
+        <button class="btn-ctrl" id="btn-pause">⏸ Пауза</button>
+        <button class="btn-ctrl" id="btn-restart">↺ Заново</button>
+        <button class="btn-ctrl" id="btn-stop">■ Стоп</button>
+      </div>
+
+      <!-- autosubmit -->
+      <div class="autosubmit-row">
+        <label>
+          <input type="checkbox" id="autosubmit" checked>
+          авто-отправка при наборе всех цифр
+        </label>
+      </div>
+
+      <!-- numpad -->
+      <div class="numpad" id="numpad">
+        <button class="nk" data-digit="7">7</button>
+        <button class="nk" data-digit="8">8</button>
+        <button class="nk" data-digit="9">9</button>
+        <button class="nk" data-digit="4">4</button>
+        <button class="nk" data-digit="5">5</button>
+        <button class="nk" data-digit="6">6</button>
+        <button class="nk" data-digit="1">1</button>
+        <button class="nk" data-digit="2">2</button>
+        <button class="nk" data-digit="3">3</button>
+        <button class="nk nk-zero" data-digit="0">0</button>
+        <button class="nk nk-del"  id="nk-del">⌫</button>
+        <button class="nk nk-ok"   id="nk-ok">OK</button>
+      </div>
+
+      <!-- history -->
+      <div class="history" id="history"></div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Config & state ──
+const cfg = { degree: 2, digits: 3, time: 15 };
+let score=0, streak=0, total=0, correct=0, times=[];
+let currentAnswer=null, currentDegree=null;
+let timerInterval=null, startTime=null, timeLimit=15;
+let inputStr='', inputLocked=false;
+let paused=false, pausedElapsed=0;
+
+// ── Ring ──
+const ring = document.getElementById('ring');
+const CIRC = 2 * Math.PI * 94;
+ring.style.strokeDasharray = CIRC;
+ring.style.strokeDashoffset = 0;
+
+function setRing(f) {
+  ring.style.strokeDashoffset = CIRC * (1 - f);
+  ring.classList.remove('danger','warning');
+  if      (f < 0.25) ring.classList.add('danger');
+  else if (f < 0.5)  ring.classList.add('warning');
+}
+
+// ── Settings pills ──
+document.querySelectorAll('.pill[data-group]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const g = btn.dataset.group;
+    document.querySelectorAll(`.pill[data-group="${g}"]`).forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const v = btn.dataset.val;
+    if (g==='degree') cfg.degree = v==='both'?'both':+v;
+    if (g==='digits') cfg.digits = v==='both'?'both':+v;
+    if (g==='time')   cfg.time   = +v;
+  });
+});
+
+// ── Render input ──
+function renderInput() {
+  const ph = document.getElementById('answer-placeholder');
+  const tx = document.getElementById('answer-text');
+  ph.style.display = inputStr==='' ? '' : 'none';
+  tx.textContent   = inputStr;
+}
+
+function getExpectedDigits() {
+  return currentAnswer ? String(currentAnswer).length : 2;
+}
+
+// ── Numpad ──
+document.getElementById('numpad').addEventListener('click', e => {
+  const btn = e.target.closest('.nk');
+  if (!btn || inputLocked || paused) return;
+  const d = btn.dataset.digit;
+  if (d !== undefined) pressDigit(d);
+});
+document.getElementById('nk-del').addEventListener('click', () => {
+  if (inputLocked || paused) return;
+  inputStr = inputStr.slice(0,-1);
+  renderInput();
+});
+document.getElementById('nk-ok').addEventListener('click', () => {
+  if (inputLocked || paused) return;
+  submitAnswer();
+});
+
+function pressDigit(d) {
+  if (inputStr.length >= 3) return;
+  if (inputStr==='' && d==='0') return;
+  inputStr += d;
+  renderInput();
+  if (document.getElementById('autosubmit').checked) {
+    if (inputStr.length >= getExpectedDigits()) setTimeout(submitAnswer, 80);
+  }
+}
+
+function submitAnswer() {
+  if (inputLocked || paused || inputStr==='') return;
+  const v = parseInt(inputStr, 10);
+  if (!isNaN(v) && v > 0) handleAnswer(v);
+}
+
+// ── Keyboard ──
+document.addEventListener('keydown', e => {
+  if (document.getElementById('game-screen').style.display === 'none') return;
+  if (e.key==='p' || e.key==='P' || e.key===' ') { e.preventDefault(); togglePause(); return; }
+  if (inputLocked || paused) return;
+  if (e.key>='0' && e.key<='9') pressDigit(e.key);
+  else if (e.key==='Backspace') { inputStr=inputStr.slice(0,-1); renderInput(); }
+  else if (e.key==='Enter') submitAnswer();
+});
+
+// ── Problem ──
+function generateProblem() {
+  const deg    = cfg.degree==='both' ? (Math.random()<.5?2:3) : cfg.degree;
+  const digits = cfg.digits==='both' ? (Math.random()<.5?3:4) : cfg.digits;
+  let base, radicand;
+  if (deg===2) {
+    const mn=Math.ceil(Math.sqrt(digits===3?100:1000)), mx=Math.floor(Math.sqrt(digits===3?999:9999));
+    base=mn+Math.floor(Math.random()*(mx-mn+1)); radicand=base*base;
+  } else {
+    const mn=Math.ceil(Math.cbrt(digits===3?100:1000)), mx=Math.floor(Math.cbrt(digits===3?999:9999));
+    base=mn+Math.floor(Math.random()*(mx-mn+1)); radicand=base*base*base;
+  }
+  currentAnswer=base; currentDegree=deg;
+  document.getElementById('problem-num').textContent   = radicand.toLocaleString('ru');
+  document.getElementById('root-label').textContent    = deg===2?'квадратный корень':'кубический корень';
+  document.getElementById('root-prefix').textContent   = deg===2?'√':'∛';
+}
+
+// ── Timer ──
+function startTimer() {
+  clearInterval(timerInterval);
+  timeLimit = cfg.time;
+  pausedElapsed = 0;
+  startTime = Date.now();
+  setRing(1);
+  if (timeLimit===0) return;
+  timerInterval = setInterval(tickTimer, 50);
+}
+
+function tickTimer() {
+  const elapsed = pausedElapsed + (Date.now()-startTime)/1000;
+  const f = Math.max(0, 1 - elapsed/timeLimit);
+  setRing(f);
+  if (f<=0) { clearInterval(timerInterval); handleTimeout(); }
+}
+
+function stopTimer() {
+  clearInterval(timerInterval);
+  return pausedElapsed + (Date.now()-startTime)/1000;
+}
+
+// ── Pause ──
+function togglePause() {
+  if (inputLocked || currentAnswer===null) return;
+  paused = !paused;
+  const btn = document.getElementById('btn-pause');
+  const overlay = document.getElementById('pause-overlay');
+
+  if (paused) {
+    // freeze timer
+    pausedElapsed += (Date.now()-startTime)/1000;
+    clearInterval(timerInterval);
+    btn.textContent = '▶ Продолжить';
+    btn.classList.add('paused');
+    overlay.classList.add('active');
+    // blur numpad
+    document.getElementById('numpad').style.opacity = '0.3';
+    document.getElementById('answer-display').style.opacity = '0.3';
+  } else {
+    // resume timer
+    startTime = Date.now();
+    if (timeLimit > 0) timerInterval = setInterval(tickTimer, 50);
+    btn.textContent = '⏸ Пауза';
+    btn.classList.remove('paused');
+    overlay.classList.remove('active');
+    document.getElementById('numpad').style.opacity = '';
+    document.getElementById('answer-display').style.opacity = '';
+  }
+}
+
+// ── Game flow ──
+function nextProblem() {
+  inputStr=''; inputLocked=false; paused=false;
+  renderInput();
+  const d = document.getElementById('answer-display');
+  d.className='answer-display focused'; d.style.opacity='';
+  document.getElementById('numpad').style.opacity='';
+  document.getElementById('pause-overlay').classList.remove('active');
+  const btn=document.getElementById('btn-pause');
+  btn.textContent='⏸ Пауза'; btn.classList.remove('paused');
+  setFeedback('','');
+  generateProblem();
+  startTimer();
+}
+
+function handleAnswer(val) {
+  if (currentAnswer===null||inputLocked) return;
+  inputLocked=true;
+  const elapsed=stopTimer();
+  const ok=val===currentAnswer;
+  total++;
+  const d=document.getElementById('answer-display');
+  d.classList.remove('focused');
+  if (ok) {
+    correct++; streak++;
+    const spd = timeLimit>0?Math.round(Math.max(0,(timeLimit-elapsed)/timeLimit)*10):0;
+    const str = Math.min(streak-1,5);
+    score+=10+spd+str;
+    d.classList.add('correct');
+    setFeedback(`✓ верно! +${10+spd+str} очков  (${elapsed.toFixed(1)}с)`,'ok');
+    times.push(elapsed); addHistory(true,val,elapsed);
+  } else {
+    streak=0; d.classList.add('wrong');
+    setFeedback(`✗ неверно — ответ: ${currentAnswer}`,'err');
+    times.push(elapsed); addHistory(false,val,elapsed);
+  }
+  updateStats();
+  setTimeout(nextProblem, 1200);
+}
+
+function handleTimeout() {
+  if (currentAnswer===null||inputLocked) return;
+  inputLocked=true; total++; streak=0;
+  document.getElementById('answer-display').classList.remove('focused');
+  setFeedback(`⏱ время! ответ: ${currentAnswer}`,'timeout');
+  addHistory('timeout',null,timeLimit);
+  updateStats();
+  setTimeout(nextProblem, 1400);
+}
+
+// ── Feedback ──
+function setFeedback(msg,type) {
+  const el=document.getElementById('feedback');
+  el.textContent=msg;
+  el.className='feedback'+(type?' '+type:'');
+}
+
+// ── History ──
+function addHistory(ok,userVal,elapsed) {
+  const c=document.getElementById('history');
+  const num=document.getElementById('problem-num').textContent;
+  const pfx=currentDegree===2?'√':'∛';
+  const status=ok==='timeout'?'tmo':ok?'ok':'err';
+  const badge =ok==='timeout'?'время':ok?'верно':'ошибка';
+  const wrong =(!ok&&ok!=='timeout')?` (вы:${userVal}, отв:${currentAnswer})`:'';
+  const item=document.createElement('div');
+  item.className='hist-item';
+  item.innerHTML=`<span class="hist-expr">${pfx}<span>${num}</span>${wrong}</span>
+    <span class="hist-result">
+      <span class="hist-badge ${status}">${badge}</span>
+      <span class="hist-time">${elapsed.toFixed(1)}с</span>
+    </span>`;
+  c.insertBefore(item,c.firstChild);
+  if (c.children.length>10) c.removeChild(c.lastChild);
+}
+
+// ── Stats ──
+function updateStats() {
+  document.getElementById('score').textContent  = score;
+  document.getElementById('streak').textContent = streak;
+  document.getElementById('acc').textContent    = total>0?Math.round(correct/total*100)+'%':'—';
+  document.getElementById('avg-time').textContent = times.length>0?(times.reduce((a,b)=>a+b,0)/times.length).toFixed(1)+'с':'—';
+}
+
+function resetState() {
+  score=0; streak=0; total=0; correct=0; times=[];
+  updateStats();
+  document.getElementById('history').innerHTML='';
+}
+
+// ── Buttons ──
+document.getElementById('btn-start').addEventListener('click', () => {
+  document.getElementById('start-screen').classList.add('hidden');
+  const gs=document.getElementById('game-screen');
+  gs.style.display='flex';
+  resetState();
+  nextProblem();
+});
+
+document.getElementById('btn-pause').addEventListener('click', togglePause);
+
+document.getElementById('btn-restart').addEventListener('click', () => {
+  clearInterval(timerInterval); paused=false;
+  resetState(); nextProblem();
+});
+
+document.getElementById('btn-stop').addEventListener('click', () => {
+  clearInterval(timerInterval);
+  currentAnswer=null; inputStr=''; inputLocked=false; paused=false;
+  renderInput();
+  document.getElementById('answer-display').className='answer-display';
+  document.getElementById('problem-num').textContent='—';
+  document.getElementById('pause-overlay').classList.remove('active');
+  setRing(0); setFeedback('',''); resetState();
+  document.getElementById('game-screen').style.display='none';
+  document.getElementById('start-screen').classList.remove('hidden');
+});
+</script>
+</body>
+</html>
