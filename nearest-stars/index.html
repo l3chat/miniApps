@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#080b12">
   <title>20 ближайших звёзд к Солнцу — 3D</title>
   <style>
-    :root{color-scheme:light dark}
+    :root{color-scheme:dark}
     *{box-sizing:border-box}
     html,body{margin:0;padding:0;background:#080b12;color:#f3f5fa;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
     body{min-height:100vh}
@@ -18,7 +18,7 @@
     .layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(220px,300px);gap:14px;align-items:start}
     .scene-col{min-width:0}
     #sceneWrap{position:relative;width:100%;height:560px;min-height:360px;border:1px solid #303743;border-radius:14px;overflow:hidden;background:#03050a;touch-action:none}
-    #loading{position:absolute;inset:0;display:grid;place-items:center;color:#dce6ff;font-size:14px;z-index:5}
+    #loading{position:absolute;inset:0;display:grid;place-items:center;color:#dce6ff;font-size:14px;z-index:5;padding:20px;text-align:center}
     .caption{font-size:12px;opacity:.68;margin-top:7px}
     .side{min-width:0;display:flex;flex-direction:column;gap:10px}
     #info{padding:12px;border:1px solid #303743;border-radius:12px;background:#111620}
@@ -29,6 +29,15 @@
     button:focus-visible{outline:2px solid #7aa2ff;outline-offset:2px}
     @media(max-width:700px){.layout{grid-template-columns:1fr}#sceneWrap{height:440px}.side{padding-bottom:12px}}
   </style>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"
+    }
+  }
+  </script>
 </head>
 <body>
 <div id="nearstars-app">
@@ -58,6 +67,9 @@
 </div>
 
 <script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
 const root=document.getElementById('nearstars-app');
 const stars=[
   {name:'Proxima Centauri',d:4.2465,ra:[14,29,43.0],dec:[-62,40,46],sp:'M5.5Ve'},
@@ -89,7 +101,6 @@ stars.forEach(s=>{const a=raRad(s.ra),q=decRad(s.dec);s.xyz=[s.d*Math.cos(q)*Mat
 const list=root.querySelector('#starList');
 stars.forEach((s,i)=>{const b=document.createElement('button');b.type='button';b.className='star-row';b.dataset.i=i;b.innerHTML=`<strong>${i+1}. ${s.name}</strong><br><span style="font-size:12px;opacity:.7">${s.d.toFixed(3)} св. лет · ${s.sp}</span>`;list.appendChild(b)});
 
-let THREE,OrbitControls,scene,camera,renderer,controls,points,labels=[];
 const info=root.querySelector('#info');
 const wrap=root.querySelector('#sceneWrap');
 const colors={O:0x9bb8ff,B:0xaac6ff,A:0xdde7ff,F:0xfff1d0,G:0xffdf74,K:0xffa85c,M:0xff6d55,D:0xd9ecff};
@@ -103,54 +114,74 @@ function select(i){
 list.addEventListener('click',e=>{const b=e.target.closest('.star-row');if(b)select(+b.dataset.i)});
 
 try{
-  THREE=await import('https://cdn.jsdelivr.net/npm/three@0.180.0/+esm');
-  ({OrbitControls}=await import('https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/controls/OrbitControls.js/+esm'));
-
-  scene=new THREE.Scene();
+  const scene=new THREE.Scene();
   scene.background=new THREE.Color(0x03050a);
-  camera=new THREE.PerspectiveCamera(48,1,.1,200);
+
+  const camera=new THREE.PerspectiveCamera(48,1,.1,200);
   camera.position.set(18,14,22);
-  renderer=new THREE.WebGLRenderer({antialias:true});
-  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+
+  const renderer=new THREE.WebGLRenderer({antialias:true});
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
   wrap.appendChild(renderer.domElement);
 
-  controls=new OrbitControls(camera,renderer.domElement);
+  const controls=new OrbitControls(camera,renderer.domElement);
   controls.enableDamping=true;
   controls.dampingFactor=.06;
   controls.minDistance=4;
   controls.maxDistance=70;
 
-  const grid=new THREE.GridHelper(30,15,0x334055,0x18202d);scene.add(grid);
-  const axes=new THREE.AxesHelper(8);scene.add(axes);
-  [5,10].forEach(r=>{const geo=new THREE.BufferGeometry();const arr=[];for(let i=0;i<=128;i++){const a=i/128*Math.PI*2;arr.push(Math.cos(a)*r,0,Math.sin(a)*r)}geo.setAttribute('position',new THREE.Float32BufferAttribute(arr,3));scene.add(new THREE.Line(geo,new THREE.LineBasicMaterial({color:0x263349,transparent:true,opacity:.6})))});
+  scene.add(new THREE.GridHelper(30,15,0x334055,0x18202d));
+  scene.add(new THREE.AxesHelper(8));
+
+  [5,10].forEach(r=>{
+    const geo=new THREE.BufferGeometry();
+    const arr=[];
+    for(let i=0;i<=128;i++){
+      const a=i/128*Math.PI*2;
+      arr.push(Math.cos(a)*r,0,Math.sin(a)*r);
+    }
+    geo.setAttribute('position',new THREE.Float32BufferAttribute(arr,3));
+    scene.add(new THREE.Line(geo,new THREE.LineBasicMaterial({color:0x263349,transparent:true,opacity:.6})));
+  });
 
   const sun=new THREE.Mesh(new THREE.SphereGeometry(.22,24,16),new THREE.MeshBasicMaterial({color:0xffdf75}));
   scene.add(sun);
 
   const pos=[],cols=[];
-  stars.forEach(s=>{pos.push(...s.xyz);const c=new THREE.Color(typeColor(s.sp));cols.push(c.r,c.g,c.b)});
+  stars.forEach(s=>{
+    pos.push(...s.xyz);
+    const c=new THREE.Color(typeColor(s.sp));
+    cols.push(c.r,c.g,c.b);
+  });
   const g=new THREE.BufferGeometry();
   g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
   g.setAttribute('color',new THREE.Float32BufferAttribute(cols,3));
-  points=new THREE.Points(g,new THREE.PointsMaterial({size:.26,vertexColors:true,sizeAttenuation:true}));
+  const points=new THREE.Points(g,new THREE.PointsMaterial({size:.26,vertexColors:true,sizeAttenuation:true}));
   scene.add(points);
 
   const labelLayer=document.createElement('div');
   labelLayer.style.cssText='position:absolute;inset:0;pointer-events:none;overflow:hidden';
   wrap.appendChild(labelLayer);
-  stars.forEach(s=>{const el=document.createElement('div');el.textContent=s.name;el.style.cssText='position:absolute;color:#dfe8ff;font-size:11px;white-space:nowrap;text-shadow:0 1px 3px #000;transform:translate(6px,-50%)';labelLayer.appendChild(el);labels.push(el)});
-  const sl=document.createElement('div');
-  sl.textContent='☉ Солнце';
-  sl.style.cssText='position:absolute;color:#ffe596;font-size:12px;font-weight:700;white-space:nowrap;text-shadow:0 1px 3px #000;transform:translate(7px,-50%)';
-  labelLayer.appendChild(sl);
-  labels.sun=sl;
+  const labels=[];
+  stars.forEach(s=>{
+    const el=document.createElement('div');
+    el.textContent=s.name;
+    el.style.cssText='position:absolute;color:#dfe8ff;font-size:11px;white-space:nowrap;text-shadow:0 1px 3px #000;transform:translate(6px,-50%)';
+    labelLayer.appendChild(el);
+    labels.push(el);
+  });
+  const sunLabel=document.createElement('div');
+  sunLabel.textContent='☉ Солнце';
+  sunLabel.style.cssText='position:absolute;color:#ffe596;font-size:12px;font-weight:700;white-space:nowrap;text-shadow:0 1px 3px #000;transform:translate(7px,-50%)';
+  labelLayer.appendChild(sunLabel);
 
   const ray=new THREE.Raycaster();
   ray.params.Points.threshold=.35;
   const mouse=new THREE.Vector2();
-  renderer.domElement.addEventListener('pointerdown',e=>{renderer.domElement.dataset.px=e.clientX;renderer.domElement.dataset.py=e.clientY});
+  let downX=0,downY=0;
+  renderer.domElement.addEventListener('pointerdown',e=>{downX=e.clientX;downY=e.clientY});
   renderer.domElement.addEventListener('pointerup',e=>{
-    if(Math.hypot(e.clientX-(+renderer.domElement.dataset.px||0),e.clientY-(+renderer.domElement.dataset.py||0))>7)return;
+    if(Math.hypot(e.clientX-downX,e.clientY-downY)>7)return;
     const r=renderer.domElement.getBoundingClientRect();
     mouse.x=((e.clientX-r.left)/r.width)*2-1;
     mouse.y=-((e.clientY-r.top)/r.height)*2+1;
@@ -159,21 +190,53 @@ try{
     if(hit.length)select(hit[0].index);
   });
 
-  const resize=()=>{const w=wrap.clientWidth,h=wrap.clientHeight;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix()};
+  const resize=()=>{
+    const w=Math.max(1,wrap.clientWidth),h=Math.max(1,wrap.clientHeight);
+    renderer.setSize(w,h,false);
+    camera.aspect=w/h;
+    camera.updateProjectionMatrix();
+  };
   new ResizeObserver(resize).observe(wrap);
   resize();
 
-  root.querySelector('#resetView').addEventListener('click',()=>{camera.position.set(18,14,22);controls.target.set(0,0,0);controls.update()});
+  root.querySelector('#resetView').addEventListener('click',()=>{
+    camera.position.set(18,14,22);
+    controls.target.set(0,0,0);
+    controls.update();
+  });
+
   let labelsOn=true;
-  root.querySelector('#toggleLabels').addEventListener('click',e=>{labelsOn=!labelsOn;labelLayer.style.display=labelsOn?'block':'none';e.currentTarget.textContent='Подписи: '+(labelsOn?'вкл.':'выкл.')});
+  root.querySelector('#toggleLabels').addEventListener('click',e=>{
+    labelsOn=!labelsOn;
+    labelLayer.style.display=labelsOn?'block':'none';
+    e.currentTarget.textContent='Подписи: '+(labelsOn?'вкл.':'выкл.');
+  });
+
   root.querySelector('#loading').remove();
 
-  function placeLabel(el,v){const p=v.clone().project(camera);const x=(p.x*.5+.5)*wrap.clientWidth,y=(-p.y*.5+.5)*wrap.clientHeight;const visible=p.z>-1&&p.z<1&&x>=0&&x<=wrap.clientWidth&&y>=0&&y<=wrap.clientHeight;el.style.display=visible?'block':'none';if(visible){el.style.left=x+'px';el.style.top=y+'px'}}
-  function loop(){controls.update();if(labelsOn){stars.forEach((s,i)=>placeLabel(labels[i],new THREE.Vector3(...s.xyz)));placeLabel(labels.sun,new THREE.Vector3(0,0,0))}renderer.render(scene,camera);requestAnimationFrame(loop)}
+  function placeLabel(el,v){
+    const p=v.clone().project(camera);
+    const x=(p.x*.5+.5)*wrap.clientWidth;
+    const y=(-p.y*.5+.5)*wrap.clientHeight;
+    const visible=p.z>-1&&p.z<1&&x>=0&&x<=wrap.clientWidth&&y>=0&&y<=wrap.clientHeight;
+    el.style.display=visible?'block':'none';
+    if(visible){el.style.left=x+'px';el.style.top=y+'px';}
+  }
+
+  function loop(){
+    controls.update();
+    if(labelsOn){
+      stars.forEach((s,i)=>placeLabel(labels[i],new THREE.Vector3(...s.xyz)));
+      placeLabel(sunLabel,new THREE.Vector3(0,0,0));
+    }
+    renderer.render(scene,camera);
+    requestAnimationFrame(loop);
+  }
   loop();
 }catch(err){
-  root.querySelector('#loading').textContent='Не удалось загрузить Three.js. Список звёзд остаётся доступен.';
   console.error(err);
+  const loading=root.querySelector('#loading');
+  if(loading)loading.textContent='Ошибка запуска 3D: '+(err?.message||err);
 }
 </script>
 </body>
