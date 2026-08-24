@@ -53,6 +53,7 @@ list.addEventListener('click',e=>{const b=e.target.closest('.star-row');if(!b)re
 try{
 const scene=new THREE.Scene();scene.background=new THREE.Color(0x03050a);
 const initialCameraPos=new THREE.Vector3(18,14,22);
+const initialCameraDistance=initialCameraPos.length();
 const camera=new THREE.PerspectiveCamera(48,1,.1,300);camera.position.copy(initialCameraPos);
 const renderer=new THREE.WebGLRenderer({antialias:true});renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));wrap.appendChild(renderer.domElement);
 const controls=new OrbitControls(camera,renderer.domElement);controls.enableDamping=true;controls.dampingFactor=.06;controls.minDistance=4;controls.maxDistance=130;controls.target.set(0,0,0);controls.update();
@@ -73,7 +74,7 @@ root.querySelector('#resetView').addEventListener('click',centerView);
 root.querySelector('#toggleLabels').addEventListener('click',e=>{labelsOn=!labelsOn;labels.forEach(el=>el.visible=labelsOn);sunLabel.visible=labelsOn;e.currentTarget.textContent='Подписи: '+(labelsOn?'вкл.':'выкл.')});
 root.querySelector('#loading').remove();rebuildVisible(true);
 fetch('https://raw.githubusercontent.com/isene/starmap/master/data/stars.csv').then(r=>{if(!r.ok)throw new Error('catalog '+r.status);return r.text()}).then(text=>{const extra=[];for(const line of text.split(/\r?\n/)){if(!line||line[0]==='#')continue;const p=line.split(',');if(p.length<9)continue;const ra=+p[0],dec=+p[1],mag=+p[2],sp=p[4]||'',hd=p[5],hip=p[6],pc=+p[7];if(!Number.isFinite(pc)||pc<=0)continue;const d=pc*3.26156;if(d>50)continue;const name=(p[8]||'').trim()|| (hip?`HIP ${hip}`:hd?`HD ${hd}`:'');if(!name)continue;const a=ra*Math.PI/180,q=dec*Math.PI/180,xyz=[d*Math.cos(q)*Math.cos(a),d*Math.sin(q),d*Math.cos(q)*Math.sin(a)];let duplicate=false;for(const b of base){const dx=xyz[0]-b.xyz[0],dy=xyz[1]-b.xyz[1],dz=xyz[2]-b.xyz[2];if(Math.hypot(dx,dy,dz)<.18){duplicate=true;break}}if(duplicate)continue;extra.push({uid:`cat-${hip||hd||extra.length}`,name,d,sp,mag:Number.isFinite(mag)?mag:99,xyz})}catalog=[...base,...extra];rebuildVisible(true)}).catch(err=>console.warn('Extended catalog unavailable:',err));
-function loop(){controls.update();rebuildVisible(false);labels.forEach(el=>{const t=el.userData.targetScale||1,c=el.userData.currentScale||1,n=c+(t-c)*.12;if(Math.abs(n-c)>.0001)updateCurvedLabel(el,n)});renderer.render(scene,camera);requestAnimationFrame(loop)}loop();
+function loop(){controls.update();rebuildVisible(false);const cameraDistance=camera.position.distanceTo(controls.target);const zoomComp=Math.max(.75,Math.min(4.5,Math.pow(cameraDistance/initialCameraDistance,.82)));labels.forEach(el=>{const selectedScale=el.userData.targetScale||1;const target=selectedScale*zoomComp;const c=el.userData.currentScale||1;const n=c+(target-c)*.12;if(Math.abs(n-c)>.0001)updateCurvedLabel(el,n)});sunLabel.scale.setScalar(zoomComp);renderer.render(scene,camera);requestAnimationFrame(loop)}loop();
 }catch(err){console.error(err);const loading=root.querySelector('#loading');if(loading)loading.textContent='Ошибка запуска 3D: '+(err?.message||err)}
 </script>
 </body>
