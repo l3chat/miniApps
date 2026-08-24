@@ -48,6 +48,7 @@ stars.forEach((s,i)=>{const b=document.createElement('button');b.type='button';b
 const info=root.querySelector('#info'),wrap=root.querySelector('#sceneWrap');
 const colors={O:0x9bb8ff,B:0xaac6ff,A:0xdde7ff,F:0xfff1d0,G:0xffdf74,K:0xffa85c,M:0xff6d55,D:0xd9ecff};const typeColor=sp=>colors[sp[0]]||0xffffff;
 let selected=-1;
+const labels=[];
 function select(i){selected=i;const s=stars[i];[...list.children].forEach((b,j)=>b.dataset.selected=String(j===i));labels.forEach((el,j)=>{el.userData.targetScale=j===i?2:1});info.innerHTML=`<div style="font-weight:750;margin-bottom:5px">${s.name}</div><div style="font-size:13px;line-height:1.55"><b>${s.d.toFixed(4)}</b> св. лет<br>Спектральный класс: <b>${s.sp}</b><br>x=${s.xyz[0].toFixed(2)}, y=${s.xyz[1].toFixed(2)}, z=${s.xyz[2].toFixed(2)} св. лет</div>`}list.addEventListener('click',e=>{const b=e.target.closest('.star-row');if(b)select(+b.dataset.i)});
 try{
 const scene=new THREE.Scene();scene.background=new THREE.Color(0x03050a);
@@ -60,7 +61,6 @@ scene.add(new THREE.AxesHelper(2));
 scene.add(new THREE.Mesh(new THREE.SphereGeometry(.22,24,16),new THREE.MeshBasicMaterial({color:0xffdf75})));
 const pos=[],cols=[];stars.forEach(s=>{pos.push(...s.xyz);const c=new THREE.Color(typeColor(s.sp));cols.push(c.r,c.g,c.b)});const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setAttribute('color',new THREE.Float32BufferAttribute(cols,3));const points=new THREE.Points(g,new THREE.PointsMaterial({size:.26,vertexColors:true,sizeAttenuation:true}));scene.add(points);
 const spokePositions=[];stars.forEach(s=>spokePositions.push(0,0,0,...s.xyz));const spokeGeometry=new THREE.BufferGeometry();spokeGeometry.setAttribute('position',new THREE.Float32BufferAttribute(spokePositions,3));scene.add(new THREE.LineSegments(spokeGeometry,new THREE.LineBasicMaterial({color:0xc7d6ee,transparent:true,opacity:.82})));
-const labels=[];
 const makeLabel=(text,color='#dfe8ff')=>{const canvas=document.createElement('canvas');const ctx=canvas.getContext('2d');ctx.font='600 28px system-ui,sans-serif';const pad=12;const w=Math.ceil(ctx.measureText(text).width)+pad*2;canvas.width=w;canvas.height=52;ctx.font='600 28px system-ui,sans-serif';ctx.fillStyle=color;ctx.textBaseline='middle';ctx.fillText(text,pad,26);const tex=new THREE.CanvasTexture(canvas);tex.colorSpace=THREE.SRGBColorSpace;tex.minFilter=THREE.LinearFilter;const aspect=w/52;const mesh=new THREE.Mesh(new THREE.PlaneGeometry(1.6*aspect,1.6),new THREE.MeshBasicMaterial({map:tex,transparent:true,depthTest:false,side:THREE.DoubleSide}));mesh.renderOrder=10;mesh.userData.targetScale=1;return mesh};
 stars.forEach(s=>{const el=makeLabel(s.name);el.position.set(s.xyz[0],s.xyz[1]+0.42,s.xyz[2]);const phi=Math.atan2(s.xyz[2],s.xyz[0]);el.rotation.set(0,-phi+Math.PI/2,0);scene.add(el);labels.push(el)});
 const sunLabel=makeLabel('☉ Солнце','#ffe596');sunLabel.position.set(0,.42,0);sunLabel.rotation.set(0,0,0);scene.add(sunLabel);labels.sun=sunLabel;
