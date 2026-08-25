@@ -74,15 +74,28 @@ scene.add(hemi, key, rim);
 
 const floor = new THREE.Mesh(
   new THREE.PlaneGeometry(28, 40),
-  new THREE.MeshStandardMaterial({ color: 0x111a2d, roughness: .82, metalness: .05 })
+  new THREE.MeshStandardMaterial({
+    color: 0x111a2d,
+    roughness: .82,
+    metalness: .05,
+    transparent: true,
+    opacity: .12,
+    depthWrite: false
+  })
 );
 floor.rotation.x = -Math.PI / 2;
 floor.position.set(0, 0, -8);
-floor.receiveShadow = true;
+floor.receiveShadow = false;
 scene.add(floor);
 
 const grid = new THREE.GridHelper(28, 56, 0x315074, 0x22334b);
 grid.position.set(0, .006, -8);
+const floorGridMaterials = Array.isArray(grid.material) ? grid.material : [grid.material];
+for (const m of floorGridMaterials) {
+  m.transparent = true;
+  m.opacity = .28;
+  m.depthWrite = false;
+}
 scene.add(grid);
 
 // Distant vertical reference grid. It is intentionally much larger than any
@@ -228,7 +241,7 @@ function updateCamera(t) {
   const x = (view(t) - .5) * params.baselineCm / 100;
   camera.position.x = x;
   const F = currentFocusDistance();
-  camera.lookAt(new THREE.Vector3(0, 1.0, camera.position.z - F));
+  camera.lookAt(new THREE.Vector3(0, camera.position.y, camera.position.z - F));
   $('camx').textContent = (x * 100).toFixed(1);
   $('focusHud').textContent = F.toFixed(1);
 }
@@ -265,9 +278,6 @@ function makeTestObject(type, x, y, z, color, distance, angularRadius) {
 }
 
 function testHorizontalX(distance, side) {
-  // At the centered camera position, place projected centers at x = ±0.75 NDC.
-  // Since NDC spans 2 units across the full viewport, the center-to-center
-  // separation is 1.5 / 2 = 75% of the viewport width.
   const tanHalf = Math.tan(THREE.MathUtils.degToRad(camera.fov * .5));
   const halfVisibleWidth = tanHalf * distance * camera.aspect;
   return side * .75 * halfVisibleWidth;
