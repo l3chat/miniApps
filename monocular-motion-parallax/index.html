@@ -160,11 +160,11 @@
   <div class="testQuestion">Какой шар ближе?</div>
 
   <div class="row" style="grid-template-columns:128px 1fr 72px">
-    <label for="testDelta">Разница глубины</label>
-    <input id="testDelta" type="range" min="1" max="150" step="1" value="20">
-    <div class="value"><span id="testDeltaVal">20</span> cm</div>
+    <label for="testRatio">ΔZ / Z</label>
+    <input id="testRatio" type="range" min="0.1" max="30" step="0.1" value="5">
+    <div class="value"><span id="testRatioVal">5.0</span>%</div>
   </div>
-  <div class="score" id="testState">Адаптивно · средняя дальность: — · цель ≈80%</div>
+  <div class="score" id="testState">Адаптивно · Z: — · ΔZ: — · цель ≈80%</div>
 
   <div class="grid2">
     <button id="leftChoice">← Левый</button>
@@ -260,6 +260,7 @@ addObject('cone',    1.15,.58,-3.5,1.0,palette[3]);
 addObject('sphere', -1.45,.55,-4.8,.9,palette[4]);
 addObject('box',     0.15,.55,-5.8,.9,palette[5]);
 
+// Depth rails / reference markers
 for(let i=0;i<7;i++){
   const z = 0.2 - i*1.0;
   const marker=new THREE.Mesh(
@@ -270,70 +271,111 @@ for(let i=0;i<7;i++){
   scene.add(marker);
 }
 
-let params={mode:'static',baselineCm:8,frequency:1.6,waveform:'sine',sceneDepth:2.4,paused:false};
+let params={
+  mode:'static',
+  baselineCm:8,
+  frequency:1.6,
+  waveform:'sine',
+  sceneDepth:2.4,
+  paused:false
+};
 let elapsed=0;
 let last=performance.now();
 let fpsSmooth=60;
+
 const target = new THREE.Vector3(0,1.0,-2.2);
 
-function triangle01(phase){const p=((phase%1)+1)%1;return p<.5 ? p*2 : 2-p*2;}
-function sine01(phase){return .5-.5*Math.cos(phase*Math.PI*2);}
-function wave01(phase){return params.waveform==='triangle' ? triangle01(phase) : sine01(phase);}
+function triangle01(phase){
+  // 0..1..0
+  const p=((phase%1)+1)%1;
+  return p<.5 ? p*2 : 2-p*2;
+}
+function sine01(phase){
+  return .5-.5*Math.cos(phase*Math.PI*2);
+}
+function wave01(phase){
+  return params.waveform==='triangle' ? triangle01(phase) : sine01(phase);
+}
+
 function normalizedView(t){
   const phase=t*params.frequency;
   if(params.mode==='static') return .5;
   if(params.mode==='continuous') return wave01(phase);
-  if(params.mode==='lr') return (Math.floor(phase*2)%2===0) ? 0 : 1;
+
+  if(params.mode==='lr'){
+    return (Math.floor(phase*2)%2===0) ? 0 : 1;
+  }
+
+  // 5 discrete viewpoints ping-pong: 0,.25,.5,.75,1,.75,.5,.25,...
   const steps=[0,.25,.5,.75,1,.75,.5,.25];
   const idx=Math.floor(phase*8)%steps.length;
   return steps[(idx+steps.length)%steps.length];
 }
+
 function updateCamera(t){
   const u=normalizedView(t);
-  const B=params.baselineCm/100;
+  const B=params.baselineCm/100;   // metres
   const x=(u-.5)*B;
   camera.position.x=x;
   camera.lookAt(target);
   document.getElementById('camx').textContent=(x*100).toFixed(1);
 }
 
+// Mini psychophysical test
 const testPanel=document.getElementById('testPanel');
 let testActive=false;
 let trials=[];
 let currentTrial=null;
 let testObjects=[];
-let testDelta=0.20;
-const TEST_DELTA_MIN=0.01;
-const TEST_DELTA_MAX=1.50;
+
+// Adaptive staircase on relative depth difference r = ΔZ / Z.
+// Correct answers make the task slightly harder; errors make it easier.
+// With factors 0.96 and 1.18 the log-step equilibrium is close to 80% correct.
+let testRatio=0.05;                 // ΔZ / mean distance, 5%
+const TEST_RATIO_MIN=0.001;         // 0.1%
+const TEST_RATIO_MAX=0.30;          // 30%
 const TEST_CORRECT_FACTOR=0.96;
 const TEST_ERROR_FACTOR=1.18;
-const TEST_DISTANCE_MIN=2.5;
+const TEST_DISTANCE_MIN=2.5;        // metres from camera
 const TEST_DISTANCE_MAX=8.0;
 
 function clearTestObjects(){
-  for(const o of testObjects){scene.remove(o);o.geometry.dispose();o.material.dispose();}
+  for(const o of testObjects){
+    scene.remove(o);
+    o.geometry.dispose();
+    o.material.dispose();
+  }
   testObjects=[];
 }
-function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
-function syncTestDeltaUI(){
-  const cm=Math.round(testDelta*100);
-  document.getElementById('testDelta').value=cm;
-  document.getElementById('testDeltaVal').textContent=cm;
+function clamp(v,a,b){ return Math.max(a,Math.min(b,v)); }
+
+function syncTestRatioUI(){
+  const pct=testRatio*100;
+  document.getElementById('testRatio').value=pct;
+  document.getElementById('testRatioVal').textContent=pct.toFixed(1);
 }
+
 function randomMeanDistance(){
+  // Log-uniform sampling gives useful coverage of both near and far distances.
   const a=Math.log(TEST_DISTANCE_MIN);
   const b=Math.log(TEST_DISTANCE_MAX);
   return Math.exp(a + Math.random()*(b-a));
 }
+
 function newTrial(){
   if(!testActive) return;
   clearTestObjects();
+
   const meanDistance=randomMeanDistance();
-  const delta=clamp(testDelta,TEST_DELTA_MIN,Math.min(TEST_DELTA_MAX,meanDistance*0.45));
+  const ratio=clamp(testRatio,TEST_RATIO_MIN,TEST_RATIO_MAX);
+  const delta=ratio*meanDistance;
   const nearer=Math.random()<.5?'left':'right';
+
+  // Camera looks roughly along -Z. A larger Z coordinate is therefore nearer.
   const centerZ=camera.position.z-meanDistance;
   const zl=centerZ + (nearer==='left'?delta/2:-delta/2);
   const zr=centerZ + (nearer==='right'?delta/2:-delta/2);
+
   const mk=(x,z,c)=>{
     const m=new THREE.Mesh(
       new THREE.SphereGeometry(.34,48,32),
@@ -341,23 +383,52 @@ function newTrial(){
     );
     m.position.set(x,.85,z);
     m.castShadow=true;
-    scene.add(m);testObjects.push(m);
+    scene.add(m); testObjects.push(m);
     return m;
   };
   mk(-.65,zl,0x7dc5ff);
   mk(.65,zr,0xffaa7a);
-  currentTrial={nearer,delta,meanDistance,mode:params.mode,baselineCm:params.baselineCm,frequency:params.frequency,waveform:params.waveform};
-  document.getElementById('testState').textContent=`Адаптивно · средняя дальность: ${meanDistance.toFixed(2)} m · цель ≈80%`;
+
+  currentTrial={
+    nearer,
+    delta,
+    ratio,
+    meanDistance,
+    mode:params.mode,
+    baselineCm:params.baselineCm,
+    frequency:params.frequency,
+    waveform:params.waveform
+  };
+
+  document.getElementById('testState').textContent=
+    `Адаптивно · Z: ${meanDistance.toFixed(2)} m · ΔZ: ${(delta*100).toFixed(1)} cm · цель ≈80%`;
 }
+
 function answer(choice){
   if(!currentTrial) return;
   const correct=choice===currentTrial.nearer;
-  trials.push({...currentTrial,choice,correct,deltaBefore:testDelta,time:new Date().toISOString()});
-  testDelta*=correct ? TEST_CORRECT_FACTOR : TEST_ERROR_FACTOR;
-  testDelta=clamp(testDelta,TEST_DELTA_MIN,TEST_DELTA_MAX);
-  syncTestDeltaUI();
+
+  const ratioBefore=testRatio;
+  testRatio*=correct ? TEST_CORRECT_FACTOR : TEST_ERROR_FACTOR;
+  testRatio=clamp(testRatio,TEST_RATIO_MIN,TEST_RATIO_MAX);
+
+  trials.push({
+    ...currentTrial,
+    choice,
+    correct,
+    ratioBefore,
+    ratioAfter:testRatio,
+    time:new Date().toISOString()
+  });
+
+  // Weighted adaptive staircase on r = ΔZ/Z:
+  // one error has a stronger effect than one correct response.
+  syncTestRatioUI();
+
   currentTrial=null;
   updateScore();
+
+  // Immediately continue with a new distance and the updated difficulty.
   setTimeout(newTrial,120);
 }
 function updateScore(){
@@ -370,21 +441,28 @@ function setTest(on){
   testActive=on;
   testPanel.classList.toggle('show',on);
   objectGroup.visible=!on;
-  if(on){syncTestDeltaUI();newTrial();}else{clearTestObjects();}
+  if(on){
+    syncTestRatioUI();
+    newTrial();
+  }else{
+    clearTestObjects();
+  }
 }
-document.getElementById('testDelta').addEventListener('input',e=>{
-  testDelta=clamp(parseFloat(e.target.value)/100,TEST_DELTA_MIN,TEST_DELTA_MAX);
-  document.getElementById('testDeltaVal').textContent=Math.round(testDelta*100);
-  if(testActive)newTrial();
+document.getElementById('testRatio').addEventListener('input',e=>{
+  testRatio=clamp(parseFloat(e.target.value)/100,TEST_RATIO_MIN,TEST_RATIO_MAX);
+  document.getElementById('testRatioVal').textContent=(testRatio*100).toFixed(1);
+  // Manual movement immediately becomes the new starting level.
+  if(testActive) newTrial();
 });
+
 document.getElementById('leftChoice').onclick=()=>answer('left');
 document.getElementById('rightChoice').onclick=()=>answer('right');
 document.getElementById('nextTrial').onclick=()=>newTrial();
 document.getElementById('closeTest').onclick=()=>setTest(false);
 document.getElementById('testBtn').onclick=()=>setTest(!testActive);
 document.getElementById('exportCsv').onclick=()=>{
-  const rows=[['time','mode','baseline_cm','frequency_hz','waveform','mean_distance_m','delta_m','delta_before_adaptation_m','nearer','choice','correct']];
-  for(const t of trials)rows.push([t.time,t.mode,t.baselineCm,t.frequency,t.waveform,t.meanDistance,t.delta,t.deltaBefore,t.nearer,t.choice,t.correct]);
+  const rows=[['time','mode','baseline_cm','frequency_hz','waveform','mean_distance_m','delta_m','relative_delta','relative_delta_percent','ratio_before','ratio_after','nearer','choice','correct']];
+  for(const t of trials) rows.push([t.time,t.mode,t.baselineCm,t.frequency,t.waveform,t.meanDistance,t.delta,t.ratio,t.ratio*100,t.ratioBefore,t.ratioAfter,t.nearer,t.choice,t.correct]);
   const csv=rows.map(r=>r.map(v=>`"${String(v).replaceAll('"','""')}"`).join(',')).join('\n');
   const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
   const a=document.createElement('a');
@@ -400,16 +478,18 @@ function bindRange(id,key,formatter=(v)=>v){
   el.addEventListener('input',()=>{
     const v=parseFloat(el.value);
     params[key]=v;
-    if(out)out.textContent=formatter(v);
+    if(out) out.textContent=formatter(v);
     if(id==='fov'){camera.fov=v;camera.updateProjectionMatrix();}
-    if(id==='sceneDepth')applySceneDepth(v);
+    if(id==='sceneDepth') applySceneDepth(v);
   });
 }
 bindRange('baseline','baselineCm',v=>v.toFixed(1));
 bindRange('frequency','frequency',v=>v.toFixed(1));
 bindRange('fov','fov',v=>v.toFixed(0));
 bindRange('sceneDepth','sceneDepth',v=>v.toFixed(1));
+
 document.getElementById('waveform').addEventListener('change',e=>params.waveform=e.target.value);
+
 document.getElementById('modeButtons').addEventListener('click',e=>{
   const b=e.target.closest('button[data-mode]');
   if(!b)return;
@@ -417,52 +497,67 @@ document.getElementById('modeButtons').addEventListener('click',e=>{
   [...document.querySelectorAll('#modeButtons button')].forEach(x=>x.classList.toggle('active',x===b));
   document.getElementById('modeText').textContent=b.textContent;
 });
+
 function applySceneDepth(v){
+  // Re-map demo objects while preserving order.
   const zs=[0.1,-.5*v,-1.0*v,-1.45*v,-1.95*v,-2.4*v];
   objects.forEach((o,i)=>o.position.z=zs[i]);
   target.z=-.9*v;
 }
+
 function togglePause(){
   params.paused=!params.paused;
   document.getElementById('pauseBtn').textContent=params.paused?'▶ Продолжить':'⏸ Пауза';
 }
 document.getElementById('pauseBtn').onclick=togglePause;
+
 async function toggleFullscreen(){
-  if(!document.fullscreenElement)await document.documentElement.requestFullscreen?.();
+  if(!document.fullscreenElement) await document.documentElement.requestFullscreen?.();
   else await document.exitFullscreen?.();
 }
 document.getElementById('fullscreenBtn').onclick=toggleFullscreen;
+
 function reset(){
   document.getElementById('baseline').value=8;
   document.getElementById('frequency').value=1.6;
   document.getElementById('fov').value=55;
   document.getElementById('sceneDepth').value=2.4;
   document.getElementById('waveform').value='sine';
-  params.baselineCm=8;params.frequency=1.6;params.waveform='sine';params.sceneDepth=2.4;
-  camera.fov=55;camera.updateProjectionMatrix();applySceneDepth(2.4);
+  params.baselineCm=8; params.frequency=1.6; params.waveform='sine'; params.sceneDepth=2.4;
+  camera.fov=55; camera.updateProjectionMatrix(); applySceneDepth(2.4);
   ['baselineVal','frequencyVal','fovVal','sceneDepthVal'].forEach((id,i)=>{
     document.getElementById(id).textContent=['8.0','1.6','55','2.4'][i];
   });
 }
 document.getElementById('resetBtn').onclick=reset;
+
 addEventListener('keydown',e=>{
   if(e.code==='Space'){e.preventDefault();togglePause();}
   if(e.key.toLowerCase()==='f')toggleFullscreen();
 });
+
 function resize(){
   camera.aspect=innerWidth/innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(innerWidth,innerHeight);
 }
 addEventListener('resize',resize);
+
 function animate(now){
   requestAnimationFrame(animate);
   const dt=Math.min((now-last)/1000,.05);
   last=now;
-  if(!params.paused)elapsed+=dt;
+  if(!params.paused) elapsed+=dt;
+
   updateCamera(elapsed);
-  if(!testActive)objects.forEach((o,i)=>{o.rotation.y += dt*(.12+.025*i);});
+
+  // Gentle object rotation helps visual parsing, but does not create depth cue by itself.
+  if(!testActive){
+    objects.forEach((o,i)=>{o.rotation.y += dt*(.12+.025*i);});
+  }
+
   renderer.render(scene,camera);
+
   const fps=1/Math.max(dt,.0001);
   fpsSmooth=fpsSmooth*.92+fps*.08;
   document.getElementById('fps').textContent=`${fpsSmooth.toFixed(0)} fps`;
