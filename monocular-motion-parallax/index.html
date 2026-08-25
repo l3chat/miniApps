@@ -1,0 +1,483 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0b1020" />
+  <title>Monocular Motion Parallax Lab</title>
+  <style>
+    :root{
+      --bg:#0b1020;
+      --panel:rgba(12,18,36,.88);
+      --panel2:rgba(19,28,52,.82);
+      --text:#eef4ff;
+      --muted:#a9b8d6;
+      --accent:#6fb6ff;
+      --accent2:#8be0c2;
+      --danger:#ff8b8b;
+      --border:rgba(255,255,255,.12);
+      --shadow:0 14px 50px rgba(0,0,0,.35);
+      --radius:18px;
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--text);
+      font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+    #app{position:fixed;inset:0}
+    canvas{display:block;width:100%;height:100%;touch-action:none}
+    .topbar{
+      position:fixed;left:12px;right:12px;top:max(12px,env(safe-area-inset-top));
+      display:flex;gap:10px;align-items:center;justify-content:space-between;z-index:10;pointer-events:none
+    }
+    .brand,.hud,.controls,.testPanel{
+      background:var(--panel);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+      border:1px solid var(--border);box-shadow:var(--shadow)
+    }
+    .brand{padding:10px 14px;border-radius:999px;font-weight:700;letter-spacing:.2px;pointer-events:auto}
+    .brand small{font-weight:500;color:var(--muted);margin-left:7px}
+    .hud{padding:8px 12px;border-radius:999px;color:var(--muted);font-size:13px;pointer-events:none}
+    .controls{
+      position:fixed;z-index:10;left:12px;bottom:max(12px,env(safe-area-inset-bottom));
+      width:min(440px,calc(100vw - 24px));max-height:min(76vh,720px);overflow:auto;
+      border-radius:var(--radius);padding:14px
+    }
+    .sectionTitle{font-size:12px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);margin:2px 0 8px}
+    .segmented{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:12px}
+    button,select,input{font:inherit}
+    button{
+      border:1px solid var(--border);background:#15213d;color:var(--text);border-radius:12px;
+      min-height:42px;padding:9px 11px;cursor:pointer
+    }
+    button:hover{filter:brightness(1.08)}
+    button.active{background:var(--accent);color:#06111f;border-color:transparent;font-weight:700}
+    button.secondary{background:#111b31}
+    button.good{background:#173a35}
+    button.warn{background:#3a2628}
+    .row{display:grid;grid-template-columns:128px 1fr 64px;gap:10px;align-items:center;margin:10px 0}
+    .row label{font-size:14px;color:#d9e4fa}
+    .value{font-variant-numeric:tabular-nums;text-align:right;color:var(--accent2);font-size:13px}
+    input[type=range]{width:100%;accent-color:var(--accent)}
+    select{
+      width:100%;min-height:40px;background:#111b31;color:var(--text);border:1px solid var(--border);
+      border-radius:10px;padding:0 9px
+    }
+    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+    .hint{font-size:12px;line-height:1.35;color:var(--muted);margin-top:8px}
+    .testPanel{
+      position:fixed;right:12px;bottom:max(12px,env(safe-area-inset-bottom));z-index:10;
+      width:min(360px,calc(100vw - 24px));border-radius:var(--radius);padding:14px;display:none
+    }
+    .testPanel.show{display:block}
+    .testQuestion{font-size:18px;font-weight:700;margin:3px 0 10px}
+    .score{color:var(--muted);font-size:13px;margin-top:8px}
+    .legend{
+      position:fixed;right:12px;top:68px;z-index:8;background:rgba(7,11,21,.55);
+      border:1px solid var(--border);border-radius:14px;padding:9px 11px;font-size:12px;color:var(--muted)
+    }
+    .kbd{display:inline-block;padding:1px 6px;border-radius:6px;border:1px solid var(--border);color:var(--text)}
+    @media (max-width:800px){
+      .hud{display:none}
+      .brand small{display:none}
+      .controls{width:calc(100vw - 24px);max-height:44vh}
+      .testPanel{left:12px;right:12px;bottom:calc(44vh + 24px);width:auto}
+      .legend{display:none}
+      .row{grid-template-columns:110px 1fr 58px}
+      .segmented{grid-template-columns:repeat(2,1fr)}
+    }
+  </style>
+</head>
+<body>
+<div id="app"></div>
+
+<div class="topbar">
+  <div class="brand">Monocular Motion Parallax <small>Three.js demo</small></div>
+  <div class="hud"><span id="fps">— fps</span> · x=<span id="camx">0.0</span> cm · <span id="modeText">Static</span></div>
+</div>
+
+<div class="legend">
+  Смотрите одним глазом.<br>
+  Лучше держать голову неподвижно.<br>
+  <span class="kbd">Space</span> пауза · <span class="kbd">F</span> fullscreen
+</div>
+
+<div class="controls">
+  <div class="sectionTitle">Режим движения камеры</div>
+  <div class="segmented" id="modeButtons">
+    <button data-mode="static" class="active">Static</button>
+    <button data-mode="lr">L ↔ R</button>
+    <button data-mode="five">5 viewpoints</button>
+    <button data-mode="continuous">Continuous</button>
+  </div>
+
+  <div class="row">
+    <label for="baseline">Baseline</label>
+    <input id="baseline" type="range" min="0" max="30" step="0.5" value="8">
+    <div class="value"><span id="baselineVal">8.0</span> cm</div>
+  </div>
+
+  <div class="row">
+    <label for="frequency">Частота</label>
+    <input id="frequency" type="range" min="0.1" max="8" step="0.1" value="1.6">
+    <div class="value"><span id="frequencyVal">1.6</span> Hz</div>
+  </div>
+
+  <div class="row">
+    <label for="waveform">Закон движения</label>
+    <select id="waveform">
+      <option value="sine">Sine</option>
+      <option value="triangle">Triangle</option>
+    </select>
+    <div class="value"></div>
+  </div>
+
+  <div class="row">
+    <label for="fov">FOV камеры</label>
+    <input id="fov" type="range" min="35" max="80" step="1" value="55">
+    <div class="value"><span id="fovVal">55</span>°</div>
+  </div>
+
+  <div class="row">
+    <label for="sceneDepth">Разброс глубины</label>
+    <input id="sceneDepth" type="range" min="0.5" max="4.0" step="0.1" value="2.4">
+    <div class="value"><span id="sceneDepthVal">2.4</span> m</div>
+  </div>
+
+  <div class="grid2">
+    <button id="pauseBtn" class="secondary">⏸ Пауза</button>
+    <button id="fullscreenBtn" class="secondary">⛶ Fullscreen</button>
+    <button id="resetBtn" class="secondary">↺ Сброс</button>
+    <button id="testBtn" class="good">◉ Тест глубины</button>
+  </div>
+
+  <div class="hint">
+    <b>5 viewpoints</b> использует позиции L → L½ → C → R½ → R → … .
+    <b>Continuous</b> движет виртуальную камеру плавно. При неизменной сцене это демонстрирует,
+    как пространственную диспаратность можно превратить во временной motion parallax для одного глаза.
+  </div>
+</div>
+
+<div class="testPanel" id="testPanel">
+  <div class="sectionTitle">Психофизический мини-тест</div>
+  <div class="testQuestion">Какой шар ближе?</div>
+  <div class="grid2">
+    <button id="leftChoice">← Левый</button>
+    <button id="rightChoice">Правый →</button>
+  </div>
+  <div class="score" id="score">Попыток: 0 · Верно: 0 · 0%</div>
+  <div class="grid2">
+    <button id="nextTrial" class="secondary">Новая попытка</button>
+    <button id="exportCsv" class="secondary">CSV</button>
+  </div>
+  <button id="closeTest" class="warn" style="width:100%;margin-top:8px">Закрыть тест</button>
+</div>
+
+<script type="module">
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
+
+const app = document.getElementById('app');
+const renderer = new THREE.WebGLRenderer({antialias:true, powerPreference:'high-performance'});
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+app.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x09101d);
+scene.fog = new THREE.Fog(0x09101d, 8, 24);
+
+const camera = new THREE.PerspectiveCamera(55, innerWidth/innerHeight, 0.05, 50);
+camera.position.set(0, 1.55, 5.8);
+
+const hemi = new THREE.HemisphereLight(0xdde8ff, 0x20304a, 1.7);
+scene.add(hemi);
+const key = new THREE.DirectionalLight(0xffffff, 2.6);
+key.position.set(3, 6, 4);
+key.castShadow = true;
+scene.add(key);
+const rim = new THREE.PointLight(0x68a8ff, 12, 12);
+rim.position.set(-3, 2.5, -1);
+scene.add(rim);
+
+const floor = new THREE.Mesh(
+  new THREE.PlaneGeometry(16, 26),
+  new THREE.MeshStandardMaterial({color:0x111a2d, roughness:.82, metalness:.05})
+);
+floor.rotation.x = -Math.PI/2;
+floor.position.y = 0;
+floor.position.z = -4;
+floor.receiveShadow = true;
+scene.add(floor);
+
+const grid = new THREE.GridHelper(16, 32, 0x315074, 0x22334b);
+grid.position.y = 0.006;
+grid.position.z = -4;
+scene.add(grid);
+
+function makePedestal(x,z,h=.13){
+  const m = new THREE.Mesh(
+    new THREE.CylinderGeometry(.42,.5,h,32),
+    new THREE.MeshStandardMaterial({color:0x283750,roughness:.7})
+  );
+  m.position.set(x,h/2,z);
+  m.receiveShadow = true;
+  m.castShadow = true;
+  scene.add(m);
+  return m;
+}
+
+const objectGroup = new THREE.Group();
+scene.add(objectGroup);
+
+const palette=[0xff7a85,0x78c7ff,0x8ee0b1,0xf6c86b,0xb89cff,0xffa66f];
+const objects=[];
+function addObject(type,x,y,z,scale,color){
+  let geo;
+  if(type==='sphere') geo=new THREE.SphereGeometry(.34,48,32);
+  else if(type==='box') geo=new THREE.BoxGeometry(.58,.58,.58);
+  else if(type==='torus') geo=new THREE.TorusKnotGeometry(.22,.085,96,16);
+  else geo=new THREE.ConeGeometry(.35,.7,32);
+  const mat=new THREE.MeshStandardMaterial({color,roughness:.35,metalness:.12});
+  const mesh=new THREE.Mesh(geo,mat);
+  mesh.position.set(x,y,z); mesh.scale.setScalar(scale);
+  mesh.castShadow=true; mesh.receiveShadow=true;
+  objectGroup.add(mesh); objects.push(mesh);
+  makePedestal(x,z);
+  return mesh;
+}
+
+addObject('sphere', -1.55,.55, 0.1,1.0,palette[0]);
+addObject('box',     1.40,.55,-1.1,1.0,palette[1]);
+addObject('torus',  -0.55,.60,-2.4,1.0,palette[2]);
+addObject('cone',    1.15,.58,-3.5,1.0,palette[3]);
+addObject('sphere', -1.45,.55,-4.8,.9,palette[4]);
+addObject('box',     0.15,.55,-5.8,.9,palette[5]);
+
+// Depth rails / reference markers
+for(let i=0;i<7;i++){
+  const z = 0.2 - i*1.0;
+  const marker=new THREE.Mesh(
+    new THREE.BoxGeometry(3.8,.018,.02),
+    new THREE.MeshBasicMaterial({color:0x27415f,transparent:true,opacity:.58})
+  );
+  marker.position.set(0,.015,z);
+  scene.add(marker);
+}
+
+let params={
+  mode:'static',
+  baselineCm:8,
+  frequency:1.6,
+  waveform:'sine',
+  sceneDepth:2.4,
+  paused:false
+};
+let elapsed=0;
+let last=performance.now();
+let fpsSmooth=60;
+
+const target = new THREE.Vector3(0,1.0,-2.2);
+
+function triangle01(phase){
+  // 0..1..0
+  const p=((phase%1)+1)%1;
+  return p<.5 ? p*2 : 2-p*2;
+}
+function sine01(phase){
+  return .5-.5*Math.cos(phase*Math.PI*2);
+}
+function wave01(phase){
+  return params.waveform==='triangle' ? triangle01(phase) : sine01(phase);
+}
+
+function normalizedView(t){
+  const phase=t*params.frequency;
+  if(params.mode==='static') return .5;
+  if(params.mode==='continuous') return wave01(phase);
+
+  if(params.mode==='lr'){
+    return (Math.floor(phase*2)%2===0) ? 0 : 1;
+  }
+
+  // 5 discrete viewpoints ping-pong: 0,.25,.5,.75,1,.75,.5,.25,...
+  const steps=[0,.25,.5,.75,1,.75,.5,.25];
+  const idx=Math.floor(phase*8)%steps.length;
+  return steps[(idx+steps.length)%steps.length];
+}
+
+function updateCamera(t){
+  const u=normalizedView(t);
+  const B=params.baselineCm/100;   // metres
+  const x=(u-.5)*B;
+  camera.position.x=x;
+  camera.lookAt(target);
+  document.getElementById('camx').textContent=(x*100).toFixed(1);
+}
+
+// Mini psychophysical test
+const testPanel=document.getElementById('testPanel');
+let testActive=false;
+let trials=[];
+let currentTrial=null;
+let testObjects=[];
+
+function clearTestObjects(){
+  for(const o of testObjects){
+    scene.remove(o);
+    o.geometry.dispose();
+    o.material.dispose();
+  }
+  testObjects=[];
+}
+function newTrial(){
+  clearTestObjects();
+  const baseZ=-2.1;
+  const deltaOptions=[0.04,0.07,0.10,0.15,0.22,0.32,0.45];
+  const delta=deltaOptions[Math.floor(Math.random()*deltaOptions.length)];
+  const nearer=Math.random()<.5?'left':'right';
+  const zl=baseZ + (nearer==='left'?delta/2:-delta/2);
+  const zr=baseZ + (nearer==='right'?delta/2:-delta/2);
+
+  const mk=(x,z,c)=>{
+    const m=new THREE.Mesh(
+      new THREE.SphereGeometry(.34,48,32),
+      new THREE.MeshStandardMaterial({color:c,roughness:.33,metalness:.08})
+    );
+    m.position.set(x,.85,z);
+    m.castShadow=true;
+    scene.add(m); testObjects.push(m);
+    return m;
+  };
+  mk(-.65,zl,0x7dc5ff);
+  mk(.65,zr,0xffaa7a);
+  currentTrial={nearer,delta,mode:params.mode,baselineCm:params.baselineCm,frequency:params.frequency,waveform:params.waveform};
+}
+function answer(choice){
+  if(!currentTrial) return;
+  const correct=choice===currentTrial.nearer;
+  trials.push({...currentTrial,choice,correct,time:new Date().toISOString()});
+  currentTrial=null;
+  updateScore();
+}
+function updateScore(){
+  const n=trials.length;
+  const c=trials.filter(t=>t.correct).length;
+  const p=n?Math.round(c/n*100):0;
+  document.getElementById('score').textContent=`Попыток: ${n} · Верно: ${c} · ${p}%`;
+}
+function setTest(on){
+  testActive=on;
+  testPanel.classList.toggle('show',on);
+  objectGroup.visible=!on;
+  if(on) newTrial(); else clearTestObjects();
+}
+document.getElementById('leftChoice').onclick=()=>answer('left');
+document.getElementById('rightChoice').onclick=()=>answer('right');
+document.getElementById('nextTrial').onclick=()=>newTrial();
+document.getElementById('closeTest').onclick=()=>setTest(false);
+document.getElementById('testBtn').onclick=()=>setTest(!testActive);
+document.getElementById('exportCsv').onclick=()=>{
+  const rows=[['time','mode','baseline_cm','frequency_hz','waveform','delta_m','nearer','choice','correct']];
+  for(const t of trials) rows.push([t.time,t.mode,t.baselineCm,t.frequency,t.waveform,t.delta,t.nearer,t.choice,t.correct]);
+  const csv=rows.map(r=>r.map(v=>`"${String(v).replaceAll('"','""')}"`).join(',')).join('\n');
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='motion-parallax-trials.csv';
+  a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+};
+
+function bindRange(id,key,formatter=(v)=>v){
+  const el=document.getElementById(id);
+  const out=document.getElementById(id+'Val');
+  el.addEventListener('input',()=>{
+    const v=parseFloat(el.value);
+    params[key]=v;
+    if(out) out.textContent=formatter(v);
+    if(id==='fov'){camera.fov=v;camera.updateProjectionMatrix();}
+    if(id==='sceneDepth') applySceneDepth(v);
+  });
+}
+bindRange('baseline','baselineCm',v=>v.toFixed(1));
+bindRange('frequency','frequency',v=>v.toFixed(1));
+bindRange('fov','fov',v=>v.toFixed(0));
+bindRange('sceneDepth','sceneDepth',v=>v.toFixed(1));
+
+document.getElementById('waveform').addEventListener('change',e=>params.waveform=e.target.value);
+
+document.getElementById('modeButtons').addEventListener('click',e=>{
+  const b=e.target.closest('button[data-mode]');
+  if(!b)return;
+  params.mode=b.dataset.mode;
+  [...document.querySelectorAll('#modeButtons button')].forEach(x=>x.classList.toggle('active',x===b));
+  document.getElementById('modeText').textContent=b.textContent;
+});
+
+function applySceneDepth(v){
+  // Re-map demo objects while preserving order.
+  const zs=[0.1,-.5*v,-1.0*v,-1.45*v,-1.95*v,-2.4*v];
+  objects.forEach((o,i)=>o.position.z=zs[i]);
+  target.z=-.9*v;
+}
+
+function togglePause(){
+  params.paused=!params.paused;
+  document.getElementById('pauseBtn').textContent=params.paused?'▶ Продолжить':'⏸ Пауза';
+}
+document.getElementById('pauseBtn').onclick=togglePause;
+
+async function toggleFullscreen(){
+  if(!document.fullscreenElement) await document.documentElement.requestFullscreen?.();
+  else await document.exitFullscreen?.();
+}
+document.getElementById('fullscreenBtn').onclick=toggleFullscreen;
+
+function reset(){
+  document.getElementById('baseline').value=8;
+  document.getElementById('frequency').value=1.6;
+  document.getElementById('fov').value=55;
+  document.getElementById('sceneDepth').value=2.4;
+  document.getElementById('waveform').value='sine';
+  params.baselineCm=8; params.frequency=1.6; params.waveform='sine'; params.sceneDepth=2.4;
+  camera.fov=55; camera.updateProjectionMatrix(); applySceneDepth(2.4);
+  ['baselineVal','frequencyVal','fovVal','sceneDepthVal'].forEach((id,i)=>{
+    document.getElementById(id).textContent=['8.0','1.6','55','2.4'][i];
+  });
+}
+document.getElementById('resetBtn').onclick=reset;
+
+addEventListener('keydown',e=>{
+  if(e.code==='Space'){e.preventDefault();togglePause();}
+  if(e.key.toLowerCase()==='f')toggleFullscreen();
+});
+
+function resize(){
+  camera.aspect=innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth,innerHeight);
+}
+addEventListener('resize',resize);
+
+function animate(now){
+  requestAnimationFrame(animate);
+  const dt=Math.min((now-last)/1000,.05);
+  last=now;
+  if(!params.paused) elapsed+=dt;
+
+  updateCamera(elapsed);
+
+  // Gentle object rotation helps visual parsing, but does not create depth cue by itself.
+  if(!testActive){
+    objects.forEach((o,i)=>{o.rotation.y += dt*(.12+.025*i);});
+  }
+
+  renderer.render(scene,camera);
+
+  const fps=1/Math.max(dt,.0001);
+  fpsSmooth=fpsSmooth*.92+fps*.08;
+  document.getElementById('fps').textContent=`${fpsSmooth.toFixed(0)} fps`;
+}
+requestAnimationFrame(animate);
+</script>
+</body>
+</html>
