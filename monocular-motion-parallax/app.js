@@ -189,8 +189,36 @@ function forgivingPick(e){const rect=renderer.domElement.getBoundingClientRect()
 function rayPointForNdcAtDistance(ndcX,ndcY,distance){const p=new THREE.Vector3(ndcX,ndcY,.5).unproject(camera),dir=p.sub(camera.position).normalize();return camera.position.clone().add(dir.multiplyScalar(distance));}
 function candidateFree(mesh,candidate,rect){const a=objectScreenInfo(mesh,rect,candidate);if(Math.abs(a.ndc.x)>.96||Math.abs(a.ndc.y)>.94)return false;for(const o of objects){if(o===mesh||!o.parent||!o.visible)continue;const b=objectScreenInfo(o,rect),gap=a.r+b.r+10;if(Math.hypot(a.x-b.x,a.y-b.y)<gap)return false;}return true;}
 function moveWrongTowardCenter(mesh){const rect=renderer.domElement.getBoundingClientRect();if(!rect.width||!rect.height)return;const info=objectScreenInfo(mesh,rect),distance=camera.position.distanceTo(info.world),yNdc=clamp(info.ndc.y,-.88,.88);const candidates=[0];for(let d=.04;d<=.92;d+=.04)candidates.push(d,-d);let target=null;for(const xNdc of candidates){const c=rayPointForNdcAtDistance(xNdc,yNdc,distance);if(candidateFree(mesh,c,rect)){target=c;break;}}if(!target)return;const item=demoItems.find(x=>x.mesh===mesh);if(item)item.manual=true;gameTweens.set(mesh,{from:mesh.position.clone(),to:target.clone(),start:performance.now(),duration:380});if(item?.support)item.support.visible=false;}
-function moveNearestTowardCamera(mesh){if(!mesh?.parent)return;const world=mesh.getWorldPosition(new THREE.Vector3());const ray=world.clone().sub(camera.position);const distance=ray.length();if(distance<=1.2)return;const targetDistance=Math.max(1.2,distance*.80);const target=camera.position.clone().add(ray.normalize().multiplyScalar(targetDistance));const item=demoItems.find(x=>x.mesh===mesh);if(item)item.manual=true;gameTweens.set(mesh,{from:mesh.position.clone(),to:target,start:performance.now(),duration:420});if(item?.support)item.support.visible=false;}
-function updateGameTweens(now){for(const [mesh,t] of gameTweens){if(!mesh.parent){gameTweens.delete(mesh);continue;}const u=clamp((now-t.start)/t.duration,0,1),s=u*u*(3-2*u);mesh.position.lerpVectors(t.from,t.to,s);if(u>=1)gameTweens.delete(mesh);}}
+function moveNearestTowardCamera(mesh){
+  if(!mesh?.parent)return;
+  const world=mesh.getWorldPosition(new THREE.Vector3());
+  const ray=world.clone().sub(camera.position);
+  const distance=ray.length();
+  if(distance<=1.2)return;
+  const targetDistance=Math.max(1.2,distance*.80);
+  const distanceRatio=targetDistance/distance;
+  const target=camera.position.clone().add(ray.normalize().multiplyScalar(targetDistance));
+  const item=demoItems.find(x=>x.mesh===mesh);
+  if(item)item.manual=true;
+  gameTweens.set(mesh,{
+    from:mesh.position.clone(),
+    to:target,
+    scaleFrom:mesh.scale.clone(),
+    scaleTo:mesh.scale.clone().multiplyScalar(distanceRatio),
+    start:performance.now(),
+    duration:420
+  });
+  if(item?.support)item.support.visible=false;
+}
+function updateGameTweens(now){
+  for(const [mesh,t] of gameTweens){
+    if(!mesh.parent){gameTweens.delete(mesh);continue;}
+    const u=clamp((now-t.start)/t.duration,0,1),s=u*u*(3-2*u);
+    mesh.position.lerpVectors(t.from,t.to,s);
+    if(t.scaleFrom&&t.scaleTo)mesh.scale.lerpVectors(t.scaleFrom,t.scaleTo,s);
+    if(u>=1)gameTweens.delete(mesh);
+  }
+}
 renderer.domElement.addEventListener('pointerup',e=>{if(!gameActive||testActive||e.button>0)return;const hit=forgivingPick(e);if(!hit)return;const nearest=nearestGameObject();if(hit===nearest){gameCorrect++;removeGameObject(hit);}else{gameWrong++;markGameMistake(hit);moveWrongTowardCenter(hit);moveNearestTowardCamera(nearest);}updateGameScore();});
 
 function modeLabel(){return params.mode==='static'?tr('static'):params.mode==='lr'?tr('lr'):params.mode==='five'?tr('five'):tr('continuous');}
