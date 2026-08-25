@@ -277,7 +277,7 @@ function makeTestObject(type, x, y, z, color, distance, angularRadius) {
 function testHorizontalX(distance, side) {
   const tanHalf = Math.tan(THREE.MathUtils.degToRad(camera.fov * .5));
   const halfVisibleWidth = tanHalf * distance * camera.aspect;
-  return side * .50 * halfVisibleWidth;
+  return side * .40 * halfVisibleWidth;
 }
 
 function newTrial() {
