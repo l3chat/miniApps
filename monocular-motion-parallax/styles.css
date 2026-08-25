@@ -2,6 +2,54 @@
 
 @media(max-width:900px){body{overflow:auto}.pageShell{display:flex;flex-direction:column;height:auto;min-height:100dvh}.viewer{height:56dvh;min-height:360px;flex:none}.sidePanel{border-left:0;border-top:1px solid var(--border);overflow:visible;padding:12px}.controls,.testPanel{max-width:760px;margin:0 auto}.legend{display:none}.hud{display:none}.brand small{display:none}}
 
-@media(max-width:600px) and (orientation:portrait){body{overflow:auto}.pageShell{min-height:100dvh}.viewer{height:48dvh;min-height:300px;max-height:520px}.topbar{left:8px;right:8px;top:max(8px,env(safe-area-inset-top))}.brand{max-width:calc(100vw - 16px);padding:7px 10px;border-radius:12px;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.sidePanel{padding:8px 8px max(8px,env(safe-area-inset-bottom));background:#0b1020}.controls,.testPanel{border-radius:16px;padding:10px}.languageRow{grid-template-columns:88px 1fr;gap:7px;margin-bottom:7px}.languageRow label,.row label{font-size:12px}select{min-height:34px;padding:0 7px;font-size:13px}.sectionTitle{font-size:10px;letter-spacing:.09em;margin:0 0 6px}.segmented{grid-template-columns:repeat(2,minmax(0,1fr));gap:5px;margin-bottom:7px}.segmented button{min-height:34px;padding:5px 6px;font-size:12px}.row{grid-template-columns:88px minmax(0,1fr) 50px;gap:6px;margin:6px 0}.testRatioRow{grid-template-columns:88px minmax(0,1fr) 58px}.value{font-size:11.5px}.grid2{gap:6px;margin-top:7px}.grid2 button,.wide{min-height:36px;padding:6px 7px;font-size:12px}.hint{font-size:11.5px}.testQuestion{font-size:16px;margin:2px 0 7px}.score{font-size:11.5px;line-height:1.25}.panelToggle{position:static;margin:0 0 8px auto}.testPanel.show{margin-top:8px}}
+/* Portrait phones: fixed two-zone layout. The viewer and controls each get their own
+   space; nothing scrolls and no panel covers the image. */
+@media(max-width:600px) and (orientation:portrait){
+  html,body{height:100dvh;min-height:0;overflow:hidden}
+  body{overflow:hidden}
+  .pageShell{display:grid;grid-template-rows:46dvh 54dvh;height:100dvh;min-height:0;overflow:hidden}
+  .viewer{height:auto;min-height:0;max-height:none}
+  .topbar{left:7px;right:7px;top:max(7px,env(safe-area-inset-top))}
+  .brand{max-width:calc(100vw - 14px);padding:5px 8px;border-radius:10px;font-size:11.5px;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .brand small,.hud,.legend{display:none}
 
-@media(max-width:600px) and (orientation:portrait) and (max-height:700px){.viewer{height:44dvh;min-height:260px}}
+  .sidePanel{height:54dvh;min-height:0;overflow:hidden;border-left:0;border-top:1px solid var(--border);padding:5px 6px max(5px,env(safe-area-inset-bottom));background:#0b1020}
+  .controls,.testPanel{width:100%;height:100%;max-width:none;margin:0;border-radius:12px;padding:6px 7px;overflow:hidden}
+
+  .languageRow{display:grid;grid-template-columns:58px minmax(0,1fr);gap:5px;align-items:center;margin:0 0 4px}
+  .languageRow label{font-size:10px;line-height:1}
+  select{min-height:27px;height:27px;padding:0 5px;border-radius:8px;font-size:11px}
+
+  .sectionTitle{font-size:8.5px;line-height:1;letter-spacing:.07em;margin:0 0 4px}
+  .segmented{grid-template-columns:repeat(4,minmax(0,1fr));gap:3px;margin:0 0 4px}
+  .segmented button{min-width:0;min-height:28px;height:28px;padding:2px 3px;border-radius:8px;font-size:9.5px;line-height:1.05;white-space:normal}
+
+  .row{grid-template-columns:72px minmax(0,1fr) 43px;gap:4px;align-items:center;margin:3px 0;min-height:23px}
+  .row label{font-size:9.5px;line-height:1.05;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .value{font-size:9.5px;line-height:1;text-align:right;white-space:nowrap}
+  input[type=range]{height:18px;min-width:0;margin:0}
+
+  .grid2{grid-template-columns:repeat(3,minmax(0,1fr));gap:3px;margin-top:4px}
+  .grid2 button{min-width:0;min-height:28px;height:28px;padding:2px 4px;border-radius:8px;font-size:9.5px;line-height:1.05;white-space:normal}
+  .wide{min-height:28px;height:28px;margin-top:4px;padding:2px 6px;border-radius:8px;font-size:10px;line-height:1}
+  .hint{display:none}
+
+  .panelToggle{position:static;width:36px;height:36px;min-height:36px;margin:0 0 4px auto;border-radius:10px;font-size:17px}
+  .controlsHidden .sidePanel{padding-top:5px}
+
+  .testPanel.show{display:block;margin:0;height:100%}
+  .testQuestion{font-size:13px;line-height:1.1;margin:1px 0 4px}
+  .testRatioRow{grid-template-columns:65px minmax(0,1fr) 50px}
+  .score{font-size:9.5px;line-height:1.15;margin-top:4px}
+  .testPanel .grid2{grid-template-columns:repeat(2,minmax(0,1fr));gap:4px;margin-top:5px}
+  .testPanel .grid2 button{height:30px;min-height:30px;font-size:10px}
+  .testPanel .wide{height:30px;min-height:30px}
+}
+
+/* Short phones need a little more room for controls than for the viewer. */
+@media(max-width:600px) and (orientation:portrait) and (max-height:720px){
+  .pageShell{grid-template-rows:42dvh 58dvh}
+  .sidePanel{height:58dvh}
+  .row{margin:2px 0}
+  .segmented{margin-bottom:3px}
+}
