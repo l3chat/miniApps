@@ -132,6 +132,97 @@ for (let i = 0; i < 11; i++) {
 
 const colors = [0xff7a85, 0x78c7ff, 0x8ee0b1, 0xf6c86b, 0xb89cff, 0xffa66f, 0x72e2ef, 0xf08cc8, 0xa8df65];
 const shapes = ['sphere', 'box', 'torus', 'cone', 'cylinder', 'dodeca', 'octa', 'knot'];
+const patternKinds = ['squares', 'triangles', 'checker'];
+
+function colorCss(hex) {
+  return `#${new THREE.Color(hex).getHexString()}`;
+}
+
+function contrastCss(hex) {
+  const c = new THREE.Color(hex);
+  const luminance = .2126 * c.r + .7152 * c.g + .0722 * c.b;
+  return luminance > .46 ? '#10141d' : '#ffffff';
+}
+
+function makePatternTexture(baseColor, kind = pick(patternKinds)) {
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = 128;
+  const ctx = canvas.getContext('2d');
+  const base = colorCss(baseColor);
+  const contrast = contrastCss(baseColor);
+
+  ctx.fillStyle = base;
+  ctx.fillRect(0, 0, 128, 128);
+  ctx.fillStyle = contrast;
+  ctx.strokeStyle = contrast;
+  ctx.lineWidth = 4;
+
+  if (kind === 'squares') {
+    const cell = 32;
+    const size = 14;
+    for (let y = 0; y < 4; y++) {
+      for (let x = 0; x < 4; x++) {
+        const ox = x * cell + (cell - size) / 2;
+        const oy = y * cell + (cell - size) / 2;
+        ctx.fillRect(ox, oy, size, size);
+      }
+    }
+  } else if (kind === 'triangles') {
+    const cell = 32;
+    for (let y = 0; y < 4; y++) {
+      for (let x = 0; x < 4; x++) {
+        const cx = x * cell + cell / 2;
+        const cy = y * cell + cell / 2;
+        const r = 11;
+        ctx.beginPath();
+        if ((x + y) % 2 === 0) {
+          ctx.moveTo(cx, cy - r);
+          ctx.lineTo(cx - r, cy + r);
+          ctx.lineTo(cx + r, cy + r);
+        } else {
+          ctx.moveTo(cx, cy + r);
+          ctx.lineTo(cx - r, cy - r);
+          ctx.lineTo(cx + r, cy - r);
+        }
+        ctx.closePath();
+        ctx.fill();
+      }
+    }
+  } else {
+    const cell = 32;
+    for (let y = 0; y < 4; y++) {
+      for (let x = 0; x < 4; x++) {
+        if ((x + y) % 2 === 0) ctx.fillRect(x * cell, y * cell, cell, cell);
+      }
+    }
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(1.8, 1.8);
+  texture.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+  texture.needsUpdate = true;
+  return texture;
+}
+
+function makePatternMaterial(color, roughness, metalness) {
+  return new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    map: makePatternTexture(color),
+    roughness,
+    metalness
+  });
+}
+
+function disposeMaterial(material) {
+  if (!material) return;
+  const mats = Array.isArray(material) ? material : [material];
+  for (const m of mats) {
+    m.map?.dispose();
+    m.dispose?.();
+  }
+}
 
 function geo(t) {
   if (t === 'sphere') return new THREE.SphereGeometry(.34, 40, 28);
@@ -147,7 +238,7 @@ function geo(t) {
 function clearGroup() {
   group.traverse(o => {
     o.geometry?.dispose();
-    if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => m.dispose?.());
+    disposeMaterial(o.material);
   });
   group.clear();
   objects = [];
@@ -157,9 +248,11 @@ function clearGroup() {
 function addDemo(t, xT, y, d, s, c, support = false) {
   const g = geo(t);
   g.computeBoundingSphere();
-  const m = new THREE.Mesh(g, new THREE.MeshStandardMaterial({
-    color: c, roughness: .28 + Math.random() * .42, metalness: Math.random() * .2
-  }));
+  const m = new THREE.Mesh(g, makePatternMaterial(
+    c,
+    .28 + Math.random() * .42,
+    Math.random() * .2
+  ));
   m.position.set(0, y, 0);
   m.scale.setScalar(s);
   m.rotation.set(Math.random() * .7, Math.random() * Math.PI * 2, Math.random() * .4);
@@ -247,7 +340,7 @@ function clearTest() {
   for (const o of testObjects) {
     scene.remove(o);
     o.geometry.dispose();
-    o.material.dispose();
+    disposeMaterial(o.material);
   }
   testObjects = [];
 }
@@ -264,9 +357,11 @@ function makeTestObject(type, x, y, z, color, distance, angularRadius) {
   const g = geo(type);
   g.computeBoundingSphere();
   const scale = Math.tan(angularRadius) * distance / Math.max(g.boundingSphere?.radius || .35, .001);
-  const m = new THREE.Mesh(g, new THREE.MeshStandardMaterial({
-    color, roughness: .3 + Math.random() * .25, metalness: Math.random() * .12
-  }));
+  const m = new THREE.Mesh(g, makePatternMaterial(
+    color,
+    .3 + Math.random() * .25,
+    Math.random() * .12
+  ));
   m.position.set(x, y, z);
   m.scale.setScalar(scale);
   m.rotation.set(Math.random() * .7, Math.random() * Math.PI * 2, Math.random() * .5);
