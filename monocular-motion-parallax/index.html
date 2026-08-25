@@ -1,19 +1,75 @@
-<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0b1020"><title>Monocular Motion Parallax Lab</title><link rel="stylesheet" href="styles.css"></head><body>
-<div id="app"></div>
-<div class="topbar"><div class="brand">Monocular Motion Parallax <small id="brandDemo">Three.js demo</small></div><div class="hud"><span id="fps">— fps</span> · x=<span id="camx">0.0</span> cm · <span id="modeText">Static</span></div></div>
-<div class="legend" id="legendText"></div>
-<div class="controls">
-  <div class="languageRow"><label for="languageSelect" id="languageLabel">Язык</label><select id="languageSelect" aria-label="Language"><option value="ru">Русский</option><option value="en">English</option><option value="de">Deutsch</option><option value="uk">Українська</option><option value="fr">Français</option></select></div>
-  <div class="sectionTitle" id="motionTitle"></div>
-  <div class="segmented" id="modeButtons"><button data-mode="static" class="active" id="modeStatic"></button><button data-mode="lr" id="modeLR">L ↔ R</button><button data-mode="five" id="modeFive"></button><button data-mode="continuous" id="modeContinuous"></button></div>
-  <div class="row"><label for="baseline" id="baselineLabel"></label><input id="baseline" type="range" min="0" max="30" step="0.5" value="8"><div class="value"><span id="baselineVal">8.0</span> cm</div></div>
-  <div class="row"><label for="frequency" id="frequencyLabel"></label><input id="frequency" type="range" min="0.1" max="8" step="0.1" value="1.6"><div class="value"><span id="frequencyVal">1.6</span> Hz</div></div>
-  <div class="row"><label for="waveform" id="waveformLabel"></label><select id="waveform"><option value="sine">Sine</option><option value="triangle">Triangle</option></select><div class="value"></div></div>
-  <div class="row"><label for="fov" id="fovLabel"></label><input id="fov" type="range" min="35" max="80" step="1" value="55"><div class="value"><span id="fovVal">55</span>°</div></div>
-  <div class="row"><label for="sceneDepth" id="sceneDepthLabel"></label><input id="sceneDepth" type="range" min="0.5" max="4" step="0.1" value="2.4"><div class="value"><span id="sceneDepthVal">2.4</span> m</div></div>
-  <div class="grid2"><button id="pauseBtn" class="secondary"></button><button id="fullscreenBtn" class="secondary"></button><button id="hideControlsBtn" class="secondary"></button><button id="resetBtn" class="secondary"></button><button id="testBtn" class="good"></button></div>
-  <button id="sceneBtn" class="secondary wide"></button><div class="hint" id="hintText"></div>
-</div>
-<button id="panelToggle" class="panelToggle" aria-label="Show controls">☰</button>
-<div class="testPanel" id="testPanel"><div class="sectionTitle" id="testTitle"></div><div class="testQuestion" id="testQuestion"></div><div class="row testRatioRow"><label for="testRatio">ΔZ / Z</label><input id="testRatio" type="range" min="0.1" max="30" step="0.1" value="5"><div class="value"><span id="testRatioVal">5.0</span>%</div></div><div class="score" id="testState"></div><div class="grid2"><button id="leftChoice"></button><button id="rightChoice"></button></div><div class="score" id="score"></div><div class="grid2"><button id="nextTrial" class="secondary"></button><button id="exportCsv" class="secondary">CSV</button></div><button id="closeTest" class="warn wide"></button></div>
-<script type="module" src="app.js"></script></body></html>
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#0b1020">
+  <title>Monocular Motion Parallax Lab</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="pageShell">
+    <section class="viewer" id="viewer" aria-label="3D scene">
+      <div id="app"></div>
+      <div class="topbar">
+        <div class="brand">Monocular Motion Parallax <small id="brandDemo">Three.js demo</small></div>
+        <div class="hud"><span id="fps">— fps</span> · x=<span id="camx">0.0</span> cm · <span id="modeText">Static</span></div>
+      </div>
+      <div class="legend" id="legendText"></div>
+    </section>
+
+    <aside class="sidePanel">
+      <div class="controls">
+        <div class="languageRow">
+          <label for="languageSelect" id="languageLabel">Язык</label>
+          <select id="languageSelect" aria-label="Language">
+            <option value="ru">Русский</option>
+            <option value="en">English</option>
+            <option value="de">Deutsch</option>
+            <option value="uk">Українська</option>
+            <option value="fr">Français</option>
+          </select>
+        </div>
+
+        <div class="sectionTitle" id="motionTitle"></div>
+        <div class="segmented" id="modeButtons">
+          <button data-mode="static" class="active" id="modeStatic"></button>
+          <button data-mode="lr" id="modeLR">L ↔ R</button>
+          <button data-mode="five" id="modeFive"></button>
+          <button data-mode="continuous" id="modeContinuous"></button>
+        </div>
+
+        <div class="row"><label for="baseline" id="baselineLabel"></label><input id="baseline" type="range" min="0" max="30" step="0.5" value="8"><div class="value"><span id="baselineVal">8.0</span> cm</div></div>
+        <div class="row"><label for="frequency" id="frequencyLabel"></label><input id="frequency" type="range" min="0.1" max="8" step="0.1" value="1.6"><div class="value"><span id="frequencyVal">1.6</span> Hz</div></div>
+        <div class="row"><label for="waveform" id="waveformLabel"></label><select id="waveform"><option value="sine">Sine</option><option value="triangle">Triangle</option></select><div class="value"></div></div>
+        <div class="row"><label for="fov" id="fovLabel"></label><input id="fov" type="range" min="35" max="80" step="1" value="55"><div class="value"><span id="fovVal">55</span>°</div></div>
+        <div class="row"><label for="sceneDepth" id="sceneDepthLabel"></label><input id="sceneDepth" type="range" min="0.5" max="4" step="0.1" value="2.4"><div class="value"><span id="sceneDepthVal">2.4</span> m</div></div>
+
+        <div class="grid2">
+          <button id="pauseBtn" class="secondary"></button>
+          <button id="fullscreenBtn" class="secondary"></button>
+          <button id="hideControlsBtn" class="secondary"></button>
+          <button id="resetBtn" class="secondary"></button>
+          <button id="testBtn" class="good"></button>
+        </div>
+        <button id="sceneBtn" class="secondary wide"></button>
+        <div class="hint" id="hintText"></div>
+      </div>
+
+      <button id="panelToggle" class="panelToggle" aria-label="Show controls">☰</button>
+
+      <div class="testPanel" id="testPanel">
+        <div class="sectionTitle" id="testTitle"></div>
+        <div class="testQuestion" id="testQuestion"></div>
+        <div class="row testRatioRow"><label for="testRatio">ΔZ / Z</label><input id="testRatio" type="range" min="0.1" max="30" step="0.1" value="5"><div class="value"><span id="testRatioVal">5.0</span>%</div></div>
+        <div class="score" id="testState"></div>
+        <div class="grid2"><button id="leftChoice"></button><button id="rightChoice"></button></div>
+        <div class="score" id="score"></div>
+        <div class="grid2"><button id="nextTrial" class="secondary"></button><button id="exportCsv" class="secondary">CSV</button></div>
+        <button id="closeTest" class="warn wide"></button>
+      </div>
+    </aside>
+  </main>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
