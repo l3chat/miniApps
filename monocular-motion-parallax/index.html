@@ -147,6 +147,7 @@
     <button id="resetBtn" class="secondary">↺ Сброс</button>
     <button id="testBtn" class="good">◉ Тест глубины</button>
   </div>
+  <button id="sceneBtn" class="secondary" style="width:100%;margin-top:8px">🎲 Новая сцена</button>
 
   <div class="hint">
     <b>5 viewpoints</b> использует позиции L → L½ → C → R½ → R → … .
@@ -157,7 +158,7 @@
 
 <div class="testPanel" id="testPanel">
   <div class="sectionTitle">Психофизический мини-тест</div>
-  <div class="testQuestion">Какой шар ближе?</div>
+  <div class="testQuestion">Какой объект ближе?</div>
 
   <div class="row" style="grid-template-columns:128px 1fr 72px">
     <label for="testRatio">ΔZ / Z</label>
@@ -221,44 +222,107 @@ grid.position.y = 0.006;
 grid.position.z = -4;
 scene.add(grid);
 
-function makePedestal(x,z,h=.13){
-  const m = new THREE.Mesh(
-    new THREE.CylinderGeometry(.42,.5,h,32),
-    new THREE.MeshStandardMaterial({color:0x283750,roughness:.7})
-  );
-  m.position.set(x,h/2,z);
-  m.receiveShadow = true;
-  m.castShadow = true;
-  scene.add(m);
-  return m;
-}
-
 const objectGroup = new THREE.Group();
 scene.add(objectGroup);
 
-const palette=[0xff7a85,0x78c7ff,0x8ee0b1,0xf6c86b,0xb89cff,0xffa66f];
-const objects=[];
-function addObject(type,x,y,z,scale,color){
-  let geo;
-  if(type==='sphere') geo=new THREE.SphereGeometry(.34,48,32);
-  else if(type==='box') geo=new THREE.BoxGeometry(.58,.58,.58);
-  else if(type==='torus') geo=new THREE.TorusKnotGeometry(.22,.085,96,16);
-  else geo=new THREE.ConeGeometry(.35,.7,32);
-  const mat=new THREE.MeshStandardMaterial({color,roughness:.35,metalness:.12});
-  const mesh=new THREE.Mesh(geo,mat);
-  mesh.position.set(x,y,z); mesh.scale.setScalar(scale);
-  mesh.castShadow=true; mesh.receiveShadow=true;
-  objectGroup.add(mesh); objects.push(mesh);
-  makePedestal(x,z);
-  return mesh;
-}
+const palette=[0xff7a85,0x78c7ff,0x8ee0b1,0xf6c86b,0xb89cff,0xffa66f,0x72e2ef,0xf08cc8,0xa8df65];
+const shapeTypes=['sphere','box','torus','cone','cylinder','dodeca','octa','knot'];
+let objects=[];
+let demoItems=[];
+let currentSceneStyle='gallery';
 
-addObject('sphere', -1.55,.55, 0.1,1.0,palette[0]);
-addObject('box',     1.40,.55,-1.1,1.0,palette[1]);
-addObject('torus',  -0.55,.60,-2.4,1.0,palette[2]);
-addObject('cone',    1.15,.58,-3.5,1.0,palette[3]);
-addObject('sphere', -1.45,.55,-4.8,.9,palette[4]);
-addObject('box',     0.15,.55,-5.8,.9,palette[5]);
+function geometryFor(type){
+  if(type==='sphere') return new THREE.SphereGeometry(.34,40,28);
+  if(type==='box') return new THREE.BoxGeometry(.58,.58,.58);
+  if(type==='torus') return new THREE.TorusGeometry(.28,.10,18,48);
+  if(type==='cone') return new THREE.ConeGeometry(.35,.72,32);
+  if(type==='cylinder') return new THREE.CylinderGeometry(.27,.34,.68,32);
+  if(type==='dodeca') return new THREE.DodecahedronGeometry(.36,0);
+  if(type==='octa') return new THREE.OctahedronGeometry(.40,0);
+  return new THREE.TorusKnotGeometry(.23,.075,80,12);
+}
+function disposeGroup(group){
+  group.traverse(o=>{
+    if(o.geometry) o.geometry.dispose();
+    if(o.material){
+      const mats=Array.isArray(o.material)?o.material:[o.material];
+      mats.forEach(m=>m.dispose?.());
+    }
+  });
+  while(group.children.length) group.remove(group.children[0]);
+}
+function addDemoObject(type,x,y,depthT,scale,color,withSupport=false){
+  const geo=geometryFor(type);
+  const mat=new THREE.MeshStandardMaterial({color,roughness:.28+Math.random()*.42,metalness:Math.random()*.20});
+  const mesh=new THREE.Mesh(geo,mat);
+  mesh.position.set(x,y,0);
+  mesh.scale.setScalar(scale);
+  mesh.rotation.set(Math.random()*.5,Math.random()*Math.PI,Math.random()*.25);
+  mesh.castShadow=true; mesh.receiveShadow=true;
+  objectGroup.add(mesh);
+  objects.push(mesh);
+
+  let support=null;
+  if(withSupport){
+    support=new THREE.Mesh(
+      new THREE.CylinderGeometry(.38,.48,.12,28),
+      new THREE.MeshStandardMaterial({color:0x283750,roughness:.72})
+    );
+    support.position.set(x,.06,0);
+    support.receiveShadow=true; support.castShadow=true;
+    objectGroup.add(support);
+  }
+  demoItems.push({mesh,support,depthT});
+}
+function buildDemoScene(){
+  disposeGroup(objectGroup);
+  objects=[];
+  demoItems=[];
+  const styles=['gallery','floating','corridor','constellation'];
+  currentSceneStyle=styles[Math.floor(Math.random()*styles.length)];
+
+  const backgrounds={
+    gallery:0x09101d,
+    floating:0x07141a,
+    corridor:0x120d1b,
+    constellation:0x070b16
+  };
+  scene.background.setHex(backgrounds[currentSceneStyle]);
+  floor.material.color.setHex(currentSceneStyle==='corridor'?0x1a1324:currentSceneStyle==='floating'?0x0c1a1d:0x111a2d);
+  grid.visible=(currentSceneStyle==='gallery'||currentSceneStyle==='corridor');
+  rim.position.set(-3+Math.random()*6,1.8+Math.random()*2.2,-1-Math.random()*3);
+  key.position.set(-4+Math.random()*8,4.5+Math.random()*3,2+Math.random()*4);
+
+  const count=6+Math.floor(Math.random()*5);
+
+  for(let i=0;i<count;i++){
+    const t=count===1?0:i/(count-1);
+    let x,y,scale,support=false;
+    if(currentSceneStyle==='gallery'){
+      x=(i%2===0?-1:1)*(0.7+Math.random()*1.0);
+      y=.48+Math.random()*.20;
+      scale=.72+Math.random()*.55;
+      support=true;
+    }else if(currentSceneStyle==='floating'){
+      x=-2.0+Math.random()*4.0;
+      y=.55+Math.random()*1.75;
+      scale=.55+Math.random()*.75;
+    }else if(currentSceneStyle==='corridor'){
+      x=(i%2===0?-1:1)*(1.1+Math.random()*.75);
+      y=.48+Math.random()*.65;
+      scale=.62+Math.random()*.58;
+      support=(i%3===0);
+    }else{
+      x=-2.2+Math.random()*4.4;
+      y=.45+Math.random()*1.9;
+      scale=.45+Math.random()*.85;
+    }
+    const type=shapeTypes[Math.floor(Math.random()*shapeTypes.length)];
+    const color=palette[Math.floor(Math.random()*palette.length)];
+    addDemoObject(type,x,y,t,scale,color,support);
+  }
+  applySceneDepth(params?.sceneDepth ?? 2.4);
+}
 
 // Depth rails / reference markers
 for(let i=0;i<7;i++){
@@ -284,6 +348,7 @@ let last=performance.now();
 let fpsSmooth=60;
 
 const target = new THREE.Vector3(0,1.0,-2.2);
+buildDemoScene();
 
 function triangle01(phase){
   // 0..1..0
@@ -376,20 +441,48 @@ function newTrial(){
   const zl=centerZ + (nearer==='left'?delta/2:-delta/2);
   const zr=centerZ + (nearer==='right'?delta/2:-delta/2);
 
-  const mk=(x,z,c)=>{
+  // Shapes, colors and orientation are randomized independently of which side is nearer.
+  // Usually the two objects are different shapes; sometimes they match.
+  const leftType=shapeTypes[Math.floor(Math.random()*shapeTypes.length)];
+  let rightType=shapeTypes[Math.floor(Math.random()*shapeTypes.length)];
+  if(Math.random()<0.75){
+    while(rightType===leftType) rightType=shapeTypes[Math.floor(Math.random()*shapeTypes.length)];
+  }
+  const leftColor=palette[Math.floor(Math.random()*palette.length)];
+  let rightColor=palette[Math.floor(Math.random()*palette.length)];
+  if(rightColor===leftColor) rightColor=palette[(palette.indexOf(leftColor)+1+Math.floor(Math.random()*(palette.length-1)))%palette.length];
+
+  // Keep approximately the same angular bounding radius for both objects.
+  // This suppresses the trivial monocular cue "larger image = nearer" while preserving motion parallax.
+  const angularRadius=(2.5+Math.random()*1.4)*Math.PI/180;
+  const dl=meanDistance-delta/2;
+  const dr=meanDistance+delta/2;
+  const leftDistance=nearer==='left'?dl:dr;
+  const rightDistance=nearer==='right'?dl:dr;
+
+  const mk=(type,x,z,c,distance)=>{
+    const geo=geometryFor(type);
+    geo.computeBoundingSphere();
+    const r=Math.max(geo.boundingSphere?.radius||.35,.001);
+    const worldRadius=Math.tan(angularRadius)*distance;
+    const scale=worldRadius/r;
     const m=new THREE.Mesh(
-      new THREE.SphereGeometry(.34,48,32),
-      new THREE.MeshStandardMaterial({color:c,roughness:.33,metalness:.08})
+      geo,
+      new THREE.MeshStandardMaterial({color:c,roughness:.25+Math.random()*.45,metalness:Math.random()*.18})
     );
-    m.position.set(x,.85,z);
+    m.position.set(x,.92,z);
+    m.scale.setScalar(scale);
+    m.rotation.set(Math.random()*.7,Math.random()*Math.PI*2,Math.random()*.5);
     m.castShadow=true;
     scene.add(m); testObjects.push(m);
     return m;
   };
-  mk(-.65,zl,0x7dc5ff);
-  mk(.65,zr,0xffaa7a);
+  mk(leftType,-.70,zl,leftColor,leftDistance);
+  mk(rightType,.70,zr,rightColor,rightDistance);
 
   currentTrial={
+    leftType,
+    rightType,
     nearer,
     delta,
     ratio,
@@ -461,8 +554,8 @@ document.getElementById('nextTrial').onclick=()=>newTrial();
 document.getElementById('closeTest').onclick=()=>setTest(false);
 document.getElementById('testBtn').onclick=()=>setTest(!testActive);
 document.getElementById('exportCsv').onclick=()=>{
-  const rows=[['time','mode','baseline_cm','frequency_hz','waveform','mean_distance_m','delta_m','relative_delta','relative_delta_percent','ratio_before','ratio_after','nearer','choice','correct']];
-  for(const t of trials) rows.push([t.time,t.mode,t.baselineCm,t.frequency,t.waveform,t.meanDistance,t.delta,t.ratio,t.ratio*100,t.ratioBefore,t.ratioAfter,t.nearer,t.choice,t.correct]);
+  const rows=[['time','mode','baseline_cm','frequency_hz','waveform','mean_distance_m','delta_m','relative_delta','relative_delta_percent','ratio_before','ratio_after','left_shape','right_shape','nearer','choice','correct']];
+  for(const t of trials) rows.push([t.time,t.mode,t.baselineCm,t.frequency,t.waveform,t.meanDistance,t.delta,t.ratio,t.ratio*100,t.ratioBefore,t.ratioAfter,t.leftType,t.rightType,t.nearer,t.choice,t.correct]);
   const csv=rows.map(r=>r.map(v=>`"${String(v).replaceAll('"','""')}"`).join(',')).join('\n');
   const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
   const a=document.createElement('a');
@@ -499,9 +592,13 @@ document.getElementById('modeButtons').addEventListener('click',e=>{
 });
 
 function applySceneDepth(v){
-  // Re-map demo objects while preserving order.
-  const zs=[0.1,-.5*v,-1.0*v,-1.45*v,-1.95*v,-2.4*v];
-  objects.forEach((o,i)=>o.position.z=zs[i]);
+  // Re-map the current randomized demonstration scene while preserving its layout.
+  const span=Math.max(.5,v)*2.5;
+  demoItems.forEach(item=>{
+    const z=.15-item.depthT*span;
+    item.mesh.position.z=z;
+    if(item.support) item.support.position.z=z;
+  });
   target.z=-.9*v;
 }
 
@@ -530,6 +627,7 @@ function reset(){
   });
 }
 document.getElementById('resetBtn').onclick=reset;
+document.getElementById('sceneBtn').onclick=()=>buildDemoScene();
 
 addEventListener('keydown',e=>{
   if(e.code==='Space'){e.preventDefault();togglePause();}
