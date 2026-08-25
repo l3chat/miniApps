@@ -85,23 +85,27 @@ const grid = new THREE.GridHelper(28, 56, 0x315074, 0x22334b);
 grid.position.set(0, .006, -8);
 scene.add(grid);
 
-// A distant vertical reference plane with clearly visible square cells.
+// Distant vertical reference grid. It is intentionally much larger than any
+// visible frustum section so its edges never enter the field of view.
+// 120 m / 40 divisions = 3 m square cells (3x larger than before).
 const FAR_GRID_Z = -24.2;
+const FAR_GRID_SIZE = 120;
+const FAR_GRID_DIVISIONS = 40;
 const farWall = new THREE.Mesh(
-  new THREE.PlaneGeometry(32, 32),
+  new THREE.PlaneGeometry(FAR_GRID_SIZE, FAR_GRID_SIZE),
   new THREE.MeshBasicMaterial({ color: 0x07101e, side: THREE.DoubleSide, fog: false })
 );
 farWall.position.set(0, 6, FAR_GRID_Z - .03);
 scene.add(farWall);
 
-const farGrid = new THREE.GridHelper(32, 32, 0xa9c9ff, 0x4c79aa);
+const farGrid = new THREE.GridHelper(FAR_GRID_SIZE, FAR_GRID_DIVISIONS, 0xc1d8ff, 0x5d8fca);
 farGrid.rotation.x = Math.PI / 2;
 farGrid.position.set(0, 6, FAR_GRID_Z);
 const farGridMaterials = Array.isArray(farGrid.material) ? farGrid.material : [farGrid.material];
 for (const m of farGridMaterials) {
   m.fog = false;
   m.transparent = true;
-  m.opacity = .92;
+  m.opacity = .96;
   m.depthWrite = false;
 }
 farGrid.renderOrder = 1;
@@ -260,6 +264,15 @@ function makeTestObject(type, x, y, z, color, distance, angularRadius) {
   testObjects.push(m);
 }
 
+function testHorizontalX(distance, side) {
+  // At the centered camera position, place projected centers at x = ±0.75 NDC.
+  // Since NDC spans 2 units across the full viewport, the center-to-center
+  // separation is 1.5 / 2 = 75% of the viewport width.
+  const tanHalf = Math.tan(THREE.MathUtils.degToRad(camera.fov * .5));
+  const halfVisibleWidth = tanHalf * distance * camera.aspect;
+  return side * .75 * halfVisibleWidth;
+}
+
 function newTrial() {
   if (!testActive) return;
   clearTest();
@@ -280,8 +293,11 @@ function newTrial() {
   const nearD = Z - dz / 2, farD = Z + dz / 2;
   const ld = near === 'left' ? nearD : farD;
   const rd = near === 'right' ? nearD : farD;
-  makeTestObject(lt, -.72, .95, zl, lc, ld, ang);
-  makeTestObject(rt, .72, .95, zr, rc, rd, ang);
+  const lx = testHorizontalX(ld, -1);
+  const rx = testHorizontalX(rd, +1);
+
+  makeTestObject(lt, lx, .95, zl, lc, ld, ang);
+  makeTestObject(rt, rx, .95, zr, rc, rd, ang);
 
   trial = {
     leftType: lt, rightType: rt, nearer: near, delta: dz, ratio: r, meanDistance: Z,
@@ -362,7 +378,12 @@ for (const [id, keyName, fmt] of [
     const v = +e.target.value;
     params[keyName] = v;
     $(id + 'Val').textContent = fmt(v);
-    if (id === 'fov') { camera.fov = v; camera.updateProjectionMatrix(); layoutDemoScene(); }
+    if (id === 'fov') {
+      camera.fov = v;
+      camera.updateProjectionMatrix();
+      layoutDemoScene();
+      if (testActive) newTrial();
+    }
     if (id === 'sceneDepth') layoutDemoScene();
     if (id === 'focusDistance' && testActive && !$('testAutoFocus').checked && trial) {
       trial.focusDistance = v; updateTestState();
@@ -403,6 +424,7 @@ $('resetBtn').onclick = () => {
   camera.fov = 55;
   camera.updateProjectionMatrix();
   layoutDemoScene();
+  if (testActive) newTrial();
 };
 
 $('exportCsv').onclick = () => {
