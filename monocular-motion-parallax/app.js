@@ -206,10 +206,10 @@ function makePatternTexture(baseColor, kind = pick(patternKinds)) {
   return texture;
 }
 
-function makePatternMaterial(color, roughness, metalness) {
+function makePatternMaterial(color, roughness, metalness, kind) {
   return new THREE.MeshStandardMaterial({
     color: 0xffffff,
-    map: makePatternTexture(color),
+    map: makePatternTexture(color, kind),
     roughness,
     metalness
   });
@@ -431,12 +431,92 @@ function updateTestState() {
     : `${tr('adaptive')} · Z: — · ΔZ: — · F: — · ${tr('target')}`;
 }
 function setTest(on) {
+  if (on && gameActive) setGame(false);
   testActive = on;
   $('testPanel').classList.toggle('show', on);
   group.visible = !on;
   if (on) { syncRatio(); newTrial(); }
   else { clearTest(); trial = null; updateTestState(); }
 }
+
+// Game: click objects from nearest to farthest.
+let gameActive = false;
+const raycaster = new THREE.Raycaster();
+const pointer = new THREE.Vector2();
+const worldPos = new THREE.Vector3();
+
+function updatePlayButton() {
+  if ($('playBtn')) $('playBtn').textContent = gameActive ? tr('stopGame') : tr('play');
+}
+
+function setGame(on) {
+  if (on && testActive) setTest(false);
+  if (on && objects.length === 0) buildScene();
+  gameActive = on;
+  $('playBtn')?.classList.toggle('active', on);
+  renderer.domElement.style.cursor = on ? 'crosshair' : 'default';
+  updatePlayButton();
+}
+
+function nearestGameObject() {
+  let best = null;
+  let bestDistance = Infinity;
+  for (const o of objects) {
+    if (!o.parent || !o.visible) continue;
+    o.getWorldPosition(worldPos);
+    const d = camera.position.distanceTo(worldPos);
+    if (d < bestDistance) {
+      bestDistance = d;
+      best = o;
+    }
+  }
+  return best;
+}
+
+function removeGameObject(mesh) {
+  const item = demoItems.find(x => x.mesh === mesh);
+  group.remove(mesh);
+  mesh.geometry.dispose();
+  disposeMaterial(mesh.material);
+
+  if (item?.support) {
+    group.remove(item.support);
+    item.support.geometry.dispose();
+    disposeMaterial(item.support.material);
+  }
+
+  objects = objects.filter(o => o !== mesh);
+  demoItems = demoItems.filter(o => o.mesh !== mesh);
+
+  if (objects.length === 0) {
+    gameActive = false;
+    renderer.domElement.style.cursor = 'default';
+    $('playBtn')?.classList.remove('active');
+    if ($('playBtn')) $('playBtn').textContent = tr('gameWon');
+    setTimeout(() => {
+      if (!gameActive && $('playBtn')) $('playBtn').textContent = tr('play');
+    }, 1400);
+  }
+}
+
+function markGameMistake(mesh) {
+  disposeMaterial(mesh.material);
+  mesh.material = makePatternMaterial(0xff2020, .42, 0, 'checker');
+}
+
+renderer.domElement.addEventListener('pointerup', e => {
+  if (!gameActive || testActive || e.button > 0) return;
+  const rect = renderer.domElement.getBoundingClientRect();
+  if (!rect.width || !rect.height) return;
+  pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+  pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+  raycaster.setFromCamera(pointer, camera);
+  const hit = raycaster.intersectObjects(objects, false)[0]?.object;
+  if (!hit) return;
+  const nearest = nearestGameObject();
+  if (hit === nearest) removeGameObject(hit);
+  else markGameMistake(hit);
+});
 
 function modeLabel() {
   return params.mode === 'static' ? tr('static') : params.mode === 'lr' ? tr('lr') : params.mode === 'five' ? tr('five') : tr('continuous');
@@ -464,6 +544,7 @@ function applyLanguage(l) {
   $('panelToggle').setAttribute('aria-label', tr('show'));
   $('modeText').textContent = modeLabel();
   $('pauseBtn').textContent = params.paused ? tr('resume') : tr('pause');
+  updatePlayButton();
   updateScore();
   updateTestState();
 }
@@ -510,6 +591,7 @@ $('hideControlsBtn').onclick = () => document.body.classList.add('controlsHidden
 $('panelToggle').onclick = () => document.body.classList.remove('controlsHidden');
 $('sceneBtn').onclick = buildScene;
 $('testBtn').onclick = () => setTest(!testActive);
+$('playBtn').onclick = () => setGame(!gameActive);
 $('closeTest').onclick = () => setTest(false);
 $('leftChoice').onclick = () => answer('left');
 $('rightChoice').onclick = () => answer('right');
@@ -517,6 +599,7 @@ $('nextTrial').onclick = newTrial;
 $('testRatio').oninput = e => { testRatio = clamp(+e.target.value / 100, RMIN, RMAX); syncRatio(); if (testActive) newTrial(); };
 
 $('resetBtn').onclick = () => {
+  setGame(false);
   Object.assign(params, { baselineCm: 8, frequency: 1.6, focusDistance: 8, waveform: 'sine', sceneDepth: 2.4 });
   for (const [id, v] of [['baseline', 8], ['frequency', 1.6], ['focusDistance', 8], ['fov', 55], ['sceneDepth', 2.4]]) {
     $(id).value = v;
