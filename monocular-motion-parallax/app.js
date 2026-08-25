@@ -98,9 +98,6 @@ for (const m of floorGridMaterials) {
 }
 scene.add(grid);
 
-// Distant vertical reference grid. It is intentionally much larger than any
-// visible frustum section so its edges never enter the field of view.
-// 120 m / 40 divisions = 3 m square cells (3x larger than before).
 const FAR_GRID_Z = -24.2;
 const FAR_GRID_SIZE = 120;
 const FAR_GRID_DIVISIONS = 40;
@@ -280,7 +277,7 @@ function makeTestObject(type, x, y, z, color, distance, angularRadius) {
 function testHorizontalX(distance, side) {
   const tanHalf = Math.tan(THREE.MathUtils.degToRad(camera.fov * .5));
   const halfVisibleWidth = tanHalf * distance * camera.aspect;
-  return side * .75 * halfVisibleWidth;
+  return side * .50 * halfVisibleWidth;
 }
 
 function newTrial() {
@@ -299,7 +296,7 @@ function newTrial() {
   let rc = pick(colors);
   while (rc === lc) rc = pick(colors);
 
-  const ang = rand(2.5, 3.9) * Math.PI / 180;
+  const ang = rand(7.5, 11.7) * Math.PI / 180;
   const nearD = Z - dz / 2, farD = Z + dz / 2;
   const ld = near === 'left' ? nearD : farD;
   const rd = near === 'right' ? nearD : farD;
