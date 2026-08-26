@@ -37,7 +37,7 @@
           Training               Experiment
              │                       │
      feedback + hints          no feedback
-     adaptive difficulty      randomized conditions
+     adaptive difficulty      adaptive staircase
      score                    reaction time
      learning                 threshold estimation
 ```
@@ -73,7 +73,7 @@ monocular-motion-parallax/
 
 ## `scene.js`
 
-Three.js-сцена, объекты, геометрия, текстуры, сетки, освещение, генерация сцены и освобождение ресурсов.
+Three.js-сцена, объекты, геометрия, текстуры, сетки, освещение, Training-scene generation, controlled Experiment-scene generation и освобождение ресурсов.
 
 ## `camera-motion.js`
 
@@ -86,10 +86,12 @@ Static / L↔R / 5 viewpoints / Continuous, baseline, frequency, waveform, focus
 - nearest / second nearest;
 - `ΔZ`;
 - `ΔZ/Z`;
-- correct / wrong;
+- correct / wrong / uncertain;
 - excluded candidates;
 - meaningful errors;
-- `unresolved`.
+- `unresolved`;
+- response time;
+- serializable trial snapshot.
 
 ## `training.js`
 
@@ -97,7 +99,16 @@ Forgiving hit area, score, feedback, progressive depth hints, unresolved rounds,
 
 ## `experiment.js`
 
-Каркас Experiment и готовый канал `recordTrial()` для записи будущих trials в storage.
+Полноценный no-feedback Experiment:
+
+- общий Trial Engine;
+- controlled `ΔZ/Z`;
+- `Не уверен`;
+- response time;
+- 3-down/1-up staircase;
+- reversal tracking;
+- preliminary 80% threshold estimate;
+- запись каждого trial в storage.
 
 ## `storage.js`
 
@@ -141,8 +152,6 @@ Versioned local browser storage:
 - уменьшается пропорционально расстоянию;
 - сохраняет практически тот же видимый угловой размер.
 
-Пример:
-
 ```text
 error 1 → distance × 0.80
 error 2 → distance × 0.70
@@ -174,17 +183,15 @@ error 3 → distance × 0.62
 
 # 5. Training score и история
 
-Базовая метрика:
-
 ```text
 score = correct / meaningful selections × 100%
 ```
 
 Сейчас:
 
-- last score остаётся видимым после окончания Training;
+- last score остаётся видимым после Training;
 - сохраняется после reload браузера;
-- Training-сессия записывается в историю при stop / switch / reset / win;
+- Training-сессия записывается при stop / switch / reset / win;
 - сохраняются `correct`, `wrong`, `unresolved`, duration, camera и scene parameters;
 - история ограничена последними 500 сессиями.
 
@@ -198,12 +205,10 @@ score = correct / meaningful selections × 100%
 mmp-lab-state
 ```
 
-## Settings
-
 Сохраняются:
 
 - language;
-- panel hidden/shown;
+- panel state;
 - last app mode;
 - camera motion mode;
 - baseline;
@@ -212,21 +217,17 @@ mmp-lab-state
 - FOV;
 - focus distance;
 - scene depth;
-- поле для будущей calibration.
+- future calibration field;
+- last Training result;
+- Training history;
+- Experiment trial history.
 
-## Last Training result
+Лимиты:
 
-Сохраняется текущее/последнее состояние Training, поэтому score восстанавливается после reload.
+- Training: 500 sessions;
+- Experiment: 2000 trials.
 
-## Training history
-
-До 500 сессий.
-
-## Experiment history
-
-Storage pipeline готов для 2000 trials. Реальные Experiment trials начнут поступать после реализации Experiment Mode.
-
-## Schema version
+Schema:
 
 ```json
 {
@@ -234,13 +235,11 @@ Storage pipeline готов для 2000 trials. Реальные Experiment tria
 }
 ```
 
-Есть миграция старого ключа языка `mmp-language` и нормализация данных при смене версии схемы.
-
 ---
 
-# 7. Experiment Mode — следующий крупный блок
+# 7. Experiment Mode — базовый измерительный режим выполнен
 
-Experiment должен использовать тот же Trial Engine, но без Training feedback.
+Experiment использует тот же Trial Engine, но без Training feedback.
 
 ## Правила
 
@@ -248,48 +247,92 @@ Experiment должен использовать тот же Trial Engine, но 
 - никаких hint animations;
 - никаких перемещений после ошибки;
 - никаких временных изменений baseline;
-- после ответа сразу следующий trial.
+- после ответа сразу новый trial;
+- параметры камеры и сцены блокируются на время Experiment session.
 
 ## Ответ `Не уверен`
 
-Добавить отдельный вариант:
+Есть отдельный ответ:
 
 ```text
 Не уверен
 ```
 
-Хранить как:
+Он сохраняется как:
 
 ```text
 uncertain = true
 ```
 
-## Для каждого trial сохранять
+и не смешивается с обычной ошибкой.
+
+## Controlled Experiment scene
+
+Для каждого trial программа задаёт контролируемую разницу между двумя ближайшими объектами:
 
 ```text
-trial_id
-session_id
+relative_delta = ΔZ / Z_nearest
+```
+
+Расстояния задаются как точные 3D-distance от камеры по лучам зрения, поэтому горизонтальное положение объекта не искажает заданный `ΔZ/Z`.
+
+Остальные объекты размещаются дальше ближайшей пары.
+
+## Adaptive staircase
+
+Используется:
+
+```text
+3-down / 1-up
+```
+
+- после 3 правильных подряд задача усложняется;
+- после 1 ошибки задача облегчается;
+- `Не уверен` также ведёт к облегчению следующего trial;
+- step factor ≈ 1.22;
+- диапазон `ΔZ/Z`: 0.2% … 30%.
+
+Такая процедура ориентирована примерно на уровень 79–80% correct.
+
+## Reversals и 80% threshold
+
+При смене направления staircase сохраняется reversal.
+
+После минимум 4 reversals появляется предварительная оценка 80%-порога как геометрическое среднее последних reversal levels.
+
+Это пока **staircase estimate**, а не окончательный psychometric fit. Более строгая оценка появится в `stats.js`.
+
+## Для каждого trial сохраняются
+
+```text
+trialId
+sessionId
 timestamp
-mode
-baseline_cm
-frequency_hz
-waveform
-focus_distance_m
-fov_deg
-nearest_distance_m
-second_nearest_distance_m
-delta_m
-relative_delta
-object_count
-selected_object_id
+trialNo
+outcome
 correct
 uncertain
-response_time_ms
+selectedObjectId
+objectCount
+responseTimeMs
+targetRelativeDelta
+nearestDistanceM
+secondNearestDistanceM
+deltaM
+relativeDelta
+staircase state
+camera mode
+baseline
+frequency
+waveform
+focus distance
+FOV
+scene depth
 ```
 
 ---
 
-# 8. Statistics
+# 8. Statistics — следующий крупный блок
 
 Добавить отдельный раздел `Statistics`.
 
@@ -421,7 +464,7 @@ fine scan
 T(B, f, F, Z, mode)
 ```
 
-Пример результата:
+Пример:
 
 ```text
 Best mode: Continuous
@@ -639,17 +682,17 @@ Training improvement
 - [x] 17. Подготовить persistent Experiment trial history и канал записи trials.
 - [x] 18. Добавить schema version и migration path.
 
-## D. Experiment — следующий блок
+## D. Experiment — выполнено
 
-- [ ] 19. Подключить Experiment к общему Trial Engine.
-- [ ] 20. Сделать Experiment без feedback/hints.
-- [ ] 21. Добавить ответ `Не уверен`.
-- [ ] 22. Измерять response time.
-- [ ] 23. Хранить `ΔZ/Z` ближайшей конкурирующей пары.
-- [ ] 24. Добавить adaptive staircase.
-- [ ] 25. Оценивать 80% threshold.
+- [x] 19. Подключить Experiment к общему Trial Engine.
+- [x] 20. Сделать Experiment без feedback/hints.
+- [x] 21. Добавить ответ `Не уверен`.
+- [x] 22. Измерять response time.
+- [x] 23. Хранить фактический `ΔZ/Z` ближайшей конкурирующей пары.
+- [x] 24. Добавить adaptive 3-down/1-up staircase.
+- [x] 25. Оценивать предварительный 80% threshold по reversal levels.
 
-## E. Statistics
+## E. Statistics — следующий блок
 
 - [ ] 26. Добавить Statistics panel.
 - [ ] 27. Training statistics.
@@ -679,25 +722,24 @@ Training improvement
 
 # 24. Milestones
 
-## Milestone 1 — Unified Training/Experiment architecture
-
-Частично выполнен.
+## Milestone 1 — Unified Training/Experiment architecture — выполнен
 
 - [x] отдельный Test удалён;
 - [x] Training использует Trial Engine;
 - [x] Training работает с progressive depth hints;
-- [x] Experiment scaffold создан;
+- [x] Experiment использует Trial Engine;
 - [x] persistent storage создан;
-- [ ] Experiment подключён к Trial Engine;
-- [ ] есть `Не уверен`;
-- [ ] Experiment сохраняет реальные response time и trial data.
+- [x] есть `Не уверен`;
+- [x] Experiment сохраняет реальные response time и trial data;
+- [x] adaptive staircase работает;
+- [x] preliminary 80% threshold доступен.
 
 ## Milestone 2 — Measurement prototype
 
 - [x] Training history сохраняется;
-- [ ] Experiment history наполняется реальными trials;
+- [x] Experiment history наполняется реальными trials;
 - [ ] строится psychometric curve;
-- [ ] оценивается threshold;
+- [ ] есть более строгая threshold estimation;
 - [ ] можно сравнить Static и Motion.
 
 ## Milestone 3 — Research prototype
@@ -742,7 +784,7 @@ Training improvement
       progressive depth hints        no visual feedback
       adaptive difficulty            uncertain response
       score                          response time
-      training history               randomized conditions
+      training history               adaptive staircase
                   │                           │
                   └─────────────┬─────────────┘
                                 ▼
