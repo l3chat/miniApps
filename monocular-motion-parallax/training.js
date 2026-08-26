@@ -2,17 +2,30 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.m
 
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 
-export function createTrainingMode({world,trialEngine,onScore=()=>{},onWin=()=>{},maxErrors=3}){
+export function createTrainingMode({world,trialEngine,onScore=()=>{},onWin=()=>{},onSessionEnd=()=>{},maxErrors=3}){
   const {renderer,camera}=world;
   const raycaster=new THREE.Raycaster();
   const pointer=new THREE.Vector2();
   const tweens=new Map();
   let active=false;
   let correct=0,wrong=0,unresolved=0;
+  let sessionStartedAt=null;
+  let sessionId=null;
+  let sessionFinished=true;
 
+  function makeId(){return `train-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,8)}`;}
   function score(){const n=correct+wrong;return n?Math.round(correct/n*100):100;}
-  function publish(){onScore({correct,wrong,unresolved,score:score(),active});}
+  function snapshot(){return {sessionId,correct,wrong,unresolved,score:score(),active,startedAt:sessionStartedAt};}
+  function publish(){onScore(snapshot());}
   function resetStats(){correct=0;wrong=0;unresolved=0;publish();}
+
+  function finishSession(reason){
+    if(sessionFinished||!sessionId)return;
+    sessionFinished=true;
+    const endedAt=new Date().toISOString();
+    const durationSec=sessionStartedAt?Math.max(0,(Date.now()-new Date(sessionStartedAt).getTime())/1000):0;
+    onSessionEnd({...snapshot(),active:false,reason,endedAt,durationSec});
+  }
 
   function objectScreenInfo(mesh,rect,positionOverride=null){
     const worldPos=positionOverride?positionOverride.clone():mesh.getWorldPosition(new THREE.Vector3());
@@ -115,8 +128,27 @@ export function createTrainingMode({world,trialEngine,onScore=()=>{},onWin=()=>{
     }
   }
 
-  function start(){active=true;resetStats();trialEngine.reset();trialEngine.startStep();renderer.domElement.style.cursor='crosshair';publish();}
-  function stop(){active=false;renderer.domElement.style.cursor='default';publish();}
+  function start(){
+    if(active)finishSession('restarted');
+    active=true;
+    sessionId=makeId();
+    sessionStartedAt=new Date().toISOString();
+    sessionFinished=false;
+    resetStats();
+    trialEngine.reset();
+    trialEngine.startStep();
+    renderer.domElement.style.cursor='crosshair';
+    publish();
+  }
+
+  function stop(reason='stopped'){
+    if(!active){finishSession(reason);return;}
+    active=false;
+    renderer.domElement.style.cursor='default';
+    publish();
+    finishSession(reason);
+  }
+
   function isActive(){return active;}
 
   function handlePointer(e){
@@ -129,7 +161,15 @@ export function createTrainingMode({world,trialEngine,onScore=()=>{},onWin=()=>{
     if(result.type==='correct'){
       correct++;
       world.removeObject(hit);
-      if(world.getObjects().length===0){stop();onWin({correct,wrong,unresolved,score:score()});publish();return;}
+      if(world.getObjects().length===0){
+        active=false;
+        renderer.domElement.style.cursor='default';
+        publish();
+        const final=snapshot();
+        onWin(final);
+        finishSession('won');
+        return;
+      }
       trialEngine.startStep();
       publish();
       return;
@@ -154,5 +194,5 @@ export function createTrainingMode({world,trialEngine,onScore=()=>{},onWin=()=>{
 
   renderer.domElement.addEventListener('pointerup',handlePointer);
 
-  return {start,stop,isActive,resetStats,updateTweens,getStats:()=>({correct,wrong,unresolved,score:score()})};
+  return {start,stop,isActive,resetStats,updateTweens,getStats:()=>snapshot()};
 }
