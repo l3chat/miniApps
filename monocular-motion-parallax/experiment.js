@@ -1,7 +1,29 @@
-export function createExperimentMode(){
+export function createExperimentMode({onTrial=()=>{}}={}){
   let active=false;
-  function start(){active=true;}
+  let sessionId=null;
+
+  function makeId(){
+    return `exp-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,8)}`;
+  }
+
+  function start(){
+    active=true;
+    sessionId=makeId();
+    return sessionId;
+  }
+
   function stop(){active=false;}
   function isActive(){return active;}
-  return {start,stop,isActive};
+
+  function recordTrial(trial){
+    const record={
+      sessionId,
+      timestamp:new Date().toISOString(),
+      ...trial
+    };
+    onTrial(record);
+    return record;
+  }
+
+  return {start,stop,isActive,recordTrial,getSessionId:()=>sessionId};
 }
