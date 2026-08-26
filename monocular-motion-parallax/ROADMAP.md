@@ -45,7 +45,7 @@
 - **Training** — обучает.
 - **Experiment** — измеряет.
 
-Отдельный пользовательский режим старого двухобъектного Test больше не является центральной концепцией и удалён из основного UI.
+Старый отдельный двухобъектный Test удалён из основного UI.
 
 ---
 
@@ -63,64 +63,51 @@ monocular-motion-parallax/
 ├── trial-engine.js
 ├── training.js
 ├── experiment.js
+├── storage.js
 ├── ui.js
 ├── ROADMAP.md
 └── далее:
-    ├── storage.js
     ├── stats.js
     └── calibration.js
 ```
 
 ## `scene.js`
 
-Отвечает за Three.js-сцену, объекты, геометрию, процедурные текстуры, сетки, освещение, генерацию сцены, размещение объектов и освобождение ресурсов.
+Three.js-сцена, объекты, геометрия, текстуры, сетки, освещение, генерация сцены и освобождение ресурсов.
 
 ## `camera-motion.js`
 
-Отвечает за:
-
-- Static;
-- L ↔ R;
-- 5 viewpoints;
-- Continuous;
-- baseline;
-- frequency;
-- waveform;
-- focus distance;
-- положение и направление камеры.
+Static / L↔R / 5 viewpoints / Continuous, baseline, frequency, waveform, focus distance, положение и направление камеры.
 
 ## `trial-engine.js`
 
 Общая логика задачи «найди ближайший объект»:
 
-- ранжирование объектов по расстоянию;
 - nearest / second nearest;
 - `ΔZ`;
 - `ΔZ/Z`;
 - correct / wrong;
-- список уже исключённых кандидатов;
-- число значимых ошибок;
+- excluded candidates;
+- meaningful errors;
 - `unresolved`.
 
 ## `training.js`
 
-Отвечает за:
-
-- forgiving hit area;
-- score;
-- feedback;
-- исключение ошибочных кандидатов;
-- progressive depth hints;
-- unresolved rounds;
-- Training animations.
+Forgiving hit area, score, feedback, progressive depth hints, unresolved rounds, Training animations и жизненный цикл Training-сессии.
 
 ## `experiment.js`
 
-Сейчас существует как базовый каркас. Полная измерительная логика — следующий этап.
+Каркас Experiment и готовый канал `recordTrial()` для записи будущих trials в storage.
 
-## `ui.js`
+## `storage.js`
 
-Содержит UI-тексты и вспомогательную логику для Training / Experiment.
+Versioned local browser storage:
+
+- settings;
+- last Training result;
+- Training history;
+- Experiment trial history;
+- schema migration.
 
 ---
 
@@ -128,64 +115,33 @@ monocular-motion-parallax/
 
 ## Правильный выбор
 
-Если пользователь выбирает ближайшую фигуру:
-
-- фигура исчезает;
-- засчитывается правильный выбор;
-- следующим правильным ответом становится следующая ближайшая фигура;
-- Training продолжается.
+- ближайшая фигура исчезает;
+- ответ засчитывается;
+- следующая ближайшая становится новой целью.
 
 ## Forgiving hit area
 
-Клик считается выбором фигуры, если он попал:
-
-- непосредственно в геометрию;
-- либо в разумную экранную область вокруг фигуры.
+Клик считается выбором, если он попал в объект или в разумную экранную область вокруг него.
 
 ## Неправильный выбор
 
-Ошибочно выбранная фигура:
+Ошибочная фигура:
 
 - становится красно-белой;
-- считается уже проверенным неправильным кандидатом;
-- плавно переносится горизонтально ближе к центральной области;
-- при поиске позиции учитывается перекрытие с другими фигурами.
-
-Повторный клик по уже исключённой фигуре:
-
-- игнорируется;
-- не считается новой ошибкой;
-- не ухудшает score;
-- не запускает новую подсказку.
+- исключается из кандидатов текущего шага;
+- переносится горизонтально ближе к центральной области, если есть свободная позиция;
+- повторный клик по ней игнорируется.
 
 ## Подсказка правильной глубины
 
-Истинно ближайшая фигура после ошибки:
+Истинно ближайшая фигура:
 
-- приближается к камере только по линии взора `camera → object`;
-- не перемещается горизонтально;
-- одновременно уменьшается в масштабе;
+- приближается только по линии взора `camera → object`;
+- не двигается горизонтально;
+- уменьшается пропорционально расстоянию;
 - сохраняет практически тот же видимый угловой размер.
 
-Если:
-
-```text
-D → kD
-```
-
-то:
-
-```text
-S → kS
-```
-
-Подсказка усиливает depth cue, но не указывает положение ответа.
-
-## Progressive hints
-
-Сейчас сила приближения увеличивается при повторных ошибках.
-
-Примерно:
+Пример:
 
 ```text
 error 1 → distance × 0.80
@@ -193,35 +149,30 @@ error 2 → distance × 0.70
 error 3 → distance × 0.62
 ```
 
-Правильная фигура никогда не перемещается горизонтально к центру.
-
 ## Защита от перебора
 
 После 3 значимых ошибок:
 
-- текущий шаг считается `unresolved`;
-- перебор всех фигур не продолжается;
-- генерируется новая сцена;
-- Training продолжается.
+- шаг становится `unresolved`;
+- перебор всех объектов прекращается;
+- генерируется новая сцена.
 
 ---
 
 # 4. Генерация Training-сцены
 
-Объекты по-прежнему используют большую часть поля зрения.
+Объекты используют большую часть поля зрения, но несколько ближайших конкурентов получают более ограниченный горизонтальный разброс.
 
-При этом для нескольких ближайших по глубине конкурентов горизонтальный разброс ограничен сильнее, чем для остальных объектов.
+В дальнейшем сделать это формальнее:
 
-Цель:
-
-- сохранить широкую пространственную сцену;
-- не делать наиболее трудные depth comparisons искусственно неудобными из-за противоположных краёв экрана.
-
-В дальнейшем эту логику нужно сделать формальнее: сначала сгенерировать глубины, затем выбрать ближайших 2–3 конкурента, после чего контролировать именно их экранное взаимное расположение.
+1. сгенерировать глубины;
+2. определить 2–3 ближайших объекта;
+3. контролировать именно их экранное расстояние;
+4. остальные объекты распределять широко.
 
 ---
 
-# 5. Training score
+# 5. Training score и история
 
 Базовая метрика:
 
@@ -229,19 +180,69 @@ error 3 → distance × 0.62
 score = correct / meaningful selections × 100%
 ```
 
-Повторные клики по уже исключённым кандидатам не являются meaningful selections.
+Сейчас:
 
-Текущий последний score остаётся видимым до начала следующего Training-сеанса.
-
-Следующий этап — сохранять его также после reload браузера через `storage.js`.
+- last score остаётся видимым после окончания Training;
+- сохраняется после reload браузера;
+- Training-сессия записывается в историю при stop / switch / reset / win;
+- сохраняются `correct`, `wrong`, `unresolved`, duration, camera и scene parameters;
+- история ограничена последними 500 сессиями.
 
 ---
 
-# 6. Experiment Mode — следующий крупный блок
+# 6. Persistent browser storage — выполнено
+
+Используется единый ключ:
+
+```text
+mmp-lab-state
+```
+
+## Settings
+
+Сохраняются:
+
+- language;
+- panel hidden/shown;
+- last app mode;
+- camera motion mode;
+- baseline;
+- frequency;
+- waveform;
+- FOV;
+- focus distance;
+- scene depth;
+- поле для будущей calibration.
+
+## Last Training result
+
+Сохраняется текущее/последнее состояние Training, поэтому score восстанавливается после reload.
+
+## Training history
+
+До 500 сессий.
+
+## Experiment history
+
+Storage pipeline готов для 2000 trials. Реальные Experiment trials начнут поступать после реализации Experiment Mode.
+
+## Schema version
+
+```json
+{
+  "schemaVersion": 1
+}
+```
+
+Есть миграция старого ключа языка `mmp-language` и нормализация данных при смене версии схемы.
+
+---
+
+# 7. Experiment Mode — следующий крупный блок
 
 Experiment должен использовать тот же Trial Engine, но без Training feedback.
 
-## Правила Experiment
+## Правила
 
 - никаких красно-белых объектов после ответа;
 - никаких hint animations;
@@ -262,8 +263,6 @@ Experiment должен использовать тот же Trial Engine, но 
 ```text
 uncertain = true
 ```
-
-Не смешивать автоматически с обычной ошибкой.
 
 ## Для каждого trial сохранять
 
@@ -290,56 +289,6 @@ response_time_ms
 
 ---
 
-# 7. Storage
-
-Создать `storage.js`.
-
-Сохранять:
-
-## Settings
-
-- language;
-- panel state;
-- Training / Experiment last mode;
-- camera motion mode;
-- baseline;
-- frequency;
-- waveform;
-- FOV;
-- focus distance;
-- scene depth;
-- calibration values.
-
-## Last Training result
-
-```json
-{
-  "scorePercent": 87,
-  "correct": 20,
-  "wrong": 3,
-  "unresolved": 1,
-  "timestamp": "..."
-}
-```
-
-## Training history
-
-Хранить последние 100–500 сессий.
-
-## Experiment history
-
-Хранить последние 500–2000 trials или ограничивать историю по размеру storage.
-
-## Schema version
-
-```json
-{
-  "schemaVersion": 1
-}
-```
-
----
-
 # 8. Statistics
 
 Добавить отдельный раздел `Statistics`.
@@ -353,7 +302,6 @@ response_time_ms
 - average last 10;
 - best last 10;
 - unresolved rate;
-- average hints;
 - reaction time.
 
 ## Experiment statistics
@@ -389,7 +337,7 @@ P(correct | ΔZ/Z)
 80% depth discrimination threshold
 ```
 
-Не показывать слишком уверенную оценку при малом числе trials.
+Уровни уверенности:
 
 ```text
 < 20 trials   → Preliminary estimate
@@ -420,7 +368,7 @@ Continuous motion parallax
 - FOV;
 - focus.
 
-Предпочтительно использовать randomized interleaving.
+Предпочтительно randomized interleaving.
 
 ---
 
@@ -439,7 +387,7 @@ Continuous motion parallax
 
 # 12. Automatic Experiment Mode
 
-Автоматически исследовать:
+Исследовать автоматически:
 
 ## Baseline
 
@@ -467,13 +415,13 @@ fine scan
 
 # 13. Individual perception profile
 
-В перспективе оценивать:
+В перспективе:
 
 ```text
 T(B, f, F, Z, mode)
 ```
 
-и выводить, например:
+Пример результата:
 
 ```text
 Best mode: Continuous
@@ -503,20 +451,20 @@ theta = 2 * atan((w / 2) / D)
 
 # 15. Adaptive Training
 
-Если пользователь играет уверенно:
+При хорошей игре:
 
 - уменьшать `ΔZ/Z`;
 - увеличивать object count;
 - повышать плотность конкурентов;
-- уменьшать силу hints.
+- уменьшать hints.
 
-Если ошибок много:
+При ошибках:
 
 - увеличивать `ΔZ/Z`;
 - уменьшать число близких конкурентов;
 - усиливать motion cue.
 
-Целевая Training accuracy:
+Целевая accuracy:
 
 ```text
 75–85%
@@ -534,7 +482,7 @@ theta = 2 * atan((w / 2) / D)
 - checker;
 - random texture.
 
-Позднее добавить texture density:
+Позднее:
 
 ```text
 coarse
@@ -555,7 +503,7 @@ timestamp
 protocol_version
 ```
 
-Добавить reproducible URLs:
+Добавить reproducible URL:
 
 ```text
 ?mode=continuous
@@ -574,9 +522,9 @@ protocol_version
 - CSV;
 - JSON;
 - summary report;
-- импорт JSON для продолжения истории.
+- импорт JSON.
 
-По умолчанию все данные остаются локально в браузере.
+По умолчанию данные остаются локально в браузере.
 
 ---
 
@@ -625,8 +573,6 @@ preferred ≥ 50 FPS
 
 # 21. Long-term training study
 
-В перспективе:
-
 ```text
 Pre-test
 Training
@@ -647,7 +593,7 @@ Day 30
 
 # 22. Personal report
 
-Автоматически формировать итоговый отчёт:
+Формировать:
 
 ```text
 Sessions
@@ -666,9 +612,7 @@ Training improvement
 
 # 23. Ближайший порядок реализации
 
-Это главный рабочий checklist.
-
-## A. Архитектура — выполнено в текущем проходе
+## A. Архитектура — выполнено
 
 - [x] 1. Убрать отдельный Test из центральной концепции UI.
 - [x] 2. Зафиксировать два режима: Training / Experiment.
@@ -677,25 +621,25 @@ Training improvement
 - [x] 5. Перенести игровую логику в `training.js`.
 - [x] 6. Создать базовый `experiment.js`.
 
-## B. Training — выполнено в текущем проходе
+## B. Training — выполнено
 
 - [x] 7. Не считать повторный клик по уже исключённой фигуре новой ошибкой.
 - [x] 8. Ввести максимум значимых ошибок на один шаг/раунд.
 - [x] 9. Добавить `unresolved` outcome вместо перебора всех объектов.
 - [x] 10. После повторной ошибки усиливать depth cue без горизонтального движения правильной фигуры.
-- [x] 11. Ограничить горизонтальный разброс ближайших конкурентов при генерации сцены.
+- [x] 11. Ограничить горизонтальный разброс ближайших конкурентов.
 - [x] 12. Оставлять last Training score видимым до следующего Training-сеанса.
 
-## C. Storage — следующий блок
+## C. Storage — выполнено
 
-- [ ] 13. Создать `storage.js`.
-- [ ] 14. Сохранять UI/camera settings.
-- [ ] 15. Сохранять last Training score после reload.
-- [ ] 16. Сохранять Training history.
-- [ ] 17. Сохранять Experiment trial history.
-- [ ] 18. Добавить schema version.
+- [x] 13. Создать `storage.js`.
+- [x] 14. Сохранять UI/camera settings.
+- [x] 15. Сохранять last Training score после reload.
+- [x] 16. Сохранять Training history.
+- [x] 17. Подготовить persistent Experiment trial history и канал записи trials.
+- [x] 18. Добавить schema version и migration path.
 
-## D. Experiment
+## D. Experiment — следующий блок
 
 - [ ] 19. Подключить Experiment к общему Trial Engine.
 - [ ] 20. Сделать Experiment без feedback/hints.
@@ -733,35 +677,33 @@ Training improvement
 
 ---
 
-# 24. Ближайшие milestones
+# 24. Milestones
 
 ## Milestone 1 — Unified Training/Experiment architecture
 
 Частично выполнен.
 
-- [x] отдельный Test удалён из основного UI;
-- [x] Training использует общий Trial Engine;
+- [x] отдельный Test удалён;
+- [x] Training использует Trial Engine;
 - [x] Training работает с progressive depth hints;
 - [x] Experiment scaffold создан;
+- [x] persistent storage создан;
 - [ ] Experiment подключён к Trial Engine;
 - [ ] есть `Не уверен`;
-- [ ] сохраняются response time и trial data.
+- [ ] Experiment сохраняет реальные response time и trial data.
 
 ## Milestone 2 — Measurement prototype
 
-Готово, когда:
-
-- [ ] сохраняется история;
+- [x] Training history сохраняется;
+- [ ] Experiment history наполняется реальными trials;
 - [ ] строится psychometric curve;
 - [ ] оценивается threshold;
 - [ ] можно сравнить Static и Motion.
 
 ## Milestone 3 — Research prototype
 
-Готово, когда:
-
 - [ ] experiments reproducible;
-- [ ] есть calibration/device info;
+- [ ] calibration/device info;
 - [ ] randomized conditions;
 - [ ] export raw data;
 - [ ] confidence intervals;
@@ -780,9 +722,7 @@ Training improvement
 - подсказку, усиливающую **depth cue**;
 - подсказку, раскрывающую **местоположение ответа**.
 
-Первая полезна для Training.
-
-Вторая по возможности должна быть исключена.
+Первая полезна для Training. Вторая по возможности должна быть исключена.
 
 ---
 
