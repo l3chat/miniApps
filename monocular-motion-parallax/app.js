@@ -6,6 +6,7 @@ import { createTrainingMode } from './training.js';
 import { createExperimentMode } from './experiment.js';
 import { createStorage } from './storage.js';
 import { modeText } from './ui.js';
+import { APP_VERSION, SCREEN_DIAGONAL_INCHES } from './version.js';
 
 const $=id=>document.getElementById(id);
 const storage=createStorage();
@@ -15,14 +16,19 @@ function detectLang(){if(saved.language&&I18N[saved.language])return saved.langu
 let lang=detectLang();
 const tr=k=>I18N[lang]?.[k]??I18N.en[k]??k;
 
+const LANGUAGE_LABELS={ru:'Язык / Language',en:'Language',de:'Sprache / Language',uk:'Мова / Language',fr:'Langue / Language'};
+
 const world=createWorld($('app'));
 const {renderer,camera}=world;
 const cameraMotion=createCameraMotion(camera,({xCm,focusDistance})=>{$('camx').textContent=xCm.toFixed(1);$('focusHud').textContent=focusDistance.toFixed(1);});
 const trialEngine=createTrialEngine({camera,getObjects:world.getObjects});
 
+$('versionText').textContent=`v${APP_VERSION}`;
+$('screenText').textContent=`screen ${SCREEN_DIAGONAL_INCHES}″`;
+
 function cameraSnapshot(){return {mode:cameraMotion.params.mode,baselineCm:cameraMotion.params.baselineCm,frequencyHz:cameraMotion.params.frequency,focusDistanceM:cameraMotion.params.focusDistance,waveform:cameraMotion.params.waveform};}
-function sceneSnapshot(){return {fovDeg:camera.fov,sceneDepthM:+$('sceneDepth').value};}
-function saveSettings(extra={}){storage.updateSettings({language:lang,panelHidden:document.body.classList.contains('controlsHidden'),camera:{mode:cameraMotion.params.mode,baselineCm:cameraMotion.params.baselineCm,frequency:cameraMotion.params.frequency,focusDistance:cameraMotion.params.focusDistance,waveform:cameraMotion.params.waveform},scene:{fov:camera.fov,sceneDepth:+$('sceneDepth').value},...extra});}
+function sceneSnapshot(){return {fovDeg:camera.fov,sceneDepthM:+$('sceneDepth').value,screenDiagonalInches:SCREEN_DIAGONAL_INCHES,screenPlaneDistanceM:world.screenPlaneDistance};}
+function saveSettings(extra={}){storage.updateSettings({language:lang,panelHidden:document.body.classList.contains('controlsHidden'),camera:{mode:cameraMotion.params.mode,baselineCm:cameraMotion.params.baselineCm,frequency:cameraMotion.params.frequency,focusDistance:cameraMotion.params.focusDistance,waveform:cameraMotion.params.waveform},scene:{fov:camera.fov,sceneDepth:+$('sceneDepth').value,screenDiagonalInches:SCREEN_DIAGONAL_INCHES},...extra});}
 
 let lastTrainingStats={correct:0,wrong:0,unresolved:0,score:100,active:false};
 let lastExperimentState={active:false,trialNo:0,total:0,threshold80:null};
@@ -44,7 +50,7 @@ function setExperimentLock(locked){
 
 const experiment=createExperimentMode({
   world,trialEngine,
-  getParameters:()=>({...cameraSnapshot(),...sceneSnapshot()}),
+  getParameters:()=>({...cameraSnapshot(),...sceneSnapshot(),appVersion:APP_VERSION}),
   onTrial:trial=>storage.appendExperimentTrial(trial),
   onState:updateExperimentStatus
 });
@@ -53,9 +59,9 @@ const training=createTrainingMode({
   world,trialEngine,maxErrors:3,
   onScore:stats=>{
     lastTrainingStats=stats;$('gameStatus').hidden=false;$('gameScore').textContent=`${stats.score}%`;$('unresolvedStatus').textContent=stats.unresolved?` · ${modeText(lang,'unresolved')}: ${stats.unresolved}`:'';
-    storage.setLastTrainingResult({...stats,timestamp:new Date().toISOString(),inProgress:stats.active,camera:cameraSnapshot(),scene:sceneSnapshot()});updateTrainingButton();
+    storage.setLastTrainingResult({...stats,timestamp:new Date().toISOString(),inProgress:stats.active,camera:cameraSnapshot(),scene:sceneSnapshot(),appVersion:APP_VERSION});updateTrainingButton();
   },
-  onSessionEnd:session=>storage.appendTrainingSession({...session,timestamp:session.endedAt||new Date().toISOString(),camera:cameraSnapshot(),scene:sceneSnapshot()}),
+  onSessionEnd:session=>storage.appendTrainingSession({...session,timestamp:session.endedAt||new Date().toISOString(),camera:cameraSnapshot(),scene:sceneSnapshot(),appVersion:APP_VERSION}),
   onWin:stats=>{lastTrainingStats=stats;$('trainingBtn').textContent=tr('gameWon');setTimeout(updateTrainingButton,1200);}
 });
 
@@ -64,8 +70,9 @@ function modeLabel(){const m=cameraMotion.params.mode;return m==='static'?tr('st
 
 function applyLanguage(next,{persist=true}={}){
   if(!I18N[next])next='en';lang=next;document.documentElement.lang=lang;document.title=tr('title');$('languageSelect').value=lang;
-  const labels={languageLabel:'language',brandDemo:'demo',motionTitle:'motionTitle',modeStatic:'static',modeLR:'lr',modeFive:'five',modeContinuous:'continuous',baselineLabel:'baseline',frequencyLabel:'frequency',focusDistanceLabel:'focusDistance',waveformLabel:'waveform',fovLabel:'fov',sceneDepthLabel:'sceneDepth',fullscreenBtn:'fullscreen',hideControlsBtn:'hide',resetBtn:'reset',sceneBtn:'newScene',gameScoreLabel:'gameScore',gameRulesTitle:'gameRules',gameRulesText:'gameRulesText'};
+  const labels={brandDemo:'demo',motionTitle:'motionTitle',modeStatic:'static',modeLR:'lr',modeFive:'five',modeContinuous:'continuous',baselineLabel:'baseline',frequencyLabel:'frequency',focusDistanceLabel:'focusDistance',waveformLabel:'waveform',fovLabel:'fov',sceneDepthLabel:'sceneDepth',fullscreenBtn:'fullscreen',hideControlsBtn:'hide',resetBtn:'reset',sceneBtn:'newScene',gameScoreLabel:'gameScore',gameRulesTitle:'gameRules',gameRulesText:'gameRulesText'};
   for(const [id,key] of Object.entries(labels))if($(id))$(id).textContent=tr(key);
+  $('languageLabel').textContent=LANGUAGE_LABELS[lang]??'Language';
   $('legendText').innerHTML=tr('legend');$('hintText').innerHTML=tr('hint');$('panelToggle').title=tr('show');$('panelToggle').setAttribute('aria-label',tr('show'));$('modeText').textContent=modeLabel();$('pauseBtn').textContent=cameraMotion.params.paused?tr('resume'):tr('pause');$('uncertainBtn').textContent=modeText(lang,'uncertain');$('unresolvedStatus').textContent=lastTrainingStats.unresolved?` · ${modeText(lang,'unresolved')}: ${lastTrainingStats.unresolved}`:'';updateTrainingButton();updateExperimentStatus(lastExperimentState);if(persist)saveSettings();
 }
 
