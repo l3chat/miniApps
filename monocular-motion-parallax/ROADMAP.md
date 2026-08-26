@@ -1,45 +1,118 @@
 # Monocular Motion Parallax Lab — Roadmap
 
-Этот файл — рабочий план развития проекта. Его следует поддерживать вместе с кодом: отмечать выполненные пункты, уточнять критерии готовности и добавлять новые идеи только после оценки их исследовательской ценности.
+Этот файл — основной рабочий план проекта. Он должен отражать **текущую концепцию**, а не историю всех обсуждений. Если архитектурное решение изменилось, старую идею лучше убрать или перенести в раздел «Отложено», чтобы не создавать двусмысленности.
 
-## 0. Главная цель
+---
 
-Превратить текущую веб-страницу из интерактивной демонстрации в инструмент для:
+# 0. Текущая концепция проекта
 
-1. демонстрации искусственного monocular motion parallax;
-2. психофизического тестирования восприятия глубины одним глазом;
-3. тренировки различения глубины;
-4. сбора индивидуальной статистики;
-5. оценки порога восприятия глубины;
-6. сравнения режимов движения камеры;
-7. автоматической оптимизации параметров под пользователя;
-8. подготовки воспроизводимых результатов для обсуждения с исследователями.
+## Главная цель
 
-Главный вопрос проекта:
+Создать браузерный инструмент, который одновременно позволяет:
+
+1. демонстрировать искусственный monocular motion parallax;
+2. обучать человека различать глубину одним глазом;
+3. количественно измерять качество такого восприятия;
+4. сравнивать способы движения виртуальной камеры;
+5. подбирать оптимальные параметры под конкретного пользователя;
+6. получать воспроизводимые данные, пригодные для обсуждения с исследователями.
+
+Главный исследовательский вопрос:
 
 > **При каких параметрах искусственного временного параллакса конкретный человек лучше всего различает глубину одним глазом?**
 
-Общая цепочка развития:
+---
+
+# 1. Главное архитектурное решение
+
+## Отдельный пользовательский режим «Тест» больше не является центральной концепцией
+
+Основная задача в приложении одна:
+
+> **Найти ближайший объект.**
+
+Она используется в двух режимах:
 
 ```text
-Demo
-  ↓
-Test
-  ↓
-Training
-  ↓
-Measurement
-  ↓
-Optimization
+                    Trial Engine
+                         │
+             ┌───────────┴───────────┐
+             │                       │
+          Training               Experiment
+             │                       │
+     feedback + hints          no feedback
+     adaptive difficulty      randomized conditions
+     score                    reaction time
+     learning                 threshold estimation
+```
+
+То есть:
+
+- **Training** — обучает;
+- **Experiment** — измеряет.
+
+Старый двухобъектный depth test можно временно сохранить в коде как вспомогательную 2AFC-процедуру, но он не должен определять архитектуру приложения и не обязан оставаться отдельной кнопкой в основном интерфейсе.
+
+---
+
+# 2. Единый Trial Engine
+
+Создать общий модуль `trial-engine.js`.
+
+Он должен отвечать за:
+
+- генерацию сцены/задачи;
+- определение истинного порядка объектов по глубине;
+- определение текущего ближайшего объекта;
+- регистрацию выбора пользователя;
+- `correct / wrong / uncertain`;
+- время ответа;
+- параметры текущего trial;
+- переход к следующему состоянию;
+- передачу результатов в Training или Experiment policy.
+
+Один trial должен хранить минимум:
+
+```text
+trial_id
+session_id
+timestamp
+mode
+baseline_cm
+frequency_hz
+waveform
+focus_distance_m
+fov_deg
+mean_distance_m
+nearest_distance_m
+second_nearest_distance_m
+delta_m
+relative_delta
+object_count
+selected_object_id
+correct
+uncertain
+response_time_ms
+hint_level
+```
+
+В многообъектной сцене особенно важно хранить не только `ΔZ` вообще, а разницу между ближайшим и ближайшим конкурентом:
+
+```text
+ΔZ = Z(second nearest) - Z(nearest)
+```
+
+и
+
+```text
+relative_delta = ΔZ / Z(nearest)
 ```
 
 ---
 
-# 1. Рефакторинг и архитектура
+# 3. Рефакторинг файлов
 
-## 1.1. Разделить `app.js`
-
-Предлагаемая структура:
+Рекомендуемая структура:
 
 ```text
 monocular-motion-parallax/
@@ -50,29 +123,31 @@ monocular-motion-parallax/
 ├── i18n.js
 ├── scene.js
 ├── camera-motion.js
-├── test.js
-├── game.js
+├── trial-engine.js
+├── training.js
+├── experiment.js
 ├── storage.js
 ├── stats.js
-├── experiment.js
 ├── calibration.js
 └── ui.js
 ```
 
-### `scene.js`
+## `scene.js`
 
 Отвечает за:
 
-- Three.js-сцену;
-- объекты и геометрию;
-- материалы и процедурные текстуры;
+- Three.js scene;
+- генерацию объектов;
+- геометрию;
+- процедурные текстуры;
 - дальнюю вертикальную сетку;
-- пол и освещение;
-- генерацию новой сцены;
-- размещение объектов;
+- пол;
+- освещение;
+- распределение объектов;
+- удаление объектов;
 - освобождение WebGL-ресурсов.
 
-### `camera-motion.js`
+## `camera-motion.js`
 
 Отвечает за:
 
@@ -85,185 +160,393 @@ monocular-motion-parallax/
 - waveform;
 - focus distance;
 - положение камеры;
+- направление камеры;
 - точку конвергенции.
 
-### `test.js`
+## `trial-engine.js`
+
+Общая логика задачи «найди ближайший объект».
+
+## `training.js`
 
 Отвечает за:
 
-- генерацию пары объектов;
-- `ΔZ / Z`;
-- adaptive staircase;
-- ответы пользователя;
-- запись результатов;
-- autofocus между объектами.
-
-### `game.js`
-
-Отвечает за:
-
-- запуск и остановку игры;
-- выбор ближайшего объекта;
+- score;
 - forgiving hit area;
-- правильные/неправильные клики;
-- подсказки;
-- перемещение фигур;
-- сохранение видимого размера при приближении;
-- игровой счёт.
+- feedback;
+- progressive hints;
+- adaptive difficulty;
+- завершение нераспознанного раунда.
 
-### `storage.js`
+## `experiment.js`
+
+Отвечает за:
+
+- отсутствие feedback;
+- randomized conditions;
+- кнопку/ответ `Не уверен`;
+- experiment blocks;
+- staircase;
+- Static vs Motion;
+- автоматический поиск параметров.
+
+## `storage.js`
 
 Отвечает за:
 
 - `localStorage`;
 - настройки;
-- историю тестов;
-- историю игр;
-- версию схемы данных;
-- экспорт/импорт.
+- историю Training;
+- experiment trials;
+- schema version;
+- export/import.
 
-### `stats.js`
+## `stats.js`
 
 Отвечает за:
 
-- проценты;
-- средние значения;
-- best score;
-- rolling average;
+- accuracy;
+- rolling averages;
+- reaction time;
 - psychometric function;
-- threshold `ΔZ/Z`.
+- threshold;
+- сравнение условий.
 
-### `experiment.js`
-
-Отвечает за:
-
-- randomized/blind experiment;
-- Static vs Motion;
-- блоки испытаний;
-- автоматический перебор параметров.
-
-### `calibration.js`
+## `calibration.js`
 
 Отвечает за:
 
 - физический размер экрана;
 - viewing distance;
-- визуальный угол;
-- начальную калибровку baseline.
+- visual angle;
+- device calibration.
 
-### `ui.js`
+## `ui.js`
 
 Отвечает за:
 
-- панели управления;
+- панели;
 - mobile layout;
-- отображение статистики;
-- графики;
-- сообщения.
+- statistics;
+- charts;
+- режимы Training / Experiment;
+- сообщения пользователю.
 
-### Критерий готовности
+### Критерий готовности рефакторинга
 
-- [ ] Поведение страницы не изменилось после рефакторинга.
-- [ ] `app.js` содержит только инициализацию и связывание модулей.
-- [ ] Нет дублирования логики.
-- [ ] Нет утечек geometry/texture/material.
+- [ ] Поведение текущей страницы сохранено.
+- [ ] `app.js` содержит в основном initialization/wiring.
+- [ ] Training и Experiment используют общий Trial Engine.
+- [ ] Нет дублирования определения глубины/ближайшего объекта.
+- [ ] Нет утечек geometry/material/texture.
 
 ---
 
-# 2. Система сохранения состояния
+# 4. Training Mode — окончательная логика
 
-## 2.1. Настройки интерфейса
+Training — основной пользовательский режим обучения.
 
-Сохранять в `localStorage`:
+## 4.1. Основная задача
 
-- язык;
-- скрыта/открыта панель;
-- последний активный режим;
-- mobile/desktop UI preferences, если появятся.
+Пользователь выбирает ближайшую фигуру.
 
-## 2.2. Настройки камеры
+Если выбор правильный:
+
+- фигура исчезает;
+- засчитывается правильный выбор;
+- текущим правильным ответом становится следующая ближайшая фигура;
+- игра продолжается до завершения сцены.
+
+## 4.2. Forgiving hit area
+
+Клик считается выбором фигуры, если он попал:
+
+- непосредственно в фигуру;
+- или в разумную область вокруг её экранной проекции.
+
+Это особенно важно на смартфоне.
+
+---
+
+# 5. Training — неправильный выбор
+
+## 5.1. Ошибочно выбранная фигура
+
+При неправильном выборе:
+
+1. фигура становится контрастно красно-белой;
+2. она считается уже проверенным неправильным кандидатом для текущего шага;
+3. она может быть перенесена горизонтально ближе к центру, если это помогает освободить сцену;
+4. её перемещение не должно заслонять другие фигуры;
+5. другие фигуры не должны заслонять её.
+
+Повторный клик по уже исключённой фигуре:
+
+- не должен давать новый штраф;
+- не должен запускать новую подсказку;
+- желательно либо игнорировать его, либо визуально показать, что кандидат уже исключён.
+
+Это предотвращает искусственное ухудшение score.
+
+## 5.2. Ближайшая фигура после ошибки
+
+Реально ближайшая фигура:
+
+- перемещается **только по линии взора камера → фигура**;
+- приближается к камере;
+- **не перемещается горизонтально**;
+- одновременно уменьшается в мировом масштабе;
+- сохраняет практически неизменный видимый угловой размер.
+
+Если расстояние изменяется:
+
+```text
+D → kD
+```
+
+то масштаб меняется:
+
+```text
+S → kS
+```
+
+Например:
+
+```text
+D × 0.8
+S × 0.8
+```
+
+Это усиливает motion-parallax cue, но не выдаёт положение правильного ответа.
+
+## 5.3. Чего НЕ делать
+
+Не перемещать правильную ближайшую фигуру горизонтально к центру.
+
+Причина:
+
+> это слишком явная подсказка, которая учит искать движение объекта, а не глубину.
+
+---
+
+# 6. Progressive hints в Training
+
+Подсказки должны усиливать **признак глубины**, а не показывать ответ.
+
+## Ошибка 1
+
+- исключить неправильного кандидата;
+- ближайший объект приблизить по лучу зрения;
+- сохранить его угловой размер.
+
+## Ошибка 2
+
+- снова немного приблизить ближайший объект по тому же лучу;
+- снова сохранить угловой размер.
+
+## Ошибка 3
+
+Можно временно усилить depth cue, например:
+
+- baseline +20–30%;
+- чуть снизить frequency, если это облегчает сравнение;
+- или на короткое время усилить амплитуду motion parallax.
+
+После правильного ответа вернуть обычные параметры.
+
+## Ограничение числа ошибок
+
+Не доводить сцену до перебора всех объектов.
+
+После, например, 3–4 значимых ошибок подряд:
+
+- пометить текущий шаг/раунд как `unresolved`;
+- закончить его;
+- перейти к следующей сцене;
+- немного увеличить depth separation следующей задачи.
+
+Это принципиально важно, чтобы стратегия
+
+> «нажму всё подряд»
+
+не была рабочей.
+
+---
+
+# 7. Training — генерация сцены
+
+Объекты должны использовать большую часть доступного поля зрения.
+
+Но при этом:
+
+- несколько ближайших по глубине конкурирующих объектов не должны систематически оказываться на противоположных краях экрана;
+- сложные depth comparisons должны оставаться зрительно выполнимыми;
+- вся сцена при этом может оставаться широкой.
+
+То есть не надо сжимать всю сцену к центру — нужно контролировать расположение именно ближайших конкурентов.
+
+## Возможная стратегия
+
+1. Сначала сгенерировать глубины.
+2. Найти 2–3 ближайших объекта.
+3. Для них ограничить максимальную экранную дистанцию между центрами.
+4. Остальные объекты распределять почти по всей ширине.
+
+---
+
+# 8. Training score
+
+Базовая метрика:
+
+```text
+score = correct / all meaningful selections × 100%
+```
+
+Важно:
+
+- повторные клики по уже исключённому объекту не считаются новым meaningful selection;
+- последний score остаётся видимым после окончания игры;
+- он сохраняется до начала следующей игры;
+- позднее сохраняется и после reload страницы.
+
+Дополнительно в будущем:
+
+- reaction time;
+- streak;
+- best streak;
+- mistakes per scene;
+- hints used;
+- unresolved rounds;
+- final difficulty.
+
+---
+
+# 9. Experiment Mode
+
+Experiment использует **ту же задачу и тот же Trial Engine**, но принципиально другую обратную связь.
+
+## 9.1. Основные правила
+
+В Experiment:
+
+- никаких красно-белых фигур после ответа;
+- никаких перемещений объектов после ошибки;
+- никаких hint animations;
+- никаких временных изменений baseline;
+- ответ пользователя не должен влиять на текущий trial визуально.
+
+После ответа начинается следующий trial.
+
+## 9.2. Ответ `Не уверен`
+
+Добавить отдельный ответ:
+
+```text
+Не уверен
+```
+
+Это лучше, чем вынуждать человека угадывать.
+
+Хранить отдельно:
+
+```text
+uncertain = true
+```
+
+Не смешивать его автоматически с обычной ошибкой.
+
+## 9.3. Что измерять
+
+Для каждого experiment trial:
+
+- correct / wrong / uncertain;
+- response time;
+- `ΔZ/Z` ближайшей пары-конкурентов;
+- Z;
+- baseline;
+- frequency;
+- mode;
+- waveform;
+- focus;
+- FOV;
+- device/calibration info;
+- object count;
+- random seed.
+
+---
+
+# 10. Adaptive difficulty
+
+## Training
+
+Если пользователь играет уверенно:
+
+- уменьшать `ΔZ/Z`;
+- увеличивать число объектов;
+- повышать плотность ближайших конкурентов;
+- уменьшать силу подсказок.
+
+Если ошибок много:
+
+- увеличивать `ΔZ/Z`;
+- уменьшать число конкурирующих близких объектов;
+- усиливать motion cue.
+
+Целевая accuracy для обучения:
+
+```text
+75–85%
+```
+
+## Experiment
+
+Использовать staircase или другую формальную adaptive procedure.
+
+Цель — оценка psychometric threshold, а не поддержание ощущения успеха.
+
+---
+
+# 11. Хранение данных в браузере
+
+Создать нормальный `storage.js`.
+
+## 11.1. Settings
 
 Сохранять:
 
-- motion mode;
+- language;
+- panel state;
+- Training / Experiment last mode;
+- camera motion mode;
 - baseline;
 - frequency;
 - waveform;
 - FOV;
 - focus distance;
-- scene depth.
+- scene depth;
+- calibration values.
 
-## 2.3. Настройки теста
-
-Сохранять:
-
-- последний `ΔZ/Z`;
-- autofocus on/off;
-- диапазон `Z`;
-- параметры adaptive staircase.
-
-## 2.4. Последний игровой результат
-
-Формат примерно такой:
+## 11.2. Last Training result
 
 ```json
 {
   "scorePercent": 87,
   "correct": 20,
   "wrong": 3,
+  "unresolved": 1,
   "timestamp": "..."
 }
 ```
 
-Требования:
+## 11.3. Training history
 
-- результат остаётся видимым после игры;
-- переживает reload страницы;
-- сбрасывается только при старте новой игры.
+Хранить последние 100–500 сессий/игр.
 
-## 2.5. История игр
+## 11.4. Experiment history
 
-Хранить минимум последние 100 игр:
+Хранить последние 500–2000 trials либо ограничивать объём по размеру storage.
 
-```json
-{
-  "timestamp": "...",
-  "scorePercent": 87,
-  "correct": 20,
-  "wrong": 3,
-  "durationSec": 95,
-  "baselineCm": 8,
-  "frequencyHz": 1.6,
-  "mode": "continuous"
-}
-```
-
-## 2.6. История теста
-
-Хранить последние 500–2000 попыток.
-
-Для каждой попытки:
-
-```text
-timestamp
-mode
-baseline_cm
-frequency_hz
-waveform
-focus_distance_m
-mean_distance_m
-delta_m
-relative_delta
-relative_delta_percent
-left_shape
-right_shape
-correct
-response_time_ms
-```
-
-## 2.7. Версионирование
-
-Все persistent data должны иметь:
+## 11.5. Schema version
 
 ```json
 {
@@ -274,38 +557,39 @@ response_time_ms
 ### Критерий готовности
 
 - [ ] После reload возвращаются настройки.
-- [ ] Последний игровой счёт виден.
-- [ ] История тестов и игр сохраняется.
-- [ ] Старые данные можно мигрировать при изменении схемы.
+- [ ] Последний Training score остаётся видимым.
+- [ ] История Training сохраняется.
+- [ ] Experiment trials сохраняются.
+- [ ] Есть безопасная миграция schema version.
 
 ---
 
-# 3. Панель Statistics
+# 12. Statistics
 
-Добавить отдельный раздел `Statistics`.
+Добавить раздел `Statistics`.
 
-## Test statistics
+## Training statistics
 
-Показывать:
+- last score;
+- best score;
+- games/sessions count;
+- average score;
+- average last 10;
+- best last 10;
+- unresolved rate;
+- average hints;
+- reaction time.
 
-- число попыток;
-- общую точность;
-- текущий `ΔZ/Z`;
-- оценочный threshold;
-- результаты по motion modes.
+## Experiment statistics
 
-## Game statistics
-
-Показывать:
-
-- последний результат;
-- лучший результат;
-- число игр;
-- средний результат;
-- средний результат последних 10 игр;
-- лучший результат последних 10 игр.
-
-## Управление данными
+- trials count;
+- accuracy;
+- uncertain rate;
+- response time;
+- current `ΔZ/Z`;
+- threshold estimate;
+- result by motion mode;
+- result by baseline/frequency/Z.
 
 Добавить:
 
@@ -313,720 +597,38 @@ response_time_ms
 - Clear history;
 - Reset statistics.
 
-Перед очисткой истории — подтверждение.
-
-### Критерий готовности
-
-- [ ] Прогресс можно понять без CSV.
+Перед очисткой данных — confirmation.
 
 ---
 
-# 4. График adaptive staircase
+# 13. Psychometric measurement
 
-## График 1
-
-Ось X: `trial number`.
-
-Ось Y: `ΔZ/Z (%)`.
-
-Отмечать:
-
-- correct;
-- error;
-- изменение adaptive difficulty.
-
-## График 2
-
-Оценка:
+Строить:
 
 ```text
 P(correct | ΔZ/Z)
 ```
 
-## Threshold
-
 Оценивать минимум:
 
-- 75%;
-- 80%;
-- 90% correct.
+- 75% threshold;
+- 80% threshold;
+- 90% threshold.
 
-Основная метрика:
+Основная метрика по умолчанию:
 
 ```text
 80% depth discrimination threshold
 ```
 
-Пример результата:
+Пример:
 
 ```text
-Estimated depth discrimination threshold:
+Estimated threshold:
 ΔZ/Z ≈ 2.8% at 80% correct
 ```
 
----
-
-# 5. Индивидуальный профиль восприятия
-
-Постепенно перейти от одного threshold к зависимости:
-
-```text
-T(B, f, F, Z, mode)
-```
-
-где:
-
-- `B` — baseline;
-- `f` — frequency;
-- `F` — focus distance;
-- `Z` — mean object distance;
-- `mode` — camera-motion mode.
-
-В перспективе показывать:
-
-```text
-Best mode: Continuous
-Best baseline: 9.5 cm
-Best frequency: 1.4 Hz
-Estimated threshold: 2.1%
-```
-
----
-
-# 6. Эксперимент Static vs Motion
-
-Это один из главных исследовательских режимов.
-
-## Протокол
-
-Например:
-
-```text
-20 trials Static
-20 trials Continuous
-```
-
-Предпочтительно — randomized interleaving.
-
-## Контролируемые параметры
-
-Должны совпадать:
-
-- диапазон `Z`;
-- формы;
-- размеры;
-- цвета;
-- `ΔZ/Z`;
-- расположение;
-- число испытаний.
-
-Меняется только движение камеры.
-
-## Итог
-
-Например:
-
-```text
-Static:
-accuracy 58%
-threshold 9.4%
-
-Continuous motion parallax:
-accuracy 84%
-threshold 2.9%
-
-Improvement:
-+26 percentage points
-```
-
----
-
-# 7. Blind / randomized experiment
-
-Цель — уменьшить влияние ожиданий пользователя.
-
-Случайно выбирать:
-
-- Static;
-- L ↔ R;
-- 5 viewpoints;
-- Continuous.
-
-Пользователь не знает текущий режим.
-
-После блока показывать результаты по условиям.
-
-Обеспечить одинаковое число испытаний каждого типа.
-
----
-
-# 8. Automatic Experiment Mode
-
-Добавить кнопку `Experiment`.
-
-Программа должна автоматически исследовать:
-
-## Motion mode
-
-- Static;
-- L ↔ R;
-- 5 viewpoints;
-- Continuous.
-
-## Baseline
-
-Пример coarse set:
-
-```text
-2, 4, 6, 8, 10, 12, 16 cm
-```
-
-## Frequency
-
-Пример:
-
-```text
-0.5, 1.0, 1.5, 2.0, 3.0 Hz
-```
-
-Не использовать полный тупой перебор.
-
-Стратегия:
-
-```text
-coarse scan
-     ↓
-best region
-     ↓
-fine scan
-```
-
-Пример результата:
-
-```text
-Best configuration found:
-Mode: Continuous
-Baseline: 9 cm
-Frequency: 1.4 Hz
-Focus: midpoint
-Threshold: ΔZ/Z = 2.0%
-```
-
----
-
-# 9. Физическая калибровка экрана
-
-Одинаковое изображение на телефоне, планшете и мониторе даёт разный визуальный угол.
-
-Запрашивать:
-
-- физическую ширину/диагональ экрана;
-- расстояние глаз–экран.
-
-Вычислять визуальный угол по геометрии:
-
-```text
-theta = 2 * atan((w / 2) / D)
-```
-
-Калибровку сохранять в браузере.
-
-Это нужно для сравнения:
-
-- между устройствами;
-- между пользователями;
-- между экспериментальными сессиями.
-
----
-
-# 10. Calibration Mode для baseline
-
-Цель: быстро найти рабочий baseline.
-
-Пример:
-
-```text
-1 → 2 → 3 → 4 → 6 → 8 cm ...
-```
-
-После обнаружения диапазона — перейти к staircase/binary refinement.
-
-Результат:
-
-```text
-Recommended starting baseline: 6.5 cm
-```
-
----
-
-# 11. Игра как тренажёр
-
-Добавить уровни:
-
-## Easy
-
-- мало объектов;
-- большой depth spread;
-- большой baseline;
-- сильный motion parallax.
-
-## Normal
-
-Средние параметры.
-
-## Hard
-
-- больше объектов;
-- меньшие differences;
-- умеренный baseline.
-
-## Expert
-
-- минимальные depth differences;
-- высокая плотность;
-- слабые подсказки.
-
----
-
-# 12. Adaptive game
-
-При хорошей игре:
-
-- уменьшать depth differences;
-- уменьшать baseline;
-- уменьшать визуальные подсказки;
-- увеличивать число объектов и плотность.
-
-При ошибках — временно облегчать задачу.
-
-Целевая точность тренировки:
-
-```text
-75–85%
-```
-
----
-
-# 13. Progressive hints
-
-Текущий механизм:
-
-- неправильная фигура → red/white;
-- ближайшая → приближается;
-- при приближении уменьшается так, чтобы сохранить видимый размер.
-
-Развить:
-
-## Ошибка 1
-
-```text
-distance × 0.8
-scale × 0.8
-```
-
-## Ошибка 2
-
-Повторить усиление подсказки.
-
-## Ошибка 3
-
-Кратковременно:
-
-- увеличить baseline;
-- показать trajectory cue;
-- или усилить motion parallax.
-
-Не показывать прямой ответ сразу.
-
----
-
-# 14. Response time
-
-Для каждого ответа сохранять:
-
-```text
-response_time_ms
-```
-
-Два режима могут иметь одинаковую accuracy, но разное время ответа — это важная информация.
-
----
-
-# 15. Анализ по расстоянию
-
-Разбить `Z` на группы, например:
-
-```text
-2.5–3.5 m
-3.5–5.0 m
-5.0–6.5 m
-6.5–8.0 m
-```
-
-Оценивать threshold отдельно.
-
----
-
-# 16. Анализ по baseline
-
-Строить:
-
-```text
-threshold vs baseline
-```
-
-И искать индивидуальный оптимум.
-
----
-
-# 17. Анализ по frequency
-
-Строить:
-
-```text
-threshold vs frequency
-```
-
-И искать индивидуальный оптимум.
-
----
-
-# 18. Сравнение trajectory/waveform
-
-Сравнить:
-
-- sine;
-- triangle;
-- L/R discrete;
-- 5 viewpoints;
-- continuous.
-
-Позднее:
-
-- smoothstep;
-- asymmetric motion;
-- random micro-motion.
-
----
-
-# 19. Research Mode
-
-В обычном режиме интерфейс должен оставаться простым.
-
-В Research Mode показывать:
-
-- точные параметры;
-- trial number;
-- random seed;
-- staircase state;
-- raw data;
-- psychometric fit;
-- confidence intervals.
-
----
-
-# 20. Reproducible sessions
-
-Каждая экспериментальная сессия должна иметь:
-
-```text
-session_id
-random_seed
-timestamp
-protocol_version
-```
-
-Это позволит воспроизводить наборы trials.
-
----
-
-# 21. Экспорт данных
-
-Поддержать:
-
-## CSV
-
-Для Excel / Python / R.
-
-## JSON
-
-Для полного восстановления состояния и эксперимента.
-
-## Summary
-
-Например:
-
-```text
-Participant session
-Date
-Device
-Viewing distance
-Best mode
-Best baseline
-Best frequency
-Estimated threshold
-Static vs Motion improvement
-```
-
----
-
-# 22. Импорт данных
-
-Позволить загрузить ранее экспортированный JSON:
-
-- перенос между браузерами;
-- продолжение истории;
-- передача исследователю.
-
----
-
-# 23. Privacy-first
-
-По умолчанию:
-
-> Все данные хранятся только локально в браузере.
-
-Никакой серверной отправки без отдельного явного действия пользователя.
-
----
-
-# 24. Дополнительные игровые метрики
-
-Добавить:
-
-- accuracy;
-- reaction time;
-- streak;
-- best streak;
-- average mistakes per scene;
-- number of hints;
-- final difficulty.
-
----
-
-# 25. Training progress
-
-Показывать периоды:
-
-```text
-Today
-7 days
-30 days
-All time
-```
-
-Например:
-
-```text
-Depth threshold
-Week 1: 5.4%
-Week 2: 4.2%
-Week 3: 3.1%
-```
-
----
-
-# 26. Session Mode
-
-Готовые тренировочные сессии:
-
-```text
-5 min
-10 min
-20 min
-```
-
-Автоматически чередовать:
-
-- игру;
-- тест;
-- отдых.
-
----
-
-# 27. Контроль лишних monocular cues
-
-В Research Mode систематически контролировать:
-
-- angular size;
-- brightness;
-- color;
-- texture;
-- perspective cues;
-- overlap;
-- vertical position.
-
-Цель:
-
-> Motion parallax должен быть главным изменяемым признаком.
-
----
-
-# 28. Texture experiment
-
-Сравнить:
-
-- solid;
-- squares;
-- triangles;
-- checker;
-- random texture.
-
-Проверить, улучшает ли текстура depth discrimination.
-
----
-
-# 29. Texture density
-
-Добавить уровни:
-
-```text
-coarse
-medium
-fine
-```
-
-Изучить влияние spatial frequency рисунка.
-
----
-
-# 30. Mobile quality
-
-Проверять отдельно:
-
-- Android portrait;
-- Android landscape;
-- iPhone portrait;
-- tablet;
-- desktop.
-
-Критерии:
-
-- viewer никогда не исчезает;
-- controls не перекрывают сцену;
-- основные controls не требуют обязательной прокрутки;
-- игровые targets удобно нажимать пальцем;
-- графики читаемы.
-
----
-
-# 31. UI sanity checks
-
-После resize/orientation change проверять минимум:
-
-```text
-viewer width > 0
-viewer height > 0
-canvas width > 0
-canvas height > 0
-```
-
----
-
-# 32. Performance
-
-Следить за:
-
-- FPS;
-- geometry count;
-- texture count;
-- WebGL resource disposal;
-- GPU load.
-
-Цели на смартфоне:
-
-```text
-target ≥ 30 FPS
-preferred ≥ 50 FPS
-```
-
----
-
-# 33. Low-performance mode
-
-При низком FPS автоматически:
-
-- уменьшать pixel ratio;
-- упрощать geometry;
-- снижать anisotropy;
-- уменьшать число объектов.
-
----
-
-# 34. About / Method
-
-Добавить раздел с объяснением:
-
-- stereopsis;
-- monocular motion parallax;
-- temporal presentation;
-- цели теста;
-- роли игры как тренажёра.
-
----
-
-# 35. Research Notes
-
-Кратко описать идею:
-
-```text
-L → L½ → C → R½ → R → ...
-```
-
-и концепцию:
-
-```text
-spatial disparity
-→ temporal disparity
-→ motion parallax
-```
-
----
-
-# 36. Reproducible URL parameters
-
-Создавать ссылки вида:
-
-```text
-?mode=continuous
-&baseline=8
-&frequency=1.6
-&fov=55
-&focus=5
-```
-
-Чтобы другой человек мог открыть те же параметры.
-
----
-
-# 37. Presets
-
-Добавить:
-
-```text
-Demo
-Strong effect
-Natural
-Research
-Training
-```
-
----
-
-# 38. Confidence intervals
-
-Для threshold показывать не только одно число, но и неопределённость:
-
-```text
-2.8%
-95% CI: 2.2–3.5%
-```
-
----
-
-# 39. Минимальный объём данных
-
-Не показывать слишком уверенный threshold после нескольких trials.
+Не показывать слишком уверенную оценку при малом числе данных.
 
 Например:
 
@@ -1038,56 +640,392 @@ Training
 
 ---
 
-# 40. Сравнение с собственной историей
+# 14. Графики
 
-Например:
+## Adaptive staircase
+
+X:
 
 ```text
-Current threshold: 2.7%
-30-day average: 3.4%
-Improvement: 20.6%
+trial number
+```
+
+Y:
+
+```text
+ΔZ/Z (%)
+```
+
+Отмечать:
+
+- correct;
+- wrong;
+- uncertain.
+
+## Psychometric curve
+
+```text
+P(correct | ΔZ/Z)
+```
+
+## Training progress
+
+```text
+Today
+7 days
+30 days
+All time
 ```
 
 ---
 
-# 41. Session notes
+# 15. Static vs Motion — ключевой эксперимент
 
-Позволить добавить короткую заметку:
+Сравнивать одну и ту же задачу при:
 
 ```text
-without glasses
-tired
-dark room
-phone portrait
+Static
+vs
+Continuous motion parallax
+```
+
+Контролировать:
+
+- Z;
+- ΔZ/Z;
+- object count;
+- object sizes;
+- textures;
+- layout;
+- FOV;
+- focus.
+
+Меняется только camera motion condition.
+
+Предпочтительно randomized interleaving.
+
+Пример результата:
+
+```text
+Static:
+accuracy 58%
+threshold 9.4%
+
+Continuous:
+accuracy 84%
+threshold 2.9%
+
+Improvement:
++26 percentage points
 ```
 
 ---
 
-# 42. Device profile
+# 16. Blind / randomized experiment
+
+Случайно выбирать condition:
+
+- Static;
+- L ↔ R;
+- 5 viewpoints;
+- Continuous.
+
+Пользователь не знает condition текущего trial/block.
+
+После серии показывать результаты по условиям.
+
+---
+
+# 17. Automatic Experiment Mode
+
+Программа сама исследует параметры.
+
+## Motion mode
+
+- Static;
+- L ↔ R;
+- 5 viewpoints;
+- Continuous.
+
+## Baseline coarse search
+
+```text
+2, 4, 6, 8, 10, 12, 16 cm
+```
+
+## Frequency coarse search
+
+```text
+0.5, 1.0, 1.5, 2.0, 3.0 Hz
+```
+
+Не делать полный brute-force по всем сочетаниям.
+
+Стратегия:
+
+```text
+coarse scan
+     ↓
+best region
+     ↓
+fine scan
+```
+
+Результат:
+
+```text
+Best configuration found:
+Mode: Continuous
+Baseline: 9 cm
+Frequency: 1.4 Hz
+Threshold: ΔZ/Z = 2.0%
+```
+
+---
+
+# 18. Individual perception profile
+
+Постепенно оценивать зависимость:
+
+```text
+T(B, f, F, Z, mode)
+```
+
+где:
+
+- B — baseline;
+- f — frequency;
+- F — focus distance;
+- Z — distance;
+- mode — motion mode.
+
+В перспективе:
+
+```text
+Best mode: Continuous
+Best baseline: 9.5 cm
+Best frequency: 1.4 Hz
+Estimated threshold: 2.1%
+```
+
+---
+
+# 19. Screen/device calibration
+
+Для сопоставимости результатов запросить:
+
+- physical screen width или diagonal;
+- viewing distance.
+
+Вычислять visual angle:
+
+```text
+theta = 2 * atan((w / 2) / D)
+```
 
 Сохранять:
 
 - viewport;
 - pixel ratio;
-- screen width/height;
 - orientation;
-- calibrated physical screen width;
+- physical screen size;
 - viewing distance.
 
 Не собирать лишние персональные идентификаторы.
 
 ---
 
-# 43. Data quality warnings
+# 20. Training difficulty levels
 
-Помечать, но не удалять:
+После базового Training добавить presets:
+
+## Easy
+
+- меньше объектов;
+- большой depth spread;
+- сильный motion cue.
+
+## Normal
+
+Средние значения.
+
+## Hard
+
+- больше объектов;
+- меньший `ΔZ/Z`;
+- больше конкурентов.
+
+## Expert
+
+- малые depth differences;
+- высокая плотность;
+- минимум hints.
+
+Позднее ручные уровни можно заменить adaptive difficulty.
+
+---
+
+# 21. Textures as experimental variable
+
+Сравнить:
+
+- solid;
+- squares;
+- triangles;
+- checker;
+- random texture.
+
+Позднее добавить texture density:
+
+```text
+coarse
+medium
+fine
+```
+
+Исследовательский вопрос:
+
+> Улучшает ли поверхностная структура восприятие motion parallax и зависит ли эффект от spatial frequency текстуры?
+
+---
+
+# 22. Reproducibility
+
+Каждая experiment session должна иметь:
+
+```text
+session_id
+random_seed
+timestamp
+protocol_version
+```
+
+Добавить reproducible URLs:
+
+```text
+?mode=continuous
+&baseline=8
+&frequency=1.6
+&fov=55
+&focus=5
+```
+
+---
+
+# 23. Export / Import
+
+## CSV
+
+Для Excel / Python / R.
+
+## JSON
+
+Для полного восстановления данных.
+
+## Summary
+
+Например:
+
+```text
+Session
+Date
+Device
+Viewing distance
+Best mode
+Best baseline
+Best frequency
+Estimated threshold
+Static vs Motion improvement
+```
+
+Импорт JSON должен позволять:
+
+- переносить историю;
+- продолжать experiment history;
+- передавать данные исследователю.
+
+---
+
+# 24. Privacy
+
+По умолчанию:
+
+> Все результаты и настройки хранятся локально в браузере.
+
+Ничего не отправлять на сервер без отдельного явного действия пользователя.
+
+---
+
+# 25. Mobile and performance quality
+
+Проверять:
+
+- Android portrait;
+- Android landscape;
+- iPhone portrait;
+- tablet;
+- desktop.
+
+Критерии:
+
+- viewer не исчезает;
+- controls не перекрывают viewer;
+- targets удобно нажимать;
+- charts читаемы;
+- layout корректен после orientation change.
+
+Sanity checks:
+
+```text
+viewer width > 0
+viewer height > 0
+canvas width > 0
+canvas height > 0
+```
+
+Performance goals:
+
+```text
+target ≥ 30 FPS
+preferred ≥ 50 FPS
+```
+
+При низком FPS:
+
+- уменьшать pixel ratio;
+- упрощать geometry;
+- уменьшать anisotropy;
+- уменьшать object count.
+
+---
+
+# 26. Research Mode
+
+В обычном режиме интерфейс должен оставаться простым.
+
+В Research Mode показывать:
+
+- exact parameters;
+- trial number;
+- random seed;
+- staircase state;
+- raw data;
+- psychometric fit;
+- confidence intervals;
+- data-quality warnings.
+
+---
+
+# 27. Data quality
+
+Помечать, но не удалять автоматически:
 
 - слишком быстрые ответы;
 - очень длинные паузы;
-- подозрительно случайные серии;
-- FPS drops.
+- FPS drops;
+- необычные серии ответов.
 
-Флаг:
+Поле:
 
 ```text
 quality_warning
@@ -1095,9 +1033,9 @@ quality_warning
 
 ---
 
-# 44. Pre-test / Training / Post-test
+# 28. Long-term training study
 
-Режим исследования обучения:
+Позднее реализовать:
 
 ```text
 Pre-test
@@ -1105,13 +1043,7 @@ Training
 Post-test
 ```
 
-Сравнивать threshold до и после тренировки.
-
----
-
-# 45. Long-term training experiment
-
-Например:
+и долгосрочные точки:
 
 ```text
 Day 1
@@ -1121,20 +1053,20 @@ Day 14
 Day 30
 ```
 
-Проверять, сохраняется ли эффект обучения.
+Сравнивать threshold до/после обучения и устойчивость эффекта.
 
 ---
 
-# 46. Personal report
+# 29. Personal report
 
-Автоматически формировать отчёт, например:
+В перспективе автоматически формировать:
 
 ```text
 Monocular Motion Parallax Report
 
 Sessions: 12
 Trials: 840
-Games: 35
+Training games: 35
 
 Best motion mode: Continuous
 Best baseline: 8–10 cm
@@ -1147,87 +1079,134 @@ Training improvement over 14 days: 31%
 
 ---
 
-# 47. Приоритеты
+# 30. About / Method
 
-## Priority A — ближайшие задачи
+Добавить раздел, объясняющий:
 
-- [ ] Рефакторинг `app.js`.
-- [ ] Создать `storage.js`.
-- [ ] Сохранять UI/camera settings.
-- [ ] Сохранять последний game score.
-- [ ] Сохранять game history.
-- [ ] Сохранять test trial history.
-- [ ] Добавить Statistics panel.
-- [ ] Добавить график `ΔZ/Z`.
-- [ ] Добавить threshold estimation.
-- [ ] Реализовать Static vs Continuous experiment.
+- stereopsis;
+- monocular motion parallax;
+- temporal presentation;
+- идею виртуальных viewpoints;
+- зачем Training;
+- что измеряет Experiment.
 
-## Priority B — следующий уровень
-
-- [ ] Randomized/blind experiment.
-- [ ] Experiment Mode.
-- [ ] Screen calibration.
-- [ ] Response time.
-- [ ] Game difficulty levels.
-- [ ] Adaptive game.
-- [ ] Progressive hints.
-- [ ] Training history.
-
-## Priority C — исследовательский уровень
-
-- [ ] Psychometric fitting.
-- [ ] Confidence intervals.
-- [ ] Device calibration.
-- [ ] Session IDs.
-- [ ] Random seeds.
-- [ ] JSON export/import.
-- [ ] Research Mode.
-- [ ] Personal report.
-
-## Priority D — дальнейшие исследования
-
-- [ ] Texture experiments.
-- [ ] Frequency optimization.
-- [ ] Baseline optimization.
-- [ ] Long-term training protocol.
-- [ ] Pre/post experiments.
-- [ ] Cross-device comparison.
-
----
-
-# 48. Рекомендуемый порядок непосредственной реализации
+Краткая концепция:
 
 ```text
-[ ] 1. Разделить app.js на модули
-[ ] 2. Создать storage.js
-[ ] 3. Сохранять все UI/camera settings
-[ ] 4. Сохранять last game score
-[ ] 5. Сохранять game history
-[ ] 6. Сохранять test trial history
-[ ] 7. Добавить Statistics panel
-[ ] 8. Добавить график adaptive staircase
-[ ] 9. Добавить response time
-[ ] 10. Оценивать ΔZ/Z threshold
-[ ] 11. Добавить Static vs Continuous protocol
-[ ] 12. Добавить randomized experiment
-[ ] 13. Добавить Experiment button
-[ ] 14. Автоматический поиск baseline
-[ ] 15. Автоматический поиск frequency
-[ ] 16. Добавить screen calibration
-[ ] 17. Добавить game difficulty levels
-[ ] 18. Добавить adaptive training
-[ ] 19. Добавить progressive hints
-[ ] 20. Добавить training progress
-[ ] 21. Добавить JSON export/import
-[ ] 22. Добавить Research Mode
-[ ] 23. Добавить reproducible URL parameters
-[ ] 24. Добавить personal report
-[ ] 25. Провести первые полноценные экспериментальные серии
+L → L½ → C → R½ → R → ...
+```
+
+```text
+spatial disparity
+→ temporal disparity
+→ motion parallax
 ```
 
 ---
 
-# 49. Главное правило развития
+# 31. Ближайший порядок реализации
+
+Это **главный рабочий checklist**. Идти сверху вниз, если нет веской причины изменить порядок.
+
+## A. Архитектура
+
+- [ ] 1. Убрать отдельный Test из центральной концепции UI.
+- [ ] 2. Зафиксировать два режима: Training / Experiment.
+- [ ] 3. Разделить `app.js` на модули.
+- [ ] 4. Создать `trial-engine.js`.
+- [ ] 5. Перенести игровую логику в `training.js`.
+- [ ] 6. Создать базовый `experiment.js`.
+
+## B. Training
+
+- [ ] 7. Не считать повторный клик по уже исключённой фигуре новой ошибкой.
+- [ ] 8. Ввести максимум значимых ошибок на один шаг/раунд.
+- [ ] 9. Добавить `unresolved` outcome вместо перебора всех объектов.
+- [ ] 10. После повторной ошибки усиливать depth cue без горизонтального движения правильной фигуры.
+- [ ] 11. Контролировать взаимное положение 2–3 ближайших конкурентов при генерации сцены.
+- [ ] 12. Сохранять last Training score.
+
+## C. Storage
+
+- [ ] 13. Создать `storage.js`.
+- [ ] 14. Сохранять UI/camera settings.
+- [ ] 15. Сохранять Training history.
+- [ ] 16. Сохранять Experiment trial history.
+- [ ] 17. Добавить schema version.
+
+## D. Experiment
+
+- [ ] 18. Сделать Experiment без feedback/hints.
+- [ ] 19. Добавить ответ `Не уверен`.
+- [ ] 20. Измерять response time.
+- [ ] 21. Хранить `ΔZ/Z` ближайшей конкурирующей пары.
+- [ ] 22. Добавить adaptive staircase.
+- [ ] 23. Оценивать 80% threshold.
+
+## E. Statistics
+
+- [ ] 24. Добавить Statistics panel.
+- [ ] 25. Training statistics.
+- [ ] 26. Experiment statistics.
+- [ ] 27. Adaptive staircase chart.
+- [ ] 28. Psychometric curve.
+
+## F. Главные исследования
+
+- [ ] 29. Static vs Continuous protocol.
+- [ ] 30. Randomized/blind comparison.
+- [ ] 31. Автоматический поиск baseline.
+- [ ] 32. Автоматический поиск frequency.
+- [ ] 33. Screen calibration.
+
+## G. Следующий уровень
+
+- [ ] 34. Adaptive Training difficulty.
+- [ ] 35. Difficulty presets.
+- [ ] 36. Texture experiment.
+- [ ] 37. JSON export/import.
+- [ ] 38. Research Mode.
+- [ ] 39. Reproducible URL parameters.
+- [ ] 40. Personal report.
+
+---
+
+# 32. Что считается ближайшей крупной вехой
+
+## Milestone 1 — Unified Training/Experiment architecture
+
+Готово, когда:
+
+- [ ] нет отдельной дублирующей логики Test/Game;
+- [ ] Training и Experiment используют один Trial Engine;
+- [ ] Training обучает с подсказками;
+- [ ] Experiment измеряет без подсказок;
+- [ ] есть `Не уверен`;
+- [ ] сохраняются response time и trial data.
+
+## Milestone 2 — Measurement prototype
+
+Готово, когда:
+
+- [ ] сохраняется история;
+- [ ] строится psychometric curve;
+- [ ] оценивается threshold;
+- [ ] можно сравнить Static и Motion.
+
+## Milestone 3 — Research prototype
+
+Готово, когда:
+
+- [ ] эксперименты воспроизводимы;
+- [ ] есть calibration/device info;
+- [ ] есть randomized conditions;
+- [ ] есть export raw data;
+- [ ] есть confidence intervals;
+- [ ] можно автоматически искать лучшие параметры.
+
+---
+
+# 33. Главное правило развития
 
 Каждую новую функцию оценивать вопросом:
 
@@ -1235,25 +1214,46 @@ Training improvement over 14 days: 31%
 
 Если нет — её приоритет ниже.
 
-Главная ценность проекта — не количество визуальных эффектов, а возможность количественно ответить:
+Особенно важно не путать:
 
-> **Насколько motion parallax улучшает восприятие глубины и какие параметры дают максимальный эффект для конкретного пользователя?**
+- **подсказку, усиливающую depth cue**;
+- **подсказку, раскрывающую местоположение правильного ответа**.
+
+Первая полезна для Training.
+
+Вторая по возможности должна быть исключена.
 
 ---
 
-# 50. Определение готового исследовательского прототипа
+# 34. Итоговая целевая модель проекта
 
-Проект можно считать полноценным research prototype, когда он умеет:
+```text
+                        Scene + Camera Motion
+                                │
+                                ▼
+                           Trial Engine
+                                │
+                  ┌─────────────┴─────────────┐
+                  │                           │
+                  ▼                           ▼
+              Training                    Experiment
+                  │                           │
+      progressive depth hints        no visual feedback
+      adaptive difficulty            uncertain response
+      score                          response time
+      training history               randomized conditions
+                  │                           │
+                  └─────────────┬─────────────┘
+                                ▼
+                             Storage
+                                │
+                                ▼
+                            Statistics
+                                │
+              ┌─────────────────┼─────────────────┐
+              ▼                 ▼                 ▼
+         Training          Psychometric      Parameter
+         progress          threshold         optimization
+```
 
-- [ ] воспроизводимо задавать параметры камеры;
-- [ ] проводить blind trials;
-- [ ] измерять accuracy и reaction time;
-- [ ] оценивать psychometric threshold;
-- [ ] сравнивать Static и Motion;
-- [ ] сохранять результаты;
-- [ ] экспортировать raw data;
-- [ ] сохранять device/calibration info;
-- [ ] строить графики;
-- [ ] выдавать итоговый отчёт.
-
-После этого ссылку можно отправлять исследователю уже не только как демонстрацию идеи, а как работающий экспериментальный инструмент.
+Это и есть текущая целевая архитектура проекта.
