@@ -52,25 +52,31 @@ export function createWorld(appElement){
 
   function buildScene(){clearObjects();const style=pick(['gallery','floating','corridor','constellation']);const backgrounds={gallery:0x09101d,floating:0x07141a,corridor:0x120d1b,constellation:0x070b16};scene.background=new THREE.Color(backgrounds[style]);floor.material.color.setHex(style==='corridor'?0x1a1324:style==='floating'?0x0c1a1d:0x111a2d);floorGrid.visible=style==='gallery'||style==='corridor';rim.position.set(rand(-5,5),rand(1.8,4.4),rand(-5,0));key.position.set(rand(-6,6),rand(4.5,8),rand(2,7));const count=16+Math.floor(Math.random()*10);for(let i=0;i<count;i++){const depthT=count===1?0:i/(count-1),isNear=i<3,competitorX=()=>rand(-.48,.48);let xT,y,scale,support=false;if(style==='gallery'){xT=isNear?competitorX():rand(-.98,.98);y=rand(.35,3.25);scale=rand(.42,1.08);support=y<.82&&Math.random()<.45;}else if(style==='floating'){xT=isNear?competitorX():rand(-.99,.99);y=rand(.2,4.1);scale=rand(.34,1.02);}else if(style==='corridor'){xT=isNear?competitorX():(i%2?-1:1)*rand(.48,.99);y=rand(.25,3.45);scale=rand(.38,1);support=Math.random()<.2;}else{xT=isNear?competitorX():rand(-.995,.995);y=rand(.15,4.5);scale=rand(.28,.94);}addObject(pick(shapes),xT,y,depthT,scale,pick(colors),support);}layout();return objects;}
 
+  function pointAtExactDistance(ndcX,ndcY,distance){
+    const p=new THREE.Vector3(ndcX,ndcY,.5).unproject(camera);
+    const dir=p.sub(camera.position).normalize();
+    return camera.position.clone().add(dir.multiplyScalar(distance));
+  }
+
   function buildExperimentScene(relativeDelta=.05,{count=10}={}){
     clearObjects();scene.background=new THREE.Color(0x09101d);floorGrid.visible=false;
     const r=Math.max(.002,Math.min(.30,relativeDelta));
-    const z1=rand(3.0,6.0),z2=z1*(1+r);
-    const distances=[z1,z2];
-    for(let i=2;i<count;i++)distances.push(z2+rand(.7,1.8)+(i-2)*rand(.25,.65));
-    const xTs=[];const anchor=rand(-.22,.22);xTs.push(anchor-rand(.16,.28),anchor+rand(.16,.28));
-    for(let i=2;i<count;i++)xTs.push(rand(-.95,.95));
-    const tanHalf=Math.tan(THREE.MathUtils.degToRad(camera.fov*.5));
+    const d1=rand(3.0,6.0),d2=d1*(1+r);
+    const distances=[d1,d2];
+    for(let i=2;i<count;i++)distances.push(d2+rand(.8,1.6)+(i-2)*rand(.35,.7));
+    const ndcX=[];const anchor=rand(-.18,.18);ndcX.push(anchor-rand(.18,.28),anchor+rand(.18,.28));
+    for(let i=2;i<count;i++)ndcX.push(rand(-.88,.88));
     for(let i=0;i<count;i++){
-      const distance=distances[i],z=camera.position.z-distance;
+      const distance=distances[i];
       const g=geometryFor(pick(shapes));g.computeBoundingSphere();
       const angularRadius=THREE.MathUtils.degToRad(rand(5.8,8.2));
       const scale=Math.tan(angularRadius)*distance/Math.max(g.boundingSphere?.radius||.35,.001);
       const mesh=new THREE.Mesh(g,makePatternMaterial(renderer,pick(colors),.35+Math.random()*.2,Math.random()*.1));
-      const halfW=tanHalf*distance*camera.aspect;
-      mesh.position.set(xTs[i]*halfW,rand(.75,2.4),z);mesh.scale.setScalar(scale);mesh.rotation.set(rand(0,.7),rand(0,Math.PI*2),rand(0,.5));objectGroup.add(mesh);objects.push(mesh);items.push({mesh,support:null,depthT:0,xT:0,manual:true,excluded:false});
+      const yNdc=rand(-.38,.38);
+      mesh.position.copy(pointAtExactDistance(ndcX[i],yNdc,distance));
+      mesh.scale.setScalar(scale);mesh.rotation.set(rand(0,.7),rand(0,Math.PI*2),rand(0,.5));objectGroup.add(mesh);objects.push(mesh);items.push({mesh,support:null,depthT:0,xT:0,manual:true,excluded:false});
     }
-    return {objects,relativeDelta:r,nearestDistance:z1,secondNearestDistance:z2};
+    return {objects,relativeDelta:r,nearestDistance:d1,secondNearestDistance:d2};
   }
 
   function setSceneDepth(value){sceneDepth=value;layout();}function setFov(value){camera.fov=value;camera.updateProjectionMatrix();layout();}function fit(viewer){const r=viewer.getBoundingClientRect();if(!r.width||!r.height)return;camera.aspect=r.width/r.height;camera.updateProjectionMatrix();renderer.setSize(r.width,r.height,false);layout();}
