@@ -20,7 +20,11 @@ const LANGUAGE_LABELS={ru:'Язык / Language',en:'Language',de:'Sprache / Lang
 
 const world=createWorld($('app'));
 const {renderer,camera}=world;
-const cameraMotion=createCameraMotion(camera,({xCm,focusDistance})=>{$('camx').textContent=xCm.toFixed(1);$('focusHud').textContent=focusDistance.toFixed(1);});
+const cameraMotion=createCameraMotion(camera,({xCm,focusDistance})=>{
+  $('camx').textContent=xCm.toFixed(1);
+  $('focusHud').textContent=focusDistance.toFixed(1);
+  world.setScreenSway(xCm/100);
+});
 const trialEngine=createTrialEngine({camera,getObjects:world.getObjects});
 
 $('versionText').textContent=`v${APP_VERSION}`;
