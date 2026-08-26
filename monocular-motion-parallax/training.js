@@ -1,0 +1,129 @@
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
+
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+
+export function createTrainingMode({world,trialEngine,onScore=()=>{},onWin=()=>{},maxErrors=3}){
+  const {renderer,camera}=world;
+  const raycaster=new THREE.Raycaster();
+  const pointer=new THREE.Vector2();
+  const tweens=new Map();
+  let active=false;
+  let correct=0,wrong=0,unresolved=0;
+
+  function score(){
+    const n=correct+wrong;
+    return n?Math.round(correct/n*100):100;
+  }
+  function publish(){onScore({correct,wrong,unresolved,score:score(),active});}
+  function resetStats(){correct=0;wrong=0;unresolved=0;publish();}
+
+  function objectScreenInfo(mesh,rect,positionOverride=null){
+    const worldPos=positionOverride?positionOverride.clone():mesh.getWorldPosition(new THREE.Vector3());
+    const ndc=worldPos.clone().project(camera);
+    const camP=worldPos.clone().applyMatrix4(camera.matrixWorldInverse);
+    const depth=Math.max(.05,-camP.z);
+    mesh.geometry.computeBoundingSphere();
+    const radiusWorld=(mesh.geometry.boundingSphere?.radius||.35)*Math.max(mesh.scale.x,mesh.scale.y,mesh.scale.z);
+    const pxPerWorld=rect.height/(2*Math.tan(THREE.MathUtils.degToRad(camera.fov*.5))*depth);
+    return {ndc,x:(ndc.x*.5+.5)*rect.width,y:(-.5*ndc.y+.5)*rect.height,r:Math.max(5,radiusWorld*pxPerWorld),world:worldPos};
+  }
+
+  function forgivingPick(e){
+    const objects=world.getObjects();
+    const rect=renderer.domElement.getBoundingClientRect();
+    if(!rect.width||!rect.height)return null;
+    pointer.x=((e.clientX-rect.left)/rect.width)*2-1;
+    pointer.y=-((e.clientY-rect.top)/rect.height)*2+1;
+    raycaster.setFromCamera(pointer,camera);
+    const exact=raycaster.intersectObjects(objects,false)[0]?.object;
+    if(exact)return exact;
+    const px=e.clientX-rect.left,py=e.clientY-rect.top;
+    let best=null,bestScore=Infinity;
+    for(const o of objects){
+      const s=objectScreenInfo(o,rect);
+      if(s.ndc.z<-1||s.ndc.z>1)continue;
+      const d=Math.hypot(px-s.x,py-s.y);
+      const hitR=Math.max(28,s.r*1.45+10);
+      if(d<=hitR&&d/hitR<bestScore){bestScore=d/hitR;best=o;}
+    }
+    return best;
+  }
+
+  function markWrong(mesh){
+    world.disposeMaterial(mesh.material);
+    mesh.material=world.makePatternMaterial(0xff2020,.42,0,'checker');
+    const item=world.itemFor(mesh);
+    if(item)item.excluded=true;
+  }
+
+  function moveNearestTowardCamera(mesh,factor=.8){
+    if(!mesh?.parent)return;
+    const p=mesh.getWorldPosition(new THREE.Vector3());
+    const ray=p.clone().sub(camera.position);
+    const distance=ray.length();
+    if(distance<=1.2)return;
+    const targetDistance=Math.max(1.2,distance*factor);
+    const ratio=targetDistance/distance;
+    const target=camera.position.clone().add(ray.normalize().multiplyScalar(targetDistance));
+    const item=world.itemFor(mesh);
+    if(item){item.manual=true;if(item.support)item.support.visible=false;}
+    tweens.set(mesh,{from:mesh.position.clone(),to:target,scaleFrom:mesh.scale.clone(),scaleTo:mesh.scale.clone().multiplyScalar(ratio),start:performance.now(),duration:420});
+  }
+
+  function updateTweens(now){
+    for(const [mesh,t] of tweens){
+      if(!mesh.parent){tweens.delete(mesh);continue;}
+      const u=clamp((now-t.start)/t.duration,0,1);
+      const s=u*u*(3-2*u);
+      mesh.position.lerpVectors(t.from,t.to,s);
+      if(t.scaleFrom)mesh.scale.lerpVectors(t.scaleFrom,t.scaleTo,s);
+      if(u>=1)tweens.delete(mesh);
+    }
+  }
+
+  function start(){
+    active=true;
+    resetStats();
+    trialEngine.reset();
+    trialEngine.startStep();
+    renderer.domElement.style.cursor='crosshair';
+    publish();
+  }
+  function stop(){active=false;renderer.domElement.style.cursor='default';publish();}
+  function isActive(){return active;}
+
+  function handlePointer(e){
+    if(!active||e.button>0)return;
+    const hit=forgivingPick(e);
+    if(!hit)return;
+    const result=trialEngine.choose(hit);
+    if(result.type==='ignored'||result.type==='none')return;
+    if(result.type==='correct'){
+      correct++;
+      world.removeObject(hit);
+      if(world.getObjects().length===0){stop();onWin({correct,wrong,unresolved,score:score()});publish();return;}
+      trialEngine.startStep();
+      publish();
+      return;
+    }
+    if(result.type==='wrong'){
+      wrong++;
+      markWrong(hit);
+      moveNearestTowardCamera(result.nearest,.8);
+      if(result.errorCount>=2){
+        // Stronger depth cue without revealing horizontal location.
+        moveNearestTowardCamera(result.nearest,.8);
+      }
+      if(result.errorCount>=maxErrors){
+        unresolved++;
+        trialEngine.markUnresolved();
+        trialEngine.startStep();
+      }
+      publish();
+    }
+  }
+
+  renderer.domElement.addEventListener('pointerup',handlePointer);
+
+  return {start,stop,isActive,resetStats,updateTweens,getStats:()=>({correct,wrong,unresolved,score:score()})};
+}
