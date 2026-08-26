@@ -37,17 +37,22 @@ function merge(base,patch){
   return out;
 }
 
+function normalize(state){
+  state.schemaVersion=SCHEMA_VERSION;
+  state.trainingHistory=Array.isArray(state.trainingHistory)?state.trainingHistory.slice(-TRAINING_HISTORY_LIMIT):[];
+  state.experimentHistory=Array.isArray(state.experimentHistory)?state.experimentHistory.slice(-EXPERIMENT_HISTORY_LIMIT):[];
+  return state;
+}
+
 function migrate(raw){
   if(!isObject(raw))return clone(DEFAULT_STATE);
   if(raw.schemaVersion===SCHEMA_VERSION){
-    const state=merge(clone(DEFAULT_STATE),raw);
-    state.trainingHistory=Array.isArray(state.trainingHistory)?state.trainingHistory.slice(-TRAINING_HISTORY_LIMIT):[];
-    state.experimentHistory=Array.isArray(state.experimentHistory)?state.experimentHistory.slice(-EXPERIMENT_HISTORY_LIMIT):[];
-    return state;
+    return normalize(merge(clone(DEFAULT_STATE),raw));
   }
-  // Future migrations should be added here. Unknown/old data is preserved only
-  // where it matches the current top-level structure safely.
-  return merge(clone(DEFAULT_STATE),raw);
+  // Future version-specific migrations should be added above this fallback.
+  // Preserve only data that can be merged into the current structure, then
+  // explicitly stamp the current schema version.
+  return normalize(merge(clone(DEFAULT_STATE),raw));
 }
 
 export function createStorage(){
