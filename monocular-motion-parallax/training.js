@@ -10,10 +10,7 @@ export function createTrainingMode({world,trialEngine,onScore=()=>{},onWin=()=>{
   let active=false;
   let correct=0,wrong=0,unresolved=0;
 
-  function score(){
-    const n=correct+wrong;
-    return n?Math.round(correct/n*100):100;
-  }
+  function score(){const n=correct+wrong;return n?Math.round(correct/n*100):100;}
   function publish(){onScore({correct,wrong,unresolved,score:score(),active});}
   function resetStats(){correct=0;wrong=0;unresolved=0;publish();}
 
@@ -49,11 +46,48 @@ export function createTrainingMode({world,trialEngine,onScore=()=>{},onWin=()=>{
     return best;
   }
 
+  function rayPointForNdcAtDistance(ndcX,ndcY,distance){
+    const p=new THREE.Vector3(ndcX,ndcY,.5).unproject(camera);
+    const dir=p.sub(camera.position).normalize();
+    return camera.position.clone().add(dir.multiplyScalar(distance));
+  }
+
+  function candidateFree(mesh,candidate,rect){
+    const a=objectScreenInfo(mesh,rect,candidate);
+    if(Math.abs(a.ndc.x)>.96||Math.abs(a.ndc.y)>.94)return false;
+    for(const o of world.getObjects()){
+      if(o===mesh)continue;
+      const b=objectScreenInfo(o,rect);
+      if(Math.hypot(a.x-b.x,a.y-b.y)<a.r+b.r+10)return false;
+    }
+    return true;
+  }
+
+  function moveWrongTowardCenter(mesh){
+    const rect=renderer.domElement.getBoundingClientRect();
+    if(!rect.width||!rect.height)return;
+    const info=objectScreenInfo(mesh,rect);
+    const distance=camera.position.distanceTo(info.world);
+    const yNdc=clamp(info.ndc.y,-.88,.88);
+    const candidates=[0];
+    for(let d=.04;d<=.92;d+=.04)candidates.push(d,-d);
+    let target=null;
+    for(const xNdc of candidates){
+      const c=rayPointForNdcAtDistance(xNdc,yNdc,distance);
+      if(candidateFree(mesh,c,rect)){target=c;break;}
+    }
+    if(!target)return;
+    const item=world.itemFor(mesh);
+    if(item){item.manual=true;if(item.support)item.support.visible=false;}
+    tweens.set(mesh,{from:mesh.position.clone(),to:target,start:performance.now(),duration:380});
+  }
+
   function markWrong(mesh){
     world.disposeMaterial(mesh.material);
     mesh.material=world.makePatternMaterial(0xff2020,.42,0,'checker');
     const item=world.itemFor(mesh);
     if(item)item.excluded=true;
+    moveWrongTowardCenter(mesh);
   }
 
   function moveNearestTowardCamera(mesh,factor=.8){
@@ -81,14 +115,7 @@ export function createTrainingMode({world,trialEngine,onScore=()=>{},onWin=()=>{
     }
   }
 
-  function start(){
-    active=true;
-    resetStats();
-    trialEngine.reset();
-    trialEngine.startStep();
-    renderer.domElement.style.cursor='crosshair';
-    publish();
-  }
+  function start(){active=true;resetStats();trialEngine.reset();trialEngine.startStep();renderer.domElement.style.cursor='crosshair';publish();}
   function stop(){active=false;renderer.domElement.style.cursor='default';publish();}
   function isActive(){return active;}
 
@@ -98,6 +125,7 @@ export function createTrainingMode({world,trialEngine,onScore=()=>{},onWin=()=>{
     if(!hit)return;
     const result=trialEngine.choose(hit);
     if(result.type==='ignored'||result.type==='none')return;
+
     if(result.type==='correct'){
       correct++;
       world.removeObject(hit);
@@ -106,17 +134,18 @@ export function createTrainingMode({world,trialEngine,onScore=()=>{},onWin=()=>{
       publish();
       return;
     }
+
     if(result.type==='wrong'){
       wrong++;
       markWrong(hit);
-      moveNearestTowardCamera(result.nearest,.8);
-      if(result.errorCount>=2){
-        // Stronger depth cue without revealing horizontal location.
-        moveNearestTowardCamera(result.nearest,.8);
-      }
+      const cueFactor=result.errorCount===1?.80:result.errorCount===2?.70:.62;
+      moveNearestTowardCamera(result.nearest,cueFactor);
+
       if(result.errorCount>=maxErrors){
         unresolved++;
         trialEngine.markUnresolved();
+        world.buildScene();
+        trialEngine.reset();
         trialEngine.startStep();
       }
       publish();
