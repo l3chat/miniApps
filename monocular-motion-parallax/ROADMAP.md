@@ -1,6 +1,6 @@
 # Monocular Motion Parallax Lab — Roadmap
 
-Этот файл — основной рабочий план проекта. Он отражает текущую концепцию и фактический прогресс. Выполненные пункты отмечаются `[x]`.
+Этот файл — основной рабочий план проекта. Он отражает **текущую концепцию и фактический прогресс**, а не историю всех промежуточных идей.
 
 ---
 
@@ -13,15 +13,15 @@
 3. количественно измерять качество такого восприятия;
 4. сравнивать способы движения виртуальной камеры;
 5. подбирать оптимальные параметры под конкретного пользователя;
-6. получать воспроизводимые данные, пригодные для обсуждения с исследователями.
+6. получать воспроизводимые данные для исследовательского анализа.
 
-Главный исследовательский вопрос:
+Главный вопрос:
 
 > **При каких параметрах искусственного временного параллакса конкретный человек лучше всего различает глубину одним глазом?**
 
 ---
 
-# 1. Текущая архитектурная концепция
+# 1. Текущая архитектура
 
 Основная задача приложения одна:
 
@@ -37,9 +37,9 @@
           Training               Experiment
              │                       │
      feedback + hints          no feedback
-     adaptive difficulty      adaptive staircase
-     score                    reaction time
-     learning                 threshold estimation
+     adaptive training         ranking measurement
+     score                     reaction time
+     learning                  threshold estimation
 ```
 
 - **Training** — обучает.
@@ -65,6 +65,7 @@ monocular-motion-parallax/
 ├── experiment.js
 ├── storage.js
 ├── ui.js
+├── version.js
 ├── ROADMAP.md
 └── далее:
     ├── stats.js
@@ -73,84 +74,152 @@ monocular-motion-parallax/
 
 ## `scene.js`
 
-Three.js-сцена, объекты, геометрия, текстуры, сетки, освещение, Training-scene generation, controlled Experiment-scene generation и освобождение ресурсов.
+- Three.js scene;
+- геометрия и материалы;
+- 10″ screen grid на расстоянии 30 см;
+- Training / Experiment scene generation;
+- точное вычисление ближайшей к камере точки поверхности mesh для autofocus;
+- освобождение WebGL resources.
 
 ## `camera-motion.js`
 
-Static / L↔R / 5 viewpoints / Continuous, baseline, frequency, waveform, focus distance, положение и направление камеры.
+- Static;
+- L↔R;
+- 5 viewpoints;
+- Continuous;
+- baseline;
+- frequency;
+- waveform;
+- manual focus distance;
+- dynamic focus override для autofocus.
 
 ## `trial-engine.js`
 
-Общая логика задачи «найди ближайший объект»:
+Общая логика задачи:
 
 - nearest / second nearest;
 - `ΔZ`;
 - `ΔZ/Z`;
 - correct / wrong / uncertain;
 - excluded candidates;
-- meaningful errors;
-- `unresolved`;
 - response time;
-- serializable trial snapshot.
+- serializable snapshot.
 
 ## `training.js`
 
-Forgiving hit area, score, feedback, progressive depth hints, unresolved rounds, Training animations и жизненный цикл Training-сессии.
+- forgiving hit area;
+- score;
+- feedback;
+- progressive depth hints;
+- unresolved rounds;
+- Training animations.
 
 ## `experiment.js`
 
-Полноценный no-feedback Experiment:
-
-- общий Trial Engine;
-- controlled `ΔZ/Z`;
+- no-feedback ranking;
+- последовательный выбор объектов в одной сцене;
 - `Не уверен`;
 - response time;
-- 3-down/1-up staircase;
-- reversal tracking;
-- preliminary 80% threshold estimate;
-- запись каждого trial в storage.
+- scene-level adaptive difficulty;
+- trial recording.
 
 ## `storage.js`
 
-Versioned local browser storage:
-
+- versioned localStorage;
 - settings;
-- last Training result;
+- autofocus state;
 - Training history;
-- Experiment trial history;
+- Experiment history;
 - schema migration.
 
 ---
 
-# 3. Training Mode — текущая логика
+# 3. Физическая модель экрана
+
+Принято:
+
+```text
+screen diagonal = 10 in
+viewing distance = 0.30 m
+```
+
+Сетка — обычный объект 3D-сцены, расположенный в плоскости экрана.
+
+FOV вычисляется автоматически из:
+
+- диагонали 10″;
+- aspect ratio viewport;
+- расстояния 30 см.
+
+Ручной FOV больше не используется.
+
+Объекты могут располагаться как перед плоскостью сетки, так и за ней.
+
+---
+
+# 4. Focus и autofocus
+
+## Manual focus
+
+По умолчанию:
+
+```text
+focus distance = 0.30 m
+```
+
+то есть точка схождения находится в центре плоскости сетки.
+
+Ручной диапазон:
+
+```text
+0.12 ... 0.80 m
+```
+
+## Autofocus nearest object
+
+В панели есть чекбокс:
+
+```text
+Autofocus nearest object
+```
+
+При включении:
+
+- manual focus slider блокируется;
+- на каждом кадре определяется ближайшая к камере поверхность среди всех видимых объектов;
+- расстояние вычисляется до **реальной ближайшей точки поверхности mesh**, а не до центра объекта;
+- bounding sphere используется только как быстрый lower-bound для отбора кандидатов;
+- окончательный distance считается по треугольникам BufferGeometry;
+- autofocus state сохраняется в localStorage;
+- autofocus state записывается в параметры Training/Experiment session.
+
+Важно: autofocus изменяет **только focus distance**, а не указывает пользователю местоположение правильного объекта.
+
+---
+
+# 5. Training Mode
 
 ## Правильный выбор
 
-- ближайшая фигура исчезает;
+- ближайший объект исчезает;
 - ответ засчитывается;
-- следующая ближайшая становится новой целью.
-
-## Forgiving hit area
-
-Клик считается выбором, если он попал в объект или в разумную экранную область вокруг него.
+- следующая ближайшая фигура становится новой целью.
 
 ## Неправильный выбор
 
-Ошибочная фигура:
-
-- становится красно-белой;
+- фигура становится красно-белой;
 - исключается из кандидатов текущего шага;
-- переносится горизонтально ближе к центральной области, если есть свободная позиция;
-- повторный клик по ней игнорируется.
+- повторный клик по ней не считается новой ошибкой;
+- фигура может быть перемещена ближе к центру, если это не создаёт перекрытий.
 
-## Подсказка правильной глубины
+## Depth hint
 
 Истинно ближайшая фигура:
 
-- приближается только по линии взора `camera → object`;
-- не двигается горизонтально;
+- приближается только по линии `camera → object`;
+- не перемещается горизонтально;
 - уменьшается пропорционально расстоянию;
-- сохраняет практически тот же видимый угловой размер.
+- сохраняет видимый угловой размер.
 
 ```text
 error 1 → distance × 0.80
@@ -158,48 +227,73 @@ error 2 → distance × 0.70
 error 3 → distance × 0.62
 ```
 
-## Защита от перебора
-
-После 3 значимых ошибок:
-
-- шаг становится `unresolved`;
-- перебор всех объектов прекращается;
-- генерируется новая сцена.
+После 3 значимых ошибок шаг считается `unresolved`, чтобы не возникал перебор всех объектов.
 
 ---
 
-# 4. Генерация Training-сцены
+# 6. Experiment Mode — текущая логика
 
-Объекты используют большую часть поля зрения, но несколько ближайших конкурентов получают более ограниченный горизонтальный разброс.
+Experiment использует **ту же сцену и ту же задачу**, что Training, но без подсказок.
 
-В дальнейшем сделать это формальнее:
+## Одна сцена = последовательное ранжирование
 
-1. сгенерировать глубины;
-2. определить 2–3 ближайших объекта;
-3. контролировать именно их экранное расстояние;
-4. остальные объекты распределять широко.
+Пользователь:
 
----
+1. выбирает ближайший объект;
+2. при правильном выборе он исчезает;
+3. затем выбирает ближайший среди оставшихся;
+4. процесс продолжается до завершения сцены.
 
-# 5. Training score и история
+То есть одна сцена даёт последовательность:
 
 ```text
-score = correct / meaningful selections × 100%
+O1 < O2 < O3 < ... < On
 ```
 
-Сейчас:
+## Неправильный выбор
 
-- last score остаётся видимым после Training;
-- сохраняется после reload браузера;
-- Training-сессия записывается при stop / switch / reset / win;
-- сохраняются `correct`, `wrong`, `unresolved`, duration, camera и scene parameters;
-- история ограничена последними 500 сессиями.
+- ошибка записывается;
+- объект не окрашивается;
+- ничего не перемещается;
+- сцена не меняется;
+- пользователь продолжает тот же шаг.
+
+Повторный выбор уже проверенного неправильного кандидата должен игнорироваться Trial Engine.
+
+## `Не уверен`
+
+Кнопка означает:
+
+```text
+текущий шаг неразрешён
+```
+
+После нажатия:
+
+- сохраняется `uncertain = true`;
+- истинно ближайший объект молча удаляется;
+- Experiment продолжается на той же сцене со следующим объектом;
+- никаких hint animations нет.
+
+## Adaptive difficulty
+
+Сложность изменяется **между сценами**, а не после каждого клика.
+
+Основной параметр:
+
+```text
+relative_delta = ΔZ / Z_nearest
+```
+
+Следующая сцена становится сложнее при высокой first-try accuracy и легче при большом числе ошибок / uncertain.
+
+Текущая threshold estimation остаётся предварительной до появления `stats.js` и полноценного psychometric fit.
 
 ---
 
-# 6. Persistent browser storage — выполнено
+# 7. Persistent browser storage
 
-Используется единый ключ:
+Используется:
 
 ```text
 mmp-lab-state
@@ -214,153 +308,70 @@ mmp-lab-state
 - baseline;
 - frequency;
 - waveform;
-- FOV;
-- focus distance;
+- manual focus distance;
+- autofocusNearest;
 - scene depth;
-- future calibration field;
+- screen calibration;
 - last Training result;
 - Training history;
 - Experiment trial history.
 
 Лимиты:
 
-- Training: 500 sessions;
-- Experiment: 2000 trials.
+```text
+Training history: 500 sessions
+Experiment history: 2000 trials
+```
 
-Schema:
+Schema version должна повышаться при изменении persistent structure.
 
-```json
-{
-  "schemaVersion": 1
-}
+---
+
+# 8. Параметры UI — текущие диапазоны
+
+```text
+Baseline:       0 ... 12 cm
+Frequency:      0.2 ... 4 Hz
+Focus:          0.12 ... 0.80 m
+Scene depth:    0.10 ... 0.80 m
+FOV:            auto
+Screen:         10 in
+Viewing dist.:  0.30 m
 ```
 
 ---
 
-# 7. Experiment Mode — базовый измерительный режим выполнен
+# 9. Statistics — следующий крупный блок
 
-Experiment использует тот же Trial Engine, но без Training feedback.
+Добавить `Statistics` panel.
 
-## Правила
-
-- никаких красно-белых объектов после ответа;
-- никаких hint animations;
-- никаких перемещений после ошибки;
-- никаких временных изменений baseline;
-- после ответа сразу новый trial;
-- параметры камеры и сцены блокируются на время Experiment session.
-
-## Ответ `Не уверен`
-
-Есть отдельный ответ:
-
-```text
-Не уверен
-```
-
-Он сохраняется как:
-
-```text
-uncertain = true
-```
-
-и не смешивается с обычной ошибкой.
-
-## Controlled Experiment scene
-
-Для каждого trial программа задаёт контролируемую разницу между двумя ближайшими объектами:
-
-```text
-relative_delta = ΔZ / Z_nearest
-```
-
-Расстояния задаются как точные 3D-distance от камеры по лучам зрения, поэтому горизонтальное положение объекта не искажает заданный `ΔZ/Z`.
-
-Остальные объекты размещаются дальше ближайшей пары.
-
-## Adaptive staircase
-
-Используется:
-
-```text
-3-down / 1-up
-```
-
-- после 3 правильных подряд задача усложняется;
-- после 1 ошибки задача облегчается;
-- `Не уверен` также ведёт к облегчению следующего trial;
-- step factor ≈ 1.22;
-- диапазон `ΔZ/Z`: 0.2% … 30%.
-
-Такая процедура ориентирована примерно на уровень 79–80% correct.
-
-## Reversals и 80% threshold
-
-При смене направления staircase сохраняется reversal.
-
-После минимум 4 reversals появляется предварительная оценка 80%-порога как геометрическое среднее последних reversal levels.
-
-Это пока **staircase estimate**, а не окончательный psychometric fit. Более строгая оценка появится в `stats.js`.
-
-## Для каждого trial сохраняются
-
-```text
-trialId
-sessionId
-timestamp
-trialNo
-outcome
-correct
-uncertain
-selectedObjectId
-objectCount
-responseTimeMs
-targetRelativeDelta
-nearestDistanceM
-secondNearestDistanceM
-deltaM
-relativeDelta
-staircase state
-camera mode
-baseline
-frequency
-waveform
-focus distance
-FOV
-scene depth
-```
-
----
-
-# 8. Statistics — следующий крупный блок
-
-Добавить отдельный раздел `Statistics`.
-
-## Training statistics
+## Training
 
 - last score;
 - best score;
 - sessions count;
 - average score;
-- average last 10;
-- best last 10;
+- last 10 average;
 - unresolved rate;
+- hints used;
 - reaction time.
 
-## Experiment statistics
+## Experiment
 
-- trials count;
-- accuracy;
-- uncertain rate;
-- response time;
+- steps count;
+- scenes count;
+- correct / wrong / uncertain;
+- first-try accuracy;
+- reaction time;
 - current `ΔZ/Z`;
 - threshold estimate;
 - results by motion mode;
-- results by baseline / frequency / Z.
+- results by baseline / frequency / Z;
+- results with autofocus on/off.
 
 ---
 
-# 9. Psychometric measurement
+# 10. Psychometric measurement
 
 Строить:
 
@@ -368,7 +379,7 @@ scene depth
 P(correct | ΔZ/Z)
 ```
 
-Оценивать минимум:
+Оценивать:
 
 - 75% threshold;
 - 80% threshold;
@@ -383,16 +394,16 @@ P(correct | ΔZ/Z)
 Уровни уверенности:
 
 ```text
-< 20 trials   → Preliminary estimate
+< 20 trials   → Preliminary
 20–50 trials  → Moderate confidence
 > 50 trials   → Stable estimate
 ```
 
 ---
 
-# 10. Главный эксперимент Static vs Motion
+# 11. Главный эксперимент Static vs Motion
 
-Сравнить одну и ту же задачу при:
+Сравнить одну и ту же ranking task при:
 
 ```text
 Static
@@ -405,37 +416,41 @@ Continuous motion parallax
 - Z;
 - `ΔZ/Z`;
 - object count;
-- object sizes;
+- size;
 - textures;
 - layout;
-- FOV;
-- focus.
-
-Предпочтительно randomized interleaving.
+- focus policy (manual / autofocus);
+- screen calibration.
 
 ---
 
-# 11. Blind / randomized experiment
+# 12. Blind / randomized experiment
 
-Случайно выбирать condition:
+В перспективе случайно выбирать:
 
 - Static;
-- L ↔ R;
+- L↔R;
 - 5 viewpoints;
 - Continuous.
 
-Пользователь не знает condition текущего trial/block.
+Отдельно можно сравнить:
+
+```text
+Manual focus
+vs
+Autofocus nearest
+```
 
 ---
 
-# 12. Automatic Experiment Mode
+# 13. Automatic Experiment Mode
 
-Исследовать автоматически:
+Автоматически исследовать:
 
 ## Baseline
 
 ```text
-2, 4, 6, 8, 10, 12, 16 cm
+2, 4, 6, 8, 10, 12 cm
 ```
 
 ## Frequency
@@ -456,304 +471,92 @@ fine scan
 
 ---
 
-# 13. Individual perception profile
+# 14. Individual perception profile
 
 В перспективе:
 
 ```text
-T(B, f, F, Z, mode)
+T(B, f, F, Z, mode, autofocus)
 ```
 
 Пример:
 
 ```text
 Best mode: Continuous
-Best baseline: 9.5 cm
+Best baseline: 8 cm
 Best frequency: 1.4 Hz
-Estimated threshold: 2.1%
+Best focus policy: Autofocus nearest
+80% threshold: 2.1%
 ```
 
 ---
 
-# 14. Screen/device calibration
+# 15. Screen/device calibration
 
-Запрашивать:
+Текущий prototype фиксирован на:
+
+```text
+10 in / 30 cm
+```
+
+Позднее сделать пользовательскую calibration:
 
 - physical screen width / diagonal;
 - viewing distance.
 
-Вычислять visual angle:
-
-```text
-theta = 2 * atan((w / 2) / D)
-```
-
-Сохранять viewport, pixel ratio, orientation, physical screen size и viewing distance.
+После этого сравнивать результаты между устройствами.
 
 ---
 
-# 15. Adaptive Training
+# 16. Следующий порядок реализации
 
-При хорошей игре:
+## Выполнено
 
-- уменьшать `ΔZ/Z`;
-- увеличивать object count;
-- повышать плотность конкурентов;
-- уменьшать hints.
+- [x] Unified Training / Experiment architecture.
+- [x] Trial Engine.
+- [x] Modular refactor.
+- [x] Persistent storage.
+- [x] Training feedback/hints.
+- [x] Experiment no-feedback ranking.
+- [x] `Не уверен` удаляет ближайший объект и продолжает ту же сцену.
+- [x] 10″ / 30 cm physical screen model.
+- [x] Automatic FOV from physical screen geometry.
+- [x] Manual focus default at screen plane.
+- [x] Nearest-object autofocus checkbox.
+- [x] Exact nearest-surface autofocus distance.
+- [x] Autofocus persistence and session recording.
 
-При ошибках:
+## Следующий блок — Statistics
 
-- увеличивать `ΔZ/Z`;
-- уменьшать число близких конкурентов;
-- усиливать motion cue.
+- [ ] Statistics panel.
+- [ ] Training statistics.
+- [ ] Experiment statistics.
+- [ ] Adaptive difficulty chart.
+- [ ] Psychometric curve.
+- [ ] More rigorous threshold estimation.
 
-Целевая accuracy:
+## Главные исследования
 
-```text
-75–85%
-```
+- [ ] Static vs Continuous protocol.
+- [ ] Randomized/blind comparison.
+- [ ] Manual focus vs autofocus comparison.
+- [ ] Automatic baseline search.
+- [ ] Automatic frequency search.
+- [ ] User screen calibration.
 
----
+## Следующий уровень
 
-# 16. Textures as experimental variable
-
-Сравнить:
-
-- solid;
-- squares;
-- triangles;
-- checker;
-- random texture.
-
-Позднее:
-
-```text
-coarse
-medium
-fine
-```
-
----
-
-# 17. Reproducibility
-
-Каждая Experiment session должна иметь:
-
-```text
-session_id
-random_seed
-timestamp
-protocol_version
-```
-
-Добавить reproducible URL:
-
-```text
-?mode=continuous
-&baseline=8
-&frequency=1.6
-&fov=55
-&focus=5
-```
+- [ ] Adaptive Training difficulty.
+- [ ] Difficulty presets.
+- [ ] Texture experiment.
+- [ ] JSON export/import.
+- [ ] Research Mode.
+- [ ] Reproducible URL parameters.
+- [ ] Personal report.
 
 ---
 
-# 18. Export / Import
-
-Поддержать:
-
-- CSV;
-- JSON;
-- summary report;
-- импорт JSON.
-
-По умолчанию данные остаются локально в браузере.
-
----
-
-# 19. Mobile and performance
-
-Проверять:
-
-- Android portrait;
-- Android landscape;
-- iPhone portrait;
-- tablet;
-- desktop.
-
-Sanity checks:
-
-```text
-viewer width > 0
-viewer height > 0
-canvas width > 0
-canvas height > 0
-```
-
-Цели:
-
-```text
-target ≥ 30 FPS
-preferred ≥ 50 FPS
-```
-
----
-
-# 20. Research Mode
-
-Позднее показывать:
-
-- exact parameters;
-- trial number;
-- random seed;
-- staircase state;
-- raw data;
-- psychometric fit;
-- confidence intervals;
-- data-quality warnings.
-
----
-
-# 21. Long-term training study
-
-```text
-Pre-test
-Training
-Post-test
-```
-
-и:
-
-```text
-Day 1
-Day 3
-Day 7
-Day 14
-Day 30
-```
-
----
-
-# 22. Personal report
-
-Формировать:
-
-```text
-Sessions
-Trials
-Training games
-Best motion mode
-Best baseline
-Best frequency
-80% depth threshold
-Static threshold
-Motion improvement
-Training improvement
-```
-
----
-
-# 23. Ближайший порядок реализации
-
-## A. Архитектура — выполнено
-
-- [x] 1. Убрать отдельный Test из центральной концепции UI.
-- [x] 2. Зафиксировать два режима: Training / Experiment.
-- [x] 3. Разделить `app.js` на модули.
-- [x] 4. Создать `trial-engine.js`.
-- [x] 5. Перенести игровую логику в `training.js`.
-- [x] 6. Создать базовый `experiment.js`.
-
-## B. Training — выполнено
-
-- [x] 7. Не считать повторный клик по уже исключённой фигуре новой ошибкой.
-- [x] 8. Ввести максимум значимых ошибок на один шаг/раунд.
-- [x] 9. Добавить `unresolved` outcome вместо перебора всех объектов.
-- [x] 10. После повторной ошибки усиливать depth cue без горизонтального движения правильной фигуры.
-- [x] 11. Ограничить горизонтальный разброс ближайших конкурентов.
-- [x] 12. Оставлять last Training score видимым до следующего Training-сеанса.
-
-## C. Storage — выполнено
-
-- [x] 13. Создать `storage.js`.
-- [x] 14. Сохранять UI/camera settings.
-- [x] 15. Сохранять last Training score после reload.
-- [x] 16. Сохранять Training history.
-- [x] 17. Подготовить persistent Experiment trial history и канал записи trials.
-- [x] 18. Добавить schema version и migration path.
-
-## D. Experiment — выполнено
-
-- [x] 19. Подключить Experiment к общему Trial Engine.
-- [x] 20. Сделать Experiment без feedback/hints.
-- [x] 21. Добавить ответ `Не уверен`.
-- [x] 22. Измерять response time.
-- [x] 23. Хранить фактический `ΔZ/Z` ближайшей конкурирующей пары.
-- [x] 24. Добавить adaptive 3-down/1-up staircase.
-- [x] 25. Оценивать предварительный 80% threshold по reversal levels.
-
-## E. Statistics — следующий блок
-
-- [ ] 26. Добавить Statistics panel.
-- [ ] 27. Training statistics.
-- [ ] 28. Experiment statistics.
-- [ ] 29. Adaptive staircase chart.
-- [ ] 30. Psychometric curve.
-
-## F. Главные исследования
-
-- [ ] 31. Static vs Continuous protocol.
-- [ ] 32. Randomized/blind comparison.
-- [ ] 33. Автоматический поиск baseline.
-- [ ] 34. Автоматический поиск frequency.
-- [ ] 35. Screen calibration.
-
-## G. Следующий уровень
-
-- [ ] 36. Adaptive Training difficulty.
-- [ ] 37. Difficulty presets.
-- [ ] 38. Texture experiment.
-- [ ] 39. JSON export/import.
-- [ ] 40. Research Mode.
-- [ ] 41. Reproducible URL parameters.
-- [ ] 42. Personal report.
-
----
-
-# 24. Milestones
-
-## Milestone 1 — Unified Training/Experiment architecture — выполнен
-
-- [x] отдельный Test удалён;
-- [x] Training использует Trial Engine;
-- [x] Training работает с progressive depth hints;
-- [x] Experiment использует Trial Engine;
-- [x] persistent storage создан;
-- [x] есть `Не уверен`;
-- [x] Experiment сохраняет реальные response time и trial data;
-- [x] adaptive staircase работает;
-- [x] preliminary 80% threshold доступен.
-
-## Milestone 2 — Measurement prototype
-
-- [x] Training history сохраняется;
-- [x] Experiment history наполняется реальными trials;
-- [ ] строится psychometric curve;
-- [ ] есть более строгая threshold estimation;
-- [ ] можно сравнить Static и Motion.
-
-## Milestone 3 — Research prototype
-
-- [ ] experiments reproducible;
-- [ ] calibration/device info;
-- [ ] randomized conditions;
-- [ ] export raw data;
-- [ ] confidence intervals;
-- [ ] automatic parameter optimization.
-
----
-
-# 25. Главное правило развития
+# 17. Главное правило развития
 
 Каждую новую функцию оценивать вопросом:
 
@@ -761,14 +564,15 @@ Training improvement
 
 Особенно важно различать:
 
-- подсказку, усиливающую **depth cue**;
-- подсказку, раскрывающую **местоположение ответа**.
+- усиление depth cue;
+- явное раскрытие местоположения правильного ответа.
 
-Первая полезна для Training. Вторая по возможности должна быть исключена.
+Training может использовать первое.
+Experiment не должен использовать второе.
 
 ---
 
-# 26. Целевая модель проекта
+# 18. Целевая модель
 
 ```text
                         Scene + Camera Motion
@@ -782,11 +586,14 @@ Training improvement
               Training                    Experiment
                   │                           │
       progressive depth hints        no visual feedback
-      adaptive difficulty            uncertain response
-      score                          response time
-      training history               adaptive staircase
+      score                          ranking + uncertain
+      training history               response time
                   │                           │
                   └─────────────┬─────────────┘
+                                ▼
+                        Focus policy
+                     manual / autofocus
+                                │
                                 ▼
                              Storage
                                 │
