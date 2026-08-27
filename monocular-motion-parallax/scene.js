@@ -47,6 +47,7 @@ export function createWorld(appElement){
   const screenGrid=new THREE.GridHelper(1,10,0xd9e8ff,0x78a5d8);screenGrid.rotation.x=Math.PI/2;screenGrid.position.set(0,EYE_Y,EYE_Z-VIEWING_DISTANCE_M);screenGrid.material.transparent=true;screenGrid.material.opacity=.72;screenGrid.material.depthWrite=false;scene.add(screenGrid);
 
   let objects=[],items=[],sceneDepth=.40;
+  const tri=new THREE.Triangle(),a=new THREE.Vector3(),b=new THREE.Vector3(),c=new THREE.Vector3(),closest=new THREE.Vector3();
 
   function physicalScreenSize(){
     const aspect=Math.max(.2,camera.aspect||1);
@@ -96,21 +97,45 @@ export function createWorld(appElement){
   function getItems(){return items;}
   function getFov(){return camera.fov;}
 
-  function surfaceDistanceToCamera(mesh){
-    if(!mesh?.parent)return Infinity;
-    mesh.updateWorldMatrix(true,false);
-    mesh.geometry.computeBoundingSphere();
-    const sphere=mesh.geometry.boundingSphere;
-    if(!sphere)return Infinity;
+  function sphereLowerBound(mesh){
+    mesh.updateWorldMatrix(true,false);mesh.geometry.computeBoundingSphere();
+    const sphere=mesh.geometry.boundingSphere;if(!sphere)return Infinity;
     const center=sphere.center.clone().applyMatrix4(mesh.matrixWorld);
-    const sx=new THREE.Vector3().setFromMatrixScale(mesh.matrixWorld);
-    const radius=sphere.radius*Math.max(Math.abs(sx.x),Math.abs(sx.y),Math.abs(sx.z));
-    return Math.max(camera.near,camera.position.distanceTo(center)-radius);
+    const s=new THREE.Vector3().setFromMatrixScale(mesh.matrixWorld);
+    const radius=sphere.radius*Math.max(Math.abs(s.x),Math.abs(s.y),Math.abs(s.z));
+    return Math.max(0,camera.position.distanceTo(center)-radius);
   }
 
+  function exactSurfaceDistance(mesh){
+    if(!mesh?.parent)return Infinity;
+    mesh.updateWorldMatrix(true,false);
+    const geometry=mesh.geometry,position=geometry.getAttribute('position'),index=geometry.index;
+    if(!position)return Infinity;
+    let bestSq=Infinity;
+    const triangleCount=index?Math.floor(index.count/3):Math.floor(position.count/3);
+    for(let i=0;i<triangleCount;i++){
+      const ia=index?index.getX(i*3):i*3;
+      const ib=index?index.getX(i*3+1):i*3+1;
+      const ic=index?index.getX(i*3+2):i*3+2;
+      a.fromBufferAttribute(position,ia).applyMatrix4(mesh.matrixWorld);
+      b.fromBufferAttribute(position,ib).applyMatrix4(mesh.matrixWorld);
+      c.fromBufferAttribute(position,ic).applyMatrix4(mesh.matrixWorld);
+      tri.set(a,b,c).closestPointToPoint(camera.position,closest);
+      const d2=closest.distanceToSquared(camera.position);
+      if(d2<bestSq)bestSq=d2;
+    }
+    return Number.isFinite(bestSq)?Math.max(camera.near,Math.sqrt(bestSq)):Infinity;
+  }
+
+  function surfaceDistanceToCamera(mesh){return exactSurfaceDistance(mesh);}
+
   function nearestSurfaceFocusDistance(){
+    const candidates=getObjects().map(mesh=>({mesh,lower:sphereLowerBound(mesh)})).sort((x,y)=>x.lower-y.lower);
     let best=Infinity;
-    for(const mesh of getObjects())best=Math.min(best,surfaceDistanceToCamera(mesh));
+    for(const candidate of candidates){
+      if(candidate.lower>=best)break;
+      best=Math.min(best,exactSurfaceDistance(candidate.mesh));
+    }
     return Number.isFinite(best)?best:null;
   }
 
