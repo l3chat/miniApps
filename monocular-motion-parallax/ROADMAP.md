@@ -76,7 +76,9 @@ monocular-motion-parallax/
 
 - Three.js scene;
 - геометрия и материалы;
-- 10″ screen grid на расстоянии 30 см;
+- фиксированная 10″ grid-plane;
+- dolly-положение камеры относительно grid-plane;
+- compensating FOV, сохраняющий размер сетки на экране;
 - Training / Experiment scene generation;
 - точное вычисление ближайшей к камере точки поверхности mesh для autofocus;
 - освобождение WebGL resources.
@@ -128,32 +130,51 @@ monocular-motion-parallax/
 - versioned localStorage;
 - settings;
 - autofocus state;
+- camera-to-grid distance;
 - Training history;
 - Experiment history;
 - schema migration.
 
 ---
 
-# 3. Физическая модель экрана
+# 3. Физическая модель экрана и сетки
 
-Принято:
+Физическая калибровка display prototype:
 
 ```text
-screen diagonal = 10 in
-viewing distance = 0.30 m
+display diagonal = 10 in
+reference viewing distance = 0.30 m
 ```
 
-Сетка — обычный объект 3D-сцены, расположенный в плоскости экрана.
+Сетка — обычный фиксированный объект 3D-сцены размером 10″. Объекты и сетка **не меняют взаимного расположения**, когда пользователь регулирует параметр `Camera → grid distance`.
 
-FOV вычисляется автоматически из:
+Бегунок расстояния до сетки реализован как **dolly камеры вдоль оси Z**:
 
-- диагонали 10″;
-- aspect ratio viewport;
-- расстояния 30 см.
+```text
+scene/grid fixed
+camera moves forward/backward
+FOV changes simultaneously
+```
 
-Ручной FOV больше не используется.
+FOV подбирается так, чтобы 10″ сетка при любом выбранном расстоянии до камеры продолжала занимать тот же размер в viewport.
+
+Это по сути dolly-zoom относительно grid-plane и используется как отдельный способ регулировать величину motion parallax, не перестраивая сцену.
+
+Текущий диапазон:
+
+```text
+Camera → grid distance = 0.15 ... 0.80 m
+```
+
+Default:
+
+```text
+0.30 m
+```
 
 Объекты могут располагаться как перед плоскостью сетки, так и за ней.
+
+Ручной FOV не используется.
 
 ---
 
@@ -167,7 +188,7 @@ FOV вычисляется автоматически из:
 focus distance = 0.30 m
 ```
 
-то есть точка схождения находится в центре плоскости сетки.
+При reference camera position это соответствует центру grid-plane.
 
 Ручной диапазон:
 
@@ -310,8 +331,9 @@ mmp-lab-state
 - waveform;
 - manual focus distance;
 - autofocusNearest;
+- camera-to-grid distance;
 - scene depth;
-- screen calibration;
+- display calibration;
 - last Training result;
 - Training history;
 - Experiment trial history.
@@ -330,13 +352,14 @@ Schema version должна повышаться при изменении persi
 # 8. Параметры UI — текущие диапазоны
 
 ```text
-Baseline:       0 ... 12 cm
-Frequency:      0.2 ... 4 Hz
-Focus:          0.12 ... 0.80 m
-Scene depth:    0.10 ... 0.80 m
-FOV:            auto
-Screen:         10 in
-Viewing dist.:  0.30 m
+Baseline:              0 ... 12 cm
+Frequency:             0.2 ... 4 Hz
+Focus:                 0.12 ... 0.80 m
+Camera → grid distance:0.15 ... 0.80 m
+Scene depth:           0.10 ... 0.80 m
+FOV:                   auto
+Grid size:             10 in
+Reference distance:    0.30 m
 ```
 
 ---
@@ -367,6 +390,7 @@ Viewing dist.:  0.30 m
 - threshold estimate;
 - results by motion mode;
 - results by baseline / frequency / Z;
+- results by camera-to-grid distance;
 - results with autofocus on/off.
 
 ---
@@ -420,7 +444,8 @@ Continuous motion parallax
 - textures;
 - layout;
 - focus policy (manual / autofocus);
-- screen calibration.
+- camera-to-grid distance;
+- display calibration.
 
 ---
 
@@ -441,6 +466,12 @@ vs
 Autofocus nearest
 ```
 
+и:
+
+```text
+different camera-to-grid distances
+```
+
 ---
 
 # 13. Automatic Experiment Mode
@@ -459,6 +490,10 @@ Autofocus nearest
 0.5, 1.0, 1.5, 2.0, 3.0 Hz
 ```
 
+## Camera → grid distance
+
+Подбирать расстояние камеры до grid-plane как отдельный параметр силы параллакса.
+
 Стратегия:
 
 ```text
@@ -476,8 +511,10 @@ fine scan
 В перспективе:
 
 ```text
-T(B, f, F, Z, mode, autofocus)
+T(B, f, F, Z, Dgrid, mode, autofocus)
 ```
+
+где `Dgrid` — расстояние камеры до сетки.
 
 Пример:
 
@@ -485,6 +522,7 @@ T(B, f, F, Z, mode, autofocus)
 Best mode: Continuous
 Best baseline: 8 cm
 Best frequency: 1.4 Hz
+Best camera-grid distance: 42 cm
 Best focus policy: Autofocus nearest
 80% threshold: 2.1%
 ```
@@ -493,16 +531,17 @@ Best focus policy: Autofocus nearest
 
 # 15. Screen/device calibration
 
-Текущий prototype фиксирован на:
+Текущий prototype использует:
 
 ```text
-10 in / 30 cm
+grid/display reference size = 10 in
+reference distance = 30 cm
 ```
 
 Позднее сделать пользовательскую calibration:
 
 - physical screen width / diagonal;
-- viewing distance.
+- real viewing distance.
 
 После этого сравнивать результаты между устройствами.
 
@@ -519,9 +558,11 @@ Best focus policy: Autofocus nearest
 - [x] Training feedback/hints.
 - [x] Experiment no-feedback ranking.
 - [x] `Не уверен` удаляет ближайший объект и продолжает ту же сцену.
-- [x] 10″ / 30 cm physical screen model.
-- [x] Automatic FOV from physical screen geometry.
-- [x] Manual focus default at screen plane.
+- [x] 10″ reference grid model.
+- [x] Camera-to-grid distance slider.
+- [x] Camera dolly while grid/objects stay fixed.
+- [x] Compensating FOV keeps grid fitted to viewport.
+- [x] Manual focus default at reference grid plane.
 - [x] Nearest-object autofocus checkbox.
 - [x] Exact nearest-surface autofocus distance.
 - [x] Autofocus persistence and session recording.
@@ -540,6 +581,7 @@ Best focus policy: Autofocus nearest
 - [ ] Static vs Continuous protocol.
 - [ ] Randomized/blind comparison.
 - [ ] Manual focus vs autofocus comparison.
+- [ ] Camera-to-grid distance optimization.
 - [ ] Automatic baseline search.
 - [ ] Automatic frequency search.
 - [ ] User screen calibration.
@@ -575,7 +617,12 @@ Experiment не должен использовать второе.
 # 18. Целевая модель
 
 ```text
-                        Scene + Camera Motion
+                        Fixed Scene + Grid
+                                │
+                                ▼
+                   Camera Dolly + Motion
+                                │
+                    compensating FOV
                                 │
                                 ▼
                            Trial Engine
