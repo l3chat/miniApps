@@ -24,39 +24,42 @@ const trialEngine=createTrialEngine({camera,getObjects:world.getObjects});
 let autofocusNearest=false;
 
 $('versionText').textContent=`v${APP_VERSION}`;
-$('screenText').textContent=`screen ${SCREEN_DIAGONAL_INCHES}″ @ ${(VIEWING_DISTANCE_M*100).toFixed(0)} cm`;
+function updateScreenText(){$('screenText').textContent=`screen ${SCREEN_DIAGONAL_INCHES}″ @ ${(world.getScreenDistance()*100).toFixed(0)} cm`;}
+updateScreenText();
 
 function cameraSnapshot(){return {mode:cameraMotion.params.mode,baselineCm:cameraMotion.params.baselineCm,frequencyHz:cameraMotion.params.frequency,focusDistanceM:cameraMotion.params.focusDistance,waveform:cameraMotion.params.waveform,autofocusNearest};}
-function sceneSnapshot(){return {fovDeg:camera.fov,sceneDepthM:+$('sceneDepth').value,screenDiagonalInches:SCREEN_DIAGONAL_INCHES,screenPlaneDistanceM:world.screenPlaneDistance};}
-function saveSettings(extra={}){storage.updateSettings({language:lang,panelHidden:document.body.classList.contains('controlsHidden'),camera:{mode:cameraMotion.params.mode,baselineCm:cameraMotion.params.baselineCm,frequency:cameraMotion.params.frequency,focusDistance:cameraMotion.params.focusDistance,waveform:cameraMotion.params.waveform,autofocusNearest},scene:{sceneDepth:+$('sceneDepth').value,screenDiagonalInches:SCREEN_DIAGONAL_INCHES},calibration:{screenDiagonalInches:SCREEN_DIAGONAL_INCHES,viewingDistanceM:VIEWING_DISTANCE_M},...extra});}
+function sceneSnapshot(){return {fovDeg:camera.fov,sceneDepthM:+$('sceneDepth').value,screenDiagonalInches:SCREEN_DIAGONAL_INCHES,screenPlaneDistanceM:world.getScreenDistance()};}
+function saveSettings(extra={}){const screenDistance=world.getScreenDistance();storage.updateSettings({language:lang,panelHidden:document.body.classList.contains('controlsHidden'),camera:{mode:cameraMotion.params.mode,baselineCm:cameraMotion.params.baselineCm,frequency:cameraMotion.params.frequency,focusDistance:cameraMotion.params.focusDistance,waveform:cameraMotion.params.waveform,autofocusNearest},scene:{sceneDepth:+$('sceneDepth').value,screenDiagonalInches:SCREEN_DIAGONAL_INCHES,screenDistance},calibration:{screenDiagonalInches:SCREEN_DIAGONAL_INCHES,viewingDistanceM:screenDistance},...extra});}
 
 let lastTrainingStats={correct:0,wrong:0,unresolved:0,score:100,active:false};
 let lastExperimentState={active:false,trialNo:0,total:0,threshold80:null};
 function updateExperimentStatus(state=lastExperimentState){lastExperimentState=state;const threshold=state.threshold80?`${(state.threshold80*100).toFixed(2)}%`:modeText(lang,'estimating');$('experimentStatus').textContent=`${modeText(lang,'trial')}: ${state.trialNo||0} · ${modeText(lang,'answers')}: ${state.total||0} · ${modeText(lang,'threshold')}: ${threshold}`;$('experimentBtn').textContent=state.active?modeText(lang,'stopExperiment'):modeText(lang,'experiment');$('experimentBtn').classList.toggle('active',Boolean(state.active));$('experimentPanel').hidden=!state.active;}
-function setExperimentLock(locked){for(const id of ['baseline','frequency','focusDistance','waveform','sceneDepth','autofocusNearest'])if($(id))$(id).disabled=locked;document.querySelectorAll('#modeButtons button').forEach(b=>b.disabled=locked);$('sceneBtn').disabled=locked;}
+function setExperimentLock(locked){for(const id of ['baseline','frequency','focusDistance','waveform','sceneDepth','autofocusNearest','screenDistance'])if($(id))$(id).disabled=locked;document.querySelectorAll('#modeButtons button').forEach(b=>b.disabled=locked);$('sceneBtn').disabled=locked;}
 
 const experiment=createExperimentMode({world,trialEngine,getParameters:()=>({...cameraSnapshot(),...sceneSnapshot(),appVersion:APP_VERSION}),onTrial:trial=>storage.appendExperimentTrial(trial),onState:updateExperimentStatus});
 const training=createTrainingMode({world,trialEngine,maxErrors:3,onScore:stats=>{lastTrainingStats=stats;$('gameStatus').hidden=false;$('gameScore').textContent=`${stats.score}%`;$('unresolvedStatus').textContent=stats.unresolved?` · ${modeText(lang,'unresolved')}: ${stats.unresolved}`:'';storage.setLastTrainingResult({...stats,timestamp:new Date().toISOString(),inProgress:stats.active,camera:cameraSnapshot(),scene:sceneSnapshot(),appVersion:APP_VERSION});updateTrainingButton();},onSessionEnd:session=>storage.appendTrainingSession({...session,timestamp:session.endedAt||new Date().toISOString(),camera:cameraSnapshot(),scene:sceneSnapshot(),appVersion:APP_VERSION}),onWin:stats=>{lastTrainingStats=stats;$('trainingBtn').textContent=tr('gameWon');setTimeout(updateTrainingButton,1200);}});
 
 function updateTrainingButton(){$('trainingBtn').textContent=training.isActive()?tr('stopGame'):modeText(lang,'training');$('trainingBtn').classList.toggle('active',training.isActive());}
 function modeLabel(){const m=cameraMotion.params.mode;return m==='static'?tr('static'):m==='lr'?tr('lr'):m==='five'?tr('five'):tr('continuous');}
-function updatePhysicalReadouts(){$('fovVal').textContent=camera.fov.toFixed(1);}
+function updatePhysicalReadouts(){$('fovVal').textContent=camera.fov.toFixed(1);updateScreenText();}
 function syncFocusUi(){$('focusDistance').disabled=autofocusNearest||experiment.isActive();}
-function applyLanguage(next,{persist=true}={}){if(!I18N[next])next='en';lang=next;document.documentElement.lang=lang;document.title=tr('title');$('languageSelect').value=lang;const labels={brandDemo:'demo',motionTitle:'motionTitle',modeStatic:'static',modeLR:'lr',modeFive:'five',modeContinuous:'continuous',baselineLabel:'baseline',frequencyLabel:'frequency',focusDistanceLabel:'focusDistance',waveformLabel:'waveform',fovLabel:'fov',sceneDepthLabel:'sceneDepth',fullscreenBtn:'fullscreen',hideControlsBtn:'hide',resetBtn:'reset',sceneBtn:'newScene',gameScoreLabel:'gameScore',gameRulesTitle:'gameRules',gameRulesText:'gameRulesText'};for(const [id,key] of Object.entries(labels))if($(id))$(id).textContent=tr(key);$('languageLabel').textContent=LANGUAGE_LABELS[lang]??'Language';$('autofocusNearestLabel').textContent=modeText(lang,'autofocusNearest');$('legendText').innerHTML=tr('legend');$('hintText').innerHTML=tr('hint');$('panelToggle').title=tr('show');$('panelToggle').setAttribute('aria-label',tr('show'));$('modeText').textContent=modeLabel();$('pauseBtn').textContent=cameraMotion.params.paused?tr('resume'):tr('pause');$('uncertainBtn').textContent=modeText(lang,'uncertain');$('unresolvedStatus').textContent=lastTrainingStats.unresolved?` · ${modeText(lang,'unresolved')}: ${lastTrainingStats.unresolved}`:'';updateTrainingButton();updateExperimentStatus(lastExperimentState);syncFocusUi();if(persist)saveSettings();}
+function applyLanguage(next,{persist=true}={}){if(!I18N[next])next='en';lang=next;document.documentElement.lang=lang;document.title=tr('title');$('languageSelect').value=lang;const labels={brandDemo:'demo',motionTitle:'motionTitle',modeStatic:'static',modeLR:'lr',modeFive:'five',modeContinuous:'continuous',baselineLabel:'baseline',frequencyLabel:'frequency',focusDistanceLabel:'focusDistance',waveformLabel:'waveform',fovLabel:'fov',sceneDepthLabel:'sceneDepth',fullscreenBtn:'fullscreen',hideControlsBtn:'hide',resetBtn:'reset',sceneBtn:'newScene',gameScoreLabel:'gameScore',gameRulesTitle:'gameRules',gameRulesText:'gameRulesText'};for(const [id,key] of Object.entries(labels))if($(id))$(id).textContent=tr(key);$('languageLabel').textContent=LANGUAGE_LABELS[lang]??'Language';$('autofocusNearestLabel').textContent=modeText(lang,'autofocusNearest');$('screenDistanceLabel').textContent=modeText(lang,'screenDistance');$('legendText').innerHTML=tr('legend');$('hintText').innerHTML=tr('hint');$('panelToggle').title=tr('show');$('panelToggle').setAttribute('aria-label',tr('show'));$('modeText').textContent=modeLabel();$('pauseBtn').textContent=cameraMotion.params.paused?tr('resume'):tr('pause');$('uncertainBtn').textContent=modeText(lang,'uncertain');$('unresolvedStatus').textContent=lastTrainingStats.unresolved?` · ${modeText(lang,'unresolved')}: ${lastTrainingStats.unresolved}`:'';updateTrainingButton();updateExperimentStatus(lastExperimentState);syncFocusUi();if(persist)saveSettings();}
 
 function restoreSettings(){
   const c=saved.camera||{},s=saved.scene||{};
   const baseline=clamp(Number(c.baselineCm??8),0,12);
   const frequency=clamp(Number(c.frequency??1.6),.2,4);
-  let focus=Number(c.focusDistance??VIEWING_DISTANCE_M);
-  if(!Number.isFinite(focus)||focus>.80||focus<.12)focus=VIEWING_DISTANCE_M;
+  let focus=Number(c.focusDistance??VIEWING_DISTANCE_M);if(!Number.isFinite(focus)||focus>.80||focus<.12)focus=VIEWING_DISTANCE_M;
   const sceneDepth=clamp(Number(s.sceneDepth??.40),.10,.80);
+  const screenDistance=clamp(Number(s.screenDistance??saved.calibration?.viewingDistanceM??VIEWING_DISTANCE_M),.15,.80);
   autofocusNearest=Boolean(c.autofocusNearest);
+  world.setScreenDistance(screenDistance);
   cameraMotion.set('mode',c.mode??'static');cameraMotion.set('baselineCm',baseline);cameraMotion.set('frequency',frequency);cameraMotion.set('focusDistance',focus);cameraMotion.set('waveform',c.waveform??'sine');world.setSceneDepth(sceneDepth);
   $('baseline').value=baseline;$('baselineVal').textContent=baseline.toFixed(1);
   $('frequency').value=frequency;$('frequencyVal').textContent=frequency.toFixed(1);
   $('focusDistance').value=focus;$('focusDistanceVal').textContent=focus.toFixed(2);
   $('autofocusNearest').checked=autofocusNearest;
+  $('screenDistance').value=screenDistance;$('screenDistanceVal').textContent=screenDistance.toFixed(2);
   $('waveform').value=cameraMotion.params.waveform;
   $('sceneDepth').value=sceneDepth;$('sceneDepthVal').textContent=sceneDepth.toFixed(2);
   document.querySelectorAll('#modeButtons button').forEach(x=>x.classList.toggle('active',x.dataset.mode===cameraMotion.params.mode));document.body.classList.toggle('controlsHidden',Boolean(saved.panelHidden));
@@ -71,6 +74,7 @@ $('baseline').oninput=e=>{const v=+e.target.value;cameraMotion.set('baselineCm',
 $('frequency').oninput=e=>{const v=+e.target.value;cameraMotion.set('frequency',v);$('frequencyVal').textContent=v.toFixed(1);saveSettings();};
 $('focusDistance').oninput=e=>{const v=+e.target.value;cameraMotion.set('focusDistance',v);$('focusDistanceVal').textContent=v.toFixed(2);saveSettings();};
 $('autofocusNearest').onchange=e=>{autofocusNearest=e.target.checked;syncFocusUi();saveSettings();};
+$('screenDistance').oninput=e=>{const v=world.setScreenDistance(+e.target.value);$('screenDistanceVal').textContent=v.toFixed(2);updatePhysicalReadouts();saveSettings();};
 $('waveform').onchange=e=>{cameraMotion.set('waveform',e.target.value);saveSettings();};
 $('sceneDepth').oninput=e=>{const v=+e.target.value;world.setSceneDepth(v);$('sceneDepthVal').textContent=v.toFixed(2);saveSettings();};
 $('pauseBtn').onclick=()=>{cameraMotion.params.paused=!cameraMotion.params.paused;$('pauseBtn').textContent=cameraMotion.params.paused?tr('resume'):tr('pause');};
@@ -80,21 +84,10 @@ $('trainingBtn').onclick=()=>{if(experiment.isActive()){experiment.stop();setExp
 $('experimentBtn').onclick=()=>{if(experiment.isActive()){experiment.stop();setExperimentLock(false);world.buildScene();trialEngine.reset();syncFocusUi();}else{if(training.isActive())training.stop('switch-to-experiment');setExperimentLock(true);experiment.start();storage.updateSettings({lastAppMode:'experiment'});}updateTrainingButton();};
 $('uncertainBtn').onclick=()=>experiment.answerUncertain();
 $('sceneBtn').onclick=()=>{world.buildScene();trialEngine.reset();if(training.isActive())training.start();};
-$('resetBtn').onclick=()=>{if(training.isActive())training.stop('reset');if(experiment.isActive())experiment.stop();setExperimentLock(false);cameraMotion.reset();autofocusNearest=false;$('autofocusNearest').checked=false;$('baseline').value=8;$('baselineVal').textContent='8.0';$('frequency').value=1.6;$('frequencyVal').textContent='1.6';$('focusDistance').value=VIEWING_DISTANCE_M;$('focusDistanceVal').textContent=VIEWING_DISTANCE_M.toFixed(2);$('waveform').value='sine';$('sceneDepth').value=.40;$('sceneDepthVal').textContent='.40';world.setSceneDepth(.40);fit();world.buildScene();trialEngine.reset();document.querySelectorAll('#modeButtons button').forEach(x=>x.classList.toggle('active',x.dataset.mode==='static'));$('modeText').textContent=modeLabel();syncFocusUi();saveSettings({lastAppMode:'training'});updateTrainingButton();updateExperimentStatus({active:false,trialNo:0,total:0,threshold80:null});};
+$('resetBtn').onclick=()=>{if(training.isActive())training.stop('reset');if(experiment.isActive())experiment.stop();setExperimentLock(false);cameraMotion.reset();autofocusNearest=false;$('autofocusNearest').checked=false;world.setScreenDistance(VIEWING_DISTANCE_M);$('screenDistance').value=VIEWING_DISTANCE_M;$('screenDistanceVal').textContent=VIEWING_DISTANCE_M.toFixed(2);$('baseline').value=8;$('baselineVal').textContent='8.0';$('frequency').value=1.6;$('frequencyVal').textContent='1.6';$('focusDistance').value=VIEWING_DISTANCE_M;$('focusDistanceVal').textContent=VIEWING_DISTANCE_M.toFixed(2);$('waveform').value='sine';$('sceneDepth').value=.40;$('sceneDepthVal').textContent='.40';world.setSceneDepth(.40);fit();world.buildScene();trialEngine.reset();document.querySelectorAll('#modeButtons button').forEach(x=>x.classList.toggle('active',x.dataset.mode==='static'));$('modeText').textContent=modeLabel();syncFocusUi();saveSettings({lastAppMode:'training'});updateTrainingButton();updateExperimentStatus({active:false,trialNo:0,total:0,threshold80:null});};
 addEventListener('keydown',e=>{if(e.code==='Space'){e.preventDefault();$('pauseBtn').click();}if(e.key.toLowerCase()==='f')$('fullscreenBtn').click();});
 
 restoreSettings();fit();cameraMotion.update(0);world.buildScene();applyLanguage(lang,{persist:false});saveSettings();updateExperimentStatus(lastExperimentState);
 let elapsed=0,last=performance.now(),fpsSmooth=60;
-function loop(now){
-  requestAnimationFrame(loop);
-  const dt=Math.min((now-last)/1000,.05);last=now;
-  if(!cameraMotion.params.paused)elapsed+=dt;
-  const x=cameraMotion.setPosition(elapsed);
-  const autoFocusDistance=autofocusNearest?world.nearestSurfaceFocusDistance():null;
-  cameraMotion.orient(autoFocusDistance??cameraMotion.params.focusDistance,x);
-  training.updateTweens(now);
-  for(const o of world.getObjects())o.rotation.y+=dt*.16;
-  renderer.render(world.scene,camera);
-  fpsSmooth=fpsSmooth*.92+(1/Math.max(dt,.0001))*.08;$('fps').textContent=`${fpsSmooth.toFixed(0)} fps`;
-}
+function loop(now){requestAnimationFrame(loop);const dt=Math.min((now-last)/1000,.05);last=now;if(!cameraMotion.params.paused)elapsed+=dt;const x=cameraMotion.setPosition(elapsed);const autoFocusDistance=autofocusNearest?world.nearestSurfaceFocusDistance():null;cameraMotion.orient(autoFocusDistance??cameraMotion.params.focusDistance,x);training.updateTweens(now);for(const o of world.getObjects())o.rotation.y+=dt*.16;renderer.render(world.scene,camera);fpsSmooth=fpsSmooth*.92+(1/Math.max(dt,.0001))*.08;$('fps').textContent=`${fpsSmooth.toFixed(0)} fps`;}
 requestAnimationFrame(loop);
