@@ -24,13 +24,24 @@ export function createCameraMotion(camera,onUpdate=()=>{}){
     return steps[Math.floor(p*8)%steps.length];
   }
 
-  function update(t,focusOverride=null){
+  function setPosition(t){
     const x=(viewAt(t)-.5)*params.baselineCm/100;
     camera.position.x=x;
+    camera.updateMatrixWorld(true);
+    return x;
+  }
+
+  function orient(focusOverride=null,xMeters=camera.position.x){
     const focusDistance=focusOverride??params.focusDistance;
     camera.lookAt(new THREE.Vector3(0,camera.position.y,camera.position.z-focusDistance));
     camera.updateMatrixWorld(true);
-    onUpdate({xCm:x*100,focusDistance});
+    onUpdate({xCm:xMeters*100,focusDistance});
+    return focusDistance;
+  }
+
+  function update(t,focusOverride=null){
+    const x=setPosition(t);
+    return orient(focusOverride,x);
   }
 
   function set(key,value){if(key in params)params[key]=value;}
@@ -39,5 +50,5 @@ export function createCameraMotion(camera,onUpdate=()=>{}){
     Object.assign(params,{mode:'static',baselineCm:8,frequency:1.6,focusDistance:VIEWING_DISTANCE_M,waveform:'sine',paused:false});
   }
 
-  return {params,update,set,reset,viewAt};
+  return {params,update,setPosition,orient,set,reset,viewAt};
 }
