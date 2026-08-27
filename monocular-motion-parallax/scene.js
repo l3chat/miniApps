@@ -40,18 +40,23 @@ export function disposeMaterial(material){for(const m of (Array.isArray(material
 export function createWorld(appElement){
   const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.shadowMap.enabled=true;renderer.outputColorSpace=THREE.SRGBColorSpace;appElement.appendChild(renderer.domElement);
   const scene=new THREE.Scene();scene.background=new THREE.Color(0x09101d);scene.fog=new THREE.Fog(0x09101d,2,8);
-  const camera=new THREE.PerspectiveCamera(55,1,.03,20);camera.position.set(0,EYE_Y,EYE_Z);scene.add(camera);
+  const camera=new THREE.PerspectiveCamera(45,1,.03,20);camera.position.set(0,EYE_Y,EYE_Z);scene.add(camera);
   const objectGroup=new THREE.Group();scene.add(objectGroup);
   const hemi=new THREE.HemisphereLight(0xdde8ff,0x20304a,1.7),key=new THREE.DirectionalLight(0xffffff,2.6),rim=new THREE.PointLight(0x68a8ff,12,8);key.position.set(3,6,4);rim.position.set(-3,2.5,4.5);scene.add(hemi,key,rim);
 
-  // Ordinary world object: a 10-inch display plane ~30 cm from the eyes.
   const screenGrid=new THREE.GridHelper(1,10,0xd9e8ff,0x78a5d8);screenGrid.rotation.x=Math.PI/2;screenGrid.position.set(0,EYE_Y,EYE_Z-VIEWING_DISTANCE_M);screenGrid.material.transparent=true;screenGrid.material.opacity=.72;screenGrid.material.depthWrite=false;scene.add(screenGrid);
 
-  let objects=[],items=[],sceneDepth=2.4;
+  let objects=[],items=[],sceneDepth=.40;
 
-  function updateScreenSize(){
+  function physicalScreenSize(){
     const aspect=Math.max(.2,camera.aspect||1);
-    const h=SCREEN_DIAGONAL_M/Math.sqrt(aspect*aspect+1),w=h*aspect;
+    const h=SCREEN_DIAGONAL_M/Math.sqrt(aspect*aspect+1);
+    return {h,w:h*aspect};
+  }
+  function updatePhysicalCamera(){
+    const {h,w}=physicalScreenSize();
+    camera.fov=THREE.MathUtils.radToDeg(2*Math.atan((h/2)/VIEWING_DISTANCE_M));
+    camera.updateProjectionMatrix();camera.updateMatrixWorld(true);
     screenGrid.scale.set(w,1,h);
   }
   function clearObjects(){objectGroup.traverse(o=>{o.geometry?.dispose();disposeMaterial(o.material);});objectGroup.clear();objects=[];items=[];}
@@ -59,39 +64,37 @@ export function createWorld(appElement){
     const halfH=Math.tan(THREE.MathUtils.degToRad(camera.fov*.5))*depth;
     return new THREE.Vector3(ndcX*halfH*camera.aspect,EYE_Y+ndcY*halfH,EYE_Z-depth);
   }
-  function addVisualObject({depth,ndcX,ndcY,angularRadius=THREE.MathUtils.degToRad(rand(5.0,7.0)),type=pick(shapes),color=pick(colors)}){
+  function addVisualObject({depth,ndcX,ndcY,angularRadius=THREE.MathUtils.degToRad(rand(2.7,4.0)),type=pick(shapes),color=pick(colors)}){
     const geometry=geometryFor(type);geometry.computeBoundingSphere();const mesh=new THREE.Mesh(geometry,makePatternMaterial(renderer,color,.35+Math.random()*.2,Math.random()*.1));
     const scale=Math.tan(angularRadius)*depth/Math.max(geometry.boundingSphere?.radius||.35,.001);
     mesh.position.copy(worldPoint(ndcX,ndcY,depth));mesh.scale.setScalar(scale);mesh.rotation.set(rand(0,.7),rand(0,Math.PI*2),rand(0,.5));objectGroup.add(mesh);objects.push(mesh);items.push({mesh,support:null,manual:true,excluded:false,depth});return mesh;
   }
   function makeSlots(count){
-    const base=[[-.72,-.42],[-.36,-.42],[0,-.42],[.36,-.42],[.72,-.42],[-.72,.34],[-.36,.34],[0,.34],[.36,.34],[.72,.34]];
-    return shuffle(base).slice(0,count).map(([x,y])=>[x+rand(-.045,.045),y+rand(-.055,.055)]);
+    const base=[[-.78,-.48],[-.39,-.48],[0,-.48],[.39,-.48],[.78,-.48],[-.78,.38],[-.39,.38],[0,.38],[.39,.38],[.78,.38]];
+    return shuffle(base).slice(0,count).map(([x,y])=>[x+rand(-.025,.025),y+rand(-.035,.035)]);
   }
   function buildDepthScene(relativeDelta=.06,{count=10,adaptive=false}={}){
-    clearObjects();const r=clamp(relativeDelta,.002,.30),spread=clamp(sceneDepth/2.4,.35,1.8);
-    const d1=rand(.18,.255),d2=d1*(1+r);const depths=[d1,d2];
+    clearObjects();const r=clamp(relativeDelta,.002,.30),spread=clamp(sceneDepth/.40,.25,2.0);
+    const d1=rand(.16,.245),d2=d1*(1+r);const depths=[d1,d2];
     for(let i=2;i<count;i++){
-      const behind=Math.random()<.62;
-      const d=behind?rand(.34,.60+.22*spread):rand(.20,.285);
-      depths.push(Math.max(d2+.018,d));
+      const d=Math.random()<.58?rand(.31,.31+.26*spread):rand(.18,.285);
+      depths.push(Math.max(d2+.015,d));
     }
-    depths.sort((a,b)=>a-b);depths[0]=d1;depths[1]=d2;for(let i=2;i<depths.length;i++)depths[i]=Math.max(depths[i],d2+.025+i*.012*spread);
+    depths.sort((a,b)=>a-b);depths[0]=d1;depths[1]=d2;for(let i=2;i<depths.length;i++)depths[i]=Math.max(depths[i],d2+.018+i*.010*spread);
     const slots=makeSlots(count);
-    // Keep the two closest competitors reasonably near each other, but clearly separated.
-    slots[0]=[-.22+rand(-.05,.05),rand(-.12,.12)];slots[1]=[.22+rand(-.05,.05),rand(-.12,.12)];
+    slots[0]=[-.24+rand(-.025,.025),rand(-.07,.07)];slots[1]=[.24+rand(-.025,.025),rand(-.07,.07)];
     for(let i=0;i<count;i++)addVisualObject({depth:depths[i],ndcX:slots[i][0],ndcY:slots[i][1]});
     return {objects,relativeDelta:r,nearestDistance:d1,secondNearestDistance:d2,screenDistance:VIEWING_DISTANCE_M,screenDiagonalInches:SCREEN_DIAGONAL_INCHES,adaptive};
   }
   function buildScene(){return buildDepthScene(.10,{count:10,adaptive:false});}
   function buildExperimentScene(relativeDelta=.05,{count=10}={}){return buildDepthScene(relativeDelta,{count,adaptive:true});}
-  function setSceneDepth(v){sceneDepth=v;}
-  function setFov(v){camera.fov=v;camera.updateProjectionMatrix();camera.updateMatrixWorld(true);}
-  function fit(viewer){const r=viewer.getBoundingClientRect();if(!r.width||!r.height)return;camera.aspect=r.width/r.height;camera.updateProjectionMatrix();camera.updateMatrixWorld(true);renderer.setSize(r.width,r.height,false);updateScreenSize();}
+  function setSceneDepth(v){sceneDepth=clamp(v,.10,.80);}
+  function fit(viewer){const r=viewer.getBoundingClientRect();if(!r.width||!r.height)return;camera.aspect=r.width/r.height;renderer.setSize(r.width,r.height,false);updatePhysicalCamera();}
   function removeObject(mesh){objectGroup.remove(mesh);mesh.geometry.dispose();disposeMaterial(mesh.material);objects=objects.filter(o=>o!==mesh);items=items.filter(x=>x.mesh!==mesh);}
   function itemFor(mesh){return items.find(x=>x.mesh===mesh)||null;}
   function getObjects(){return objects.filter(o=>o.parent&&o.visible);}
   function getItems(){return items;}
-  updateScreenSize();
-  return {THREE,renderer,scene,camera,objectGroup,screenGrid,screenPlaneDistance:VIEWING_DISTANCE_M,screenDiagonalInches:SCREEN_DIAGONAL_INCHES,buildScene,buildExperimentScene,layout:()=>{},fit,setSceneDepth,setFov,removeObject,itemFor,getObjects,getItems,makePatternMaterial:(c,r,m,k)=>makePatternMaterial(renderer,c,r,m,k),disposeMaterial};
+  function getFov(){return camera.fov;}
+  updatePhysicalCamera();
+  return {THREE,renderer,scene,camera,objectGroup,screenGrid,screenPlaneDistance:VIEWING_DISTANCE_M,screenDiagonalInches:SCREEN_DIAGONAL_INCHES,buildScene,buildExperimentScene,layout:()=>{},fit,setSceneDepth,getFov,removeObject,itemFor,getObjects,getItems,makePatternMaterial:(c,r,m,k)=>makePatternMaterial(renderer,c,r,m,k),disposeMaterial};
 }
