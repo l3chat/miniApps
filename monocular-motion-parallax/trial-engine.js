@@ -1,8 +1,12 @@
 export function createTrialEngine({camera,getObjects}){
   let state=null;
 
+  // Depth is measured along the central viewing axis, not Euclidean distance
+  // to the laterally moving camera. Horizontal separation must not change
+  // which object is physically nearer/farther in the trial.
   function distanceTo(mesh){
-    return camera.position.distanceTo(mesh.getWorldPosition(mesh.position.clone()));
+    const p=mesh.getWorldPosition(mesh.position.clone());
+    return Math.max(0,camera.position.z-p.z);
   }
 
   function rankedCandidates(){
@@ -34,52 +38,19 @@ export function createTrialEngine({camera,getObjects}){
   }
 
   function ensure(){return state?.nearest?.parent?state:startStep();}
-
   function choose(mesh){
     const s=ensure();
     if(!mesh||!s.nearest)return {type:'none',state:s};
     if(s.excluded.has(mesh))return {type:'ignored',state:s};
     const responseTimeMs=performance.now()-s.startedAt;
-    if(mesh===s.nearest){
-      s.resolved=true;
-      return {type:'correct',state:s,responseTimeMs,mesh};
-    }
-    s.excluded.add(mesh);
-    s.meaningfulErrors++;
+    if(mesh===s.nearest){s.resolved=true;return {type:'correct',state:s,responseTimeMs,mesh};}
+    s.excluded.add(mesh);s.meaningfulErrors++;
     return {type:'wrong',state:s,responseTimeMs,mesh,nearest:s.nearest,errorCount:s.meaningfulErrors};
   }
-
-  function uncertain(){
-    const s=ensure();
-    if(!s.nearest)return {type:'none',state:s};
-    s.uncertain=true;
-    return {type:'uncertain',state:s,responseTimeMs:performance.now()-s.startedAt};
-  }
-
-  function markUnresolved(){
-    const s=ensure();
-    s.unresolved=true;
-    return s;
-  }
-
-  function snapshot(s=state){
-    if(!s)return null;
-    return {
-      nearestObjectId:s.nearest?.uuid??null,
-      secondNearestObjectId:s.secondNearest?.uuid??null,
-      nearestDistanceM:s.nearestDistance,
-      secondNearestDistanceM:s.secondNearestDistance,
-      deltaM:s.delta,
-      relativeDelta:s.relativeDelta,
-      meaningfulErrors:s.meaningfulErrors,
-      resolved:s.resolved,
-      unresolved:s.unresolved,
-      uncertain:s.uncertain
-    };
-  }
-
+  function uncertain(){const s=ensure();if(!s.nearest)return {type:'none',state:s};s.uncertain=true;return {type:'uncertain',state:s,responseTimeMs:performance.now()-s.startedAt};}
+  function markUnresolved(){const s=ensure();s.unresolved=true;return s;}
+  function snapshot(s=state){if(!s)return null;return {nearestObjectId:s.nearest?.uuid??null,secondNearestObjectId:s.secondNearest?.uuid??null,nearestDistanceM:s.nearestDistance,secondNearestDistanceM:s.secondNearestDistance,deltaM:s.delta,relativeDelta:s.relativeDelta,meaningfulErrors:s.meaningfulErrors,resolved:s.resolved,unresolved:s.unresolved,uncertain:s.uncertain};}
   function reset(){state=null;}
   function getState(){return state;}
-
   return {startStep,choose,uncertain,markUnresolved,reset,getState,snapshot,rankedCandidates};
 }
