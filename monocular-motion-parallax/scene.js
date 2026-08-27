@@ -44,7 +44,8 @@ export function createWorld(appElement){
   const objectGroup=new THREE.Group();scene.add(objectGroup);
   const hemi=new THREE.HemisphereLight(0xdde8ff,0x20304a,1.7),key=new THREE.DirectionalLight(0xffffff,2.6),rim=new THREE.PointLight(0x68a8ff,12,8);key.position.set(3,6,4);rim.position.set(-3,2.5,4.5);scene.add(hemi,key,rim);
 
-  const screenGrid=new THREE.GridHelper(1,10,0xd9e8ff,0x78a5d8);screenGrid.rotation.x=Math.PI/2;screenGrid.position.set(0,EYE_Y,EYE_Z-VIEWING_DISTANCE_M);screenGrid.material.transparent=true;screenGrid.material.opacity=.72;screenGrid.material.depthWrite=false;scene.add(screenGrid);
+  let screenDistance=VIEWING_DISTANCE_M;
+  const screenGrid=new THREE.GridHelper(1,10,0xd9e8ff,0x78a5d8);screenGrid.rotation.x=Math.PI/2;screenGrid.position.set(0,EYE_Y,EYE_Z-screenDistance);screenGrid.material.transparent=true;screenGrid.material.opacity=.72;screenGrid.material.depthWrite=false;scene.add(screenGrid);
 
   let objects=[],items=[],sceneDepth=.40;
   const tri=new THREE.Triangle(),a=new THREE.Vector3(),b=new THREE.Vector3(),c=new THREE.Vector3(),closest=new THREE.Vector3();
@@ -56,8 +57,9 @@ export function createWorld(appElement){
   }
   function updatePhysicalCamera(){
     const {h,w}=physicalScreenSize();
-    camera.fov=THREE.MathUtils.radToDeg(2*Math.atan((h/2)/VIEWING_DISTANCE_M));
+    camera.fov=THREE.MathUtils.radToDeg(2*Math.atan((h/2)/screenDistance));
     camera.updateProjectionMatrix();camera.updateMatrixWorld(true);
+    screenGrid.position.z=EYE_Z-screenDistance;
     screenGrid.scale.set(w,1,h);
   }
   function clearObjects(){objectGroup.traverse(o=>{o.geometry?.dispose();disposeMaterial(o.material);});objectGroup.clear();objects=[];items=[];}
@@ -85,11 +87,13 @@ export function createWorld(appElement){
     const slots=makeSlots(count);
     slots[0]=[-.24+rand(-.025,.025),rand(-.07,.07)];slots[1]=[.24+rand(-.025,.025),rand(-.07,.07)];
     for(let i=0;i<count;i++)addVisualObject({depth:depths[i],ndcX:slots[i][0],ndcY:slots[i][1]});
-    return {objects,relativeDelta:r,nearestDistance:d1,secondNearestDistance:d2,screenDistance:VIEWING_DISTANCE_M,screenDiagonalInches:SCREEN_DIAGONAL_INCHES,adaptive};
+    return {objects,relativeDelta:r,nearestDistance:d1,secondNearestDistance:d2,screenDistance,screenDiagonalInches:SCREEN_DIAGONAL_INCHES,adaptive};
   }
   function buildScene(){return buildDepthScene(.10,{count:10,adaptive:false});}
   function buildExperimentScene(relativeDelta=.05,{count=10}={}){return buildDepthScene(relativeDelta,{count,adaptive:true});}
   function setSceneDepth(v){sceneDepth=clamp(v,.10,.80);}
+  function setScreenDistance(v){screenDistance=clamp(v,.15,.80);updatePhysicalCamera();return screenDistance;}
+  function getScreenDistance(){return screenDistance;}
   function fit(viewer){const r=viewer.getBoundingClientRect();if(!r.width||!r.height)return;camera.aspect=r.width/r.height;renderer.setSize(r.width,r.height,false);updatePhysicalCamera();}
   function removeObject(mesh){objectGroup.remove(mesh);mesh.geometry.dispose();disposeMaterial(mesh.material);objects=objects.filter(o=>o!==mesh);items=items.filter(x=>x.mesh!==mesh);}
   function itemFor(mesh){return items.find(x=>x.mesh===mesh)||null;}
@@ -97,48 +101,11 @@ export function createWorld(appElement){
   function getItems(){return items;}
   function getFov(){return camera.fov;}
 
-  function sphereLowerBound(mesh){
-    mesh.updateWorldMatrix(true,false);mesh.geometry.computeBoundingSphere();
-    const sphere=mesh.geometry.boundingSphere;if(!sphere)return Infinity;
-    const center=sphere.center.clone().applyMatrix4(mesh.matrixWorld);
-    const s=new THREE.Vector3().setFromMatrixScale(mesh.matrixWorld);
-    const radius=sphere.radius*Math.max(Math.abs(s.x),Math.abs(s.y),Math.abs(s.z));
-    return Math.max(0,camera.position.distanceTo(center)-radius);
-  }
-
-  function exactSurfaceDistance(mesh){
-    if(!mesh?.parent)return Infinity;
-    mesh.updateWorldMatrix(true,false);
-    const geometry=mesh.geometry,position=geometry.getAttribute('position'),index=geometry.index;
-    if(!position)return Infinity;
-    let bestSq=Infinity;
-    const triangleCount=index?Math.floor(index.count/3):Math.floor(position.count/3);
-    for(let i=0;i<triangleCount;i++){
-      const ia=index?index.getX(i*3):i*3;
-      const ib=index?index.getX(i*3+1):i*3+1;
-      const ic=index?index.getX(i*3+2):i*3+2;
-      a.fromBufferAttribute(position,ia).applyMatrix4(mesh.matrixWorld);
-      b.fromBufferAttribute(position,ib).applyMatrix4(mesh.matrixWorld);
-      c.fromBufferAttribute(position,ic).applyMatrix4(mesh.matrixWorld);
-      tri.set(a,b,c).closestPointToPoint(camera.position,closest);
-      const d2=closest.distanceToSquared(camera.position);
-      if(d2<bestSq)bestSq=d2;
-    }
-    return Number.isFinite(bestSq)?Math.max(camera.near,Math.sqrt(bestSq)):Infinity;
-  }
-
+  function sphereLowerBound(mesh){mesh.updateWorldMatrix(true,false);mesh.geometry.computeBoundingSphere();const sphere=mesh.geometry.boundingSphere;if(!sphere)return Infinity;const center=sphere.center.clone().applyMatrix4(mesh.matrixWorld);const s=new THREE.Vector3().setFromMatrixScale(mesh.matrixWorld);const radius=sphere.radius*Math.max(Math.abs(s.x),Math.abs(s.y),Math.abs(s.z));return Math.max(0,camera.position.distanceTo(center)-radius);}
+  function exactSurfaceDistance(mesh){if(!mesh?.parent)return Infinity;mesh.updateWorldMatrix(true,false);const geometry=mesh.geometry,position=geometry.getAttribute('position'),index=geometry.index;if(!position)return Infinity;let bestSq=Infinity;const triangleCount=index?Math.floor(index.count/3):Math.floor(position.count/3);for(let i=0;i<triangleCount;i++){const ia=index?index.getX(i*3):i*3,ib=index?index.getX(i*3+1):i*3+1,ic=index?index.getX(i*3+2):i*3+2;a.fromBufferAttribute(position,ia).applyMatrix4(mesh.matrixWorld);b.fromBufferAttribute(position,ib).applyMatrix4(mesh.matrixWorld);c.fromBufferAttribute(position,ic).applyMatrix4(mesh.matrixWorld);tri.set(a,b,c).closestPointToPoint(camera.position,closest);const d2=closest.distanceToSquared(camera.position);if(d2<bestSq)bestSq=d2;}return Number.isFinite(bestSq)?Math.max(camera.near,Math.sqrt(bestSq)):Infinity;}
   function surfaceDistanceToCamera(mesh){return exactSurfaceDistance(mesh);}
-
-  function nearestSurfaceFocusDistance(){
-    const candidates=getObjects().map(mesh=>({mesh,lower:sphereLowerBound(mesh)})).sort((x,y)=>x.lower-y.lower);
-    let best=Infinity;
-    for(const candidate of candidates){
-      if(candidate.lower>=best)break;
-      best=Math.min(best,exactSurfaceDistance(candidate.mesh));
-    }
-    return Number.isFinite(best)?best:null;
-  }
+  function nearestSurfaceFocusDistance(){const candidates=getObjects().map(mesh=>({mesh,lower:sphereLowerBound(mesh)})).sort((x,y)=>x.lower-y.lower);let best=Infinity;for(const candidate of candidates){if(candidate.lower>=best)break;best=Math.min(best,exactSurfaceDistance(candidate.mesh));}return Number.isFinite(best)?best:null;}
 
   updatePhysicalCamera();
-  return {THREE,renderer,scene,camera,objectGroup,screenGrid,screenPlaneDistance:VIEWING_DISTANCE_M,screenDiagonalInches:SCREEN_DIAGONAL_INCHES,buildScene,buildExperimentScene,layout:()=>{},fit,setSceneDepth,getFov,removeObject,itemFor,getObjects,getItems,surfaceDistanceToCamera,nearestSurfaceFocusDistance,makePatternMaterial:(c,r,m,k)=>makePatternMaterial(renderer,c,r,m,k),disposeMaterial};
+  return {THREE,renderer,scene,camera,objectGroup,screenGrid,screenDiagonalInches:SCREEN_DIAGONAL_INCHES,buildScene,buildExperimentScene,layout:()=>{},fit,setSceneDepth,setScreenDistance,getScreenDistance,getFov,removeObject,itemFor,getObjects,getItems,surfaceDistanceToCamera,nearestSurfaceFocusDistance,makePatternMaterial:(c,r,m,k)=>makePatternMaterial(renderer,c,r,m,k),disposeMaterial};
 }
