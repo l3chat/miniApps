@@ -44,6 +44,8 @@ export function createWorld(appElement){
   const objectGroup=new THREE.Group();scene.add(objectGroup);
   const hemi=new THREE.HemisphereLight(0xdde8ff,0x20304a,1.7),key=new THREE.DirectionalLight(0xffffff,2.6),rim=new THREE.PointLight(0x68a8ff,12,8);key.position.set(3,6,4);rim.position.set(-3,2.5,4.5);scene.add(hemi,key,rim);
 
+  // Physical display calibration is fixed: 10-inch display viewed from 30 cm.
+  // The grid is a separate 10-inch object in the virtual scene and may move in depth.
   let screenDistance=VIEWING_DISTANCE_M;
   const screenGrid=new THREE.GridHelper(1,10,0xd9e8ff,0x78a5d8);screenGrid.rotation.x=Math.PI/2;screenGrid.position.set(0,EYE_Y,EYE_Z-screenDistance);screenGrid.material.transparent=true;screenGrid.material.opacity=.72;screenGrid.material.depthWrite=false;scene.add(screenGrid);
 
@@ -57,7 +59,7 @@ export function createWorld(appElement){
   }
   function updatePhysicalCamera(){
     const {h,w}=physicalScreenSize();
-    camera.fov=THREE.MathUtils.radToDeg(2*Math.atan((h/2)/screenDistance));
+    camera.fov=THREE.MathUtils.radToDeg(2*Math.atan((h/2)/VIEWING_DISTANCE_M));
     camera.updateProjectionMatrix();camera.updateMatrixWorld(true);
     screenGrid.position.z=EYE_Z-screenDistance;
     screenGrid.scale.set(w,1,h);
@@ -92,7 +94,7 @@ export function createWorld(appElement){
   function buildScene(){return buildDepthScene(.10,{count:10,adaptive:false});}
   function buildExperimentScene(relativeDelta=.05,{count=10}={}){return buildDepthScene(relativeDelta,{count,adaptive:true});}
   function setSceneDepth(v){sceneDepth=clamp(v,.10,.80);}
-  function setScreenDistance(v){screenDistance=clamp(v,.15,.80);updatePhysicalCamera();return screenDistance;}
+  function setScreenDistance(v){screenDistance=clamp(v,.15,.80);screenGrid.position.z=EYE_Z-screenDistance;return screenDistance;}
   function getScreenDistance(){return screenDistance;}
   function fit(viewer){const r=viewer.getBoundingClientRect();if(!r.width||!r.height)return;camera.aspect=r.width/r.height;renderer.setSize(r.width,r.height,false);updatePhysicalCamera();}
   function removeObject(mesh){objectGroup.remove(mesh);mesh.geometry.dispose();disposeMaterial(mesh.material);objects=objects.filter(o=>o!==mesh);items=items.filter(x=>x.mesh!==mesh);}
