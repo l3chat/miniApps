@@ -1,11 +1,12 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
+import { VIEWING_DISTANCE_M } from './version.js';
 
 export function createCameraMotion(camera,onUpdate=()=>{}){
   const params={
     mode:'static',
     baselineCm:8,
     frequency:1.6,
-    focusDistance:8,
+    focusDistance:VIEWING_DISTANCE_M,
     waveform:'sine',
     paused:false
   };
@@ -28,15 +29,14 @@ export function createCameraMotion(camera,onUpdate=()=>{}){
     camera.position.x=x;
     const focusDistance=focusOverride??params.focusDistance;
     camera.lookAt(new THREE.Vector3(0,camera.position.y,camera.position.z-focusDistance));
+    camera.updateMatrixWorld(true);
     onUpdate({xCm:x*100,focusDistance});
   }
 
-  function set(key,value){
-    if(key in params)params[key]=value;
-  }
+  function set(key,value){if(key in params)params[key]=value;}
 
   function reset(){
-    Object.assign(params,{mode:'static',baselineCm:8,frequency:1.6,focusDistance:8,waveform:'sine',paused:false});
+    Object.assign(params,{mode:'static',baselineCm:8,frequency:1.6,focusDistance:VIEWING_DISTANCE_M,waveform:'sine',paused:false});
   }
 
   return {params,update,set,reset,viewAt};
