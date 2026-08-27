@@ -24,12 +24,12 @@ const trialEngine=createTrialEngine({camera,getObjects:world.getObjects});
 let autofocusNearest=false;
 
 $('versionText').textContent=`v${APP_VERSION}`;
-function updateScreenText(){$('screenText').textContent=`screen ${SCREEN_DIAGONAL_INCHES}″ @ ${(world.getScreenDistance()*100).toFixed(0)} cm`;}
+function updateScreenText(){$('screenText').textContent=`display ${SCREEN_DIAGONAL_INCHES}″ @ ${(VIEWING_DISTANCE_M*100).toFixed(0)} cm · grid @ ${(world.getScreenDistance()*100).toFixed(0)} cm`;}
 updateScreenText();
 
 function cameraSnapshot(){return {mode:cameraMotion.params.mode,baselineCm:cameraMotion.params.baselineCm,frequencyHz:cameraMotion.params.frequency,focusDistanceM:cameraMotion.params.focusDistance,waveform:cameraMotion.params.waveform,autofocusNearest};}
-function sceneSnapshot(){return {fovDeg:camera.fov,sceneDepthM:+$('sceneDepth').value,screenDiagonalInches:SCREEN_DIAGONAL_INCHES,screenPlaneDistanceM:world.getScreenDistance()};}
-function saveSettings(extra={}){const screenDistance=world.getScreenDistance();storage.updateSettings({language:lang,panelHidden:document.body.classList.contains('controlsHidden'),camera:{mode:cameraMotion.params.mode,baselineCm:cameraMotion.params.baselineCm,frequency:cameraMotion.params.frequency,focusDistance:cameraMotion.params.focusDistance,waveform:cameraMotion.params.waveform,autofocusNearest},scene:{sceneDepth:+$('sceneDepth').value,screenDiagonalInches:SCREEN_DIAGONAL_INCHES,screenDistance},calibration:{screenDiagonalInches:SCREEN_DIAGONAL_INCHES,viewingDistanceM:screenDistance},...extra});}
+function sceneSnapshot(){return {fovDeg:camera.fov,sceneDepthM:+$('sceneDepth').value,screenDiagonalInches:SCREEN_DIAGONAL_INCHES,displayViewingDistanceM:VIEWING_DISTANCE_M,gridDistanceM:world.getScreenDistance()};}
+function saveSettings(extra={}){const screenDistance=world.getScreenDistance();storage.updateSettings({language:lang,panelHidden:document.body.classList.contains('controlsHidden'),camera:{mode:cameraMotion.params.mode,baselineCm:cameraMotion.params.baselineCm,frequency:cameraMotion.params.frequency,focusDistance:cameraMotion.params.focusDistance,waveform:cameraMotion.params.waveform,autofocusNearest},scene:{sceneDepth:+$('sceneDepth').value,screenDiagonalInches:SCREEN_DIAGONAL_INCHES,screenDistance},calibration:{screenDiagonalInches:SCREEN_DIAGONAL_INCHES,viewingDistanceM:VIEWING_DISTANCE_M},...extra});}
 
 let lastTrainingStats={correct:0,wrong:0,unresolved:0,score:100,active:false};
 let lastExperimentState={active:false,trialNo:0,total:0,threshold80:null};
@@ -51,7 +51,7 @@ function restoreSettings(){
   const frequency=clamp(Number(c.frequency??1.6),.2,4);
   let focus=Number(c.focusDistance??VIEWING_DISTANCE_M);if(!Number.isFinite(focus)||focus>.80||focus<.12)focus=VIEWING_DISTANCE_M;
   const sceneDepth=clamp(Number(s.sceneDepth??.40),.10,.80);
-  const screenDistance=clamp(Number(s.screenDistance??saved.calibration?.viewingDistanceM??VIEWING_DISTANCE_M),.15,.80);
+  const screenDistance=clamp(Number(s.screenDistance??VIEWING_DISTANCE_M),.15,.80);
   autofocusNearest=Boolean(c.autofocusNearest);
   world.setScreenDistance(screenDistance);
   cameraMotion.set('mode',c.mode??'static');cameraMotion.set('baselineCm',baseline);cameraMotion.set('frequency',frequency);cameraMotion.set('focusDistance',focus);cameraMotion.set('waveform',c.waveform??'sine');world.setSceneDepth(sceneDepth);
