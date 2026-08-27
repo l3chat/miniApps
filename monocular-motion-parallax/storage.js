@@ -1,5 +1,5 @@
 const STORAGE_KEY='mmp-lab-state';
-const SCHEMA_VERSION=4;
+const SCHEMA_VERSION=5;
 const TRAINING_HISTORY_LIMIT=500;
 const EXPERIMENT_HISTORY_LIMIT=2000;
 
@@ -10,7 +10,7 @@ const DEFAULT_STATE={
     panelHidden:false,
     lastAppMode:'training',
     camera:{mode:'static',baselineCm:8,frequency:1.6,focusDistance:.30,waveform:'sine',autofocusNearest:false},
-    scene:{sceneDepth:.40,screenDiagonalInches:10},
+    scene:{sceneDepth:.40,screenDiagonalInches:10,screenDistance:.30},
     calibration:{screenDiagonalInches:10,viewingDistanceM:.30}
   },
   lastTrainingResult:null,
@@ -29,9 +29,10 @@ function normalize(state){
   let focus=Number(state.settings.camera.focusDistance??.30);if(!Number.isFinite(focus)||focus<.12||focus>.80)focus=.30;state.settings.camera.focusDistance=focus;
   state.settings.camera.autofocusNearest=Boolean(state.settings.camera.autofocusNearest);
   let depth=Number(state.settings.scene.sceneDepth??.40);if(!Number.isFinite(depth)||depth<.10||depth>.80)depth=.40;state.settings.scene.sceneDepth=depth;
+  let screenDistance=Number(state.settings.scene.screenDistance??state.settings.calibration?.viewingDistanceM??.30);if(!Number.isFinite(screenDistance)||screenDistance<.15||screenDistance>.80)screenDistance=.30;state.settings.scene.screenDistance=screenDistance;
   delete state.settings.scene.fov;
   state.settings.scene.screenDiagonalInches=10;
-  state.settings.calibration={screenDiagonalInches:10,viewingDistanceM:.30};
+  state.settings.calibration={screenDiagonalInches:10,viewingDistanceM:screenDistance};
   return state;
 }
 function migrate(raw){if(!isObject(raw))return clone(DEFAULT_STATE);return normalize(merge(clone(DEFAULT_STATE),raw));}
