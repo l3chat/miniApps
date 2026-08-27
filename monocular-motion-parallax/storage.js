@@ -1,5 +1,5 @@
 const STORAGE_KEY='mmp-lab-state';
-const SCHEMA_VERSION=3;
+const SCHEMA_VERSION=4;
 const TRAINING_HISTORY_LIMIT=500;
 const EXPERIMENT_HISTORY_LIMIT=2000;
 
@@ -9,7 +9,7 @@ const DEFAULT_STATE={
     language:null,
     panelHidden:false,
     lastAppMode:'training',
-    camera:{mode:'static',baselineCm:8,frequency:1.6,focusDistance:.30,waveform:'sine'},
+    camera:{mode:'static',baselineCm:8,frequency:1.6,focusDistance:.30,waveform:'sine',autofocusNearest:false},
     scene:{sceneDepth:.40,screenDiagonalInches:10},
     calibration:{screenDiagonalInches:10,viewingDistanceM:.30}
   },
@@ -27,6 +27,7 @@ function normalize(state){
   state.settings.camera.baselineCm=Math.max(0,Math.min(12,Number(state.settings.camera.baselineCm??8)));
   state.settings.camera.frequency=Math.max(.2,Math.min(4,Number(state.settings.camera.frequency??1.6)));
   let focus=Number(state.settings.camera.focusDistance??.30);if(!Number.isFinite(focus)||focus<.12||focus>.80)focus=.30;state.settings.camera.focusDistance=focus;
+  state.settings.camera.autofocusNearest=Boolean(state.settings.camera.autofocusNearest);
   let depth=Number(state.settings.scene.sceneDepth??.40);if(!Number.isFinite(depth)||depth<.10||depth>.80)depth=.40;state.settings.scene.sceneDepth=depth;
   delete state.settings.scene.fov;
   state.settings.scene.screenDiagonalInches=10;
