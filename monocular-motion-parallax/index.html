@@ -14,7 +14,7 @@
       <div id="app"></div>
       <div class="topbar">
         <div class="brand">Monocular Motion Parallax <small><span id="brandDemo">Three.js demo</span> · <span id="versionText"></span> · <span id="screenText"></span></small></div>
-        <div class="hud"><span id="fps">— fps</span> · x=<span id="camx">0.0</span> cm · F=<span id="focusHud">0.3</span> m · <span id="modeText">Static</span></div>
+        <div class="hud"><span id="fps">— fps</span> · x=<span id="camx">0.0</span> cm · F=<span id="focusHud">0.30</span> m · <span id="modeText">Static</span></div>
       </div>
       <div class="legend" id="legendText"></div>
     </section>
@@ -40,12 +40,12 @@
           <button data-mode="continuous" id="modeContinuous"></button>
         </div>
 
-        <div class="row"><label for="baseline" id="baselineLabel"></label><input id="baseline" type="range" min="0" max="30" step="0.5" value="8"><div class="value"><span id="baselineVal">8.0</span> cm</div></div>
-        <div class="row"><label for="frequency" id="frequencyLabel"></label><input id="frequency" type="range" min="0.1" max="8" step="0.1" value="1.6"><div class="value"><span id="frequencyVal">1.6</span> Hz</div></div>
-        <div class="row"><label for="focusDistance" id="focusDistanceLabel"></label><input id="focusDistance" type="range" min="0.1" max="15" step="0.1" value="0.3"><div class="value"><span id="focusDistanceVal">0.3</span> m</div></div>
+        <div class="row"><label for="baseline" id="baselineLabel"></label><input id="baseline" type="range" min="0" max="12" step="0.25" value="8"><div class="value"><span id="baselineVal">8.0</span> cm</div></div>
+        <div class="row"><label for="frequency" id="frequencyLabel"></label><input id="frequency" type="range" min="0.2" max="4" step="0.1" value="1.6"><div class="value"><span id="frequencyVal">1.6</span> Hz</div></div>
+        <div class="row"><label for="focusDistance" id="focusDistanceLabel"></label><input id="focusDistance" type="range" min="0.12" max="0.80" step="0.01" value="0.30"><div class="value"><span id="focusDistanceVal">0.30</span> m</div></div>
         <div class="row"><label for="waveform" id="waveformLabel"></label><select id="waveform"><option value="sine">Sine</option><option value="triangle">Triangle</option></select><div class="value"></div></div>
-        <div class="row"><label for="fov" id="fovLabel"></label><input id="fov" type="range" min="35" max="80" step="1" value="55"><div class="value"><span id="fovVal">55</span>°</div></div>
-        <div class="row"><label for="sceneDepth" id="sceneDepthLabel"></label><input id="sceneDepth" type="range" min="0.5" max="4" step="0.1" value="2.4"><div class="value"><span id="sceneDepthVal">2.4</span> m</div></div>
+        <div class="row"><label id="fovLabel"></label><div class="autoValue">auto</div><div class="value"><span id="fovVal">—</span>°</div></div>
+        <div class="row"><label for="sceneDepth" id="sceneDepthLabel"></label><input id="sceneDepth" type="range" min="0.10" max="0.80" step="0.01" value="0.40"><div class="value"><span id="sceneDepthVal">0.40</span> m</div></div>
 
         <div class="grid2">
           <button id="pauseBtn" class="secondary"></button>
