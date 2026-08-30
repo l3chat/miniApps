@@ -165,9 +165,7 @@
       outline-offset: -3px;
     }
 
-    button:disabled {
-      cursor: default;
-    }
+    button:disabled { cursor: default; }
 
     .fn { background: var(--function); }
     .op { border-color: var(--accent); background: var(--accent); color: white; }
@@ -268,7 +266,7 @@
 
       const MAX_STACK = 6;
       const labels = ['X', 'Y', 'Z', 'T', 'U', 'V'];
-      const MOVE_MS = 560;
+      const MOVE_MS = 2240;
       const EASE = 'cubic-bezier(.22,.75,.2,1)';
 
       let stack = [];
@@ -283,10 +281,7 @@
       const statusEl = document.getElementById('status');
       const keyButtons = [...document.querySelectorAll('.keys button')];
 
-      function setStatus(message = '') {
-        statusEl.textContent = message;
-      }
-
+      function setStatus(message = '') { statusEl.textContent = message; }
       function setBusy(value) {
         busy = value;
         keyButtons.forEach(button => { button.disabled = value; });
@@ -310,14 +305,11 @@
         return Number.isFinite(value) ? value : null;
       }
 
-      function newItem(value) {
-        return { id: String(nextId++), value };
-      }
+      function newItem(value) { return { id: String(nextId++), value }; }
 
       function render() {
         stackEl.replaceChildren();
         const emptyRows = MAX_STACK - stack.length;
-
         for (let rowIndex = 0; rowIndex < MAX_STACK; rowIndex += 1) {
           const row = document.createElement('div');
           const stackIndex = rowIndex - emptyRows;
@@ -334,14 +326,10 @@
           if (item) {
             value.dataset.itemId = item.id;
             value.textContent = formatNumber(item.value);
-          } else {
-            value.textContent = '';
           }
-
           row.append(label, value);
           stackEl.append(row);
         }
-
         entryValueEl.textContent = entering ? entry : '';
       }
 
@@ -349,22 +337,14 @@
         const result = new Map();
         stackEl.querySelectorAll('.stack-value[data-item-id]').forEach(el => {
           const rect = el.getBoundingClientRect();
-          result.set(el.dataset.itemId, {
-            rect,
-            text: el.textContent,
-            fontSize: getComputedStyle(el).fontSize
-          });
+          result.set(el.dataset.itemId, { rect, text: el.textContent, fontSize: getComputedStyle(el).fontSize });
         });
         return result;
       }
 
       function captureElement(el, text = el.textContent) {
         const rect = el.getBoundingClientRect();
-        return {
-          rect,
-          text,
-          fontSize: getComputedStyle(el).fontSize
-        };
+        return { rect, text, fontSize: getComputedStyle(el).fontSize };
       }
 
       function ghostFrom(state) {
@@ -372,24 +352,15 @@
         ghost.className = 'ghost-number';
         ghost.textContent = state.text;
         Object.assign(ghost.style, {
-          left: `${state.rect.left}px`,
-          top: `${state.rect.top}px`,
-          width: `${state.rect.width}px`,
-          height: `${state.rect.height}px`,
-          lineHeight: `${state.rect.height}px`,
-          fontSize: state.fontSize
+          left: `${state.rect.left}px`, top: `${state.rect.top}px`, width: `${state.rect.width}px`,
+          height: `${state.rect.height}px`, lineHeight: `${state.rect.height}px`, fontSize: state.fontSize
         });
         document.body.appendChild(ghost);
         return ghost;
       }
 
-      function finished(animation) {
-        return animation.finished.catch(() => undefined);
-      }
-
-      function nextFrame() {
-        return new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-      }
+      function finished(animation) { return animation.finished.catch(() => undefined); }
+      function nextFrame() { return new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))); }
 
       function animateLabels() {
         const animations = [];
@@ -397,7 +368,7 @@
           if (!label.textContent) return;
           animations.push(finished(label.animate(
             [{ opacity: 0.25 }, { opacity: 1 }],
-            { duration: 300, delay: 170, easing: 'ease-out' }
+            { duration: 1200, delay: 680, easing: 'ease-out' }
           )));
         });
         return animations;
@@ -408,7 +379,6 @@
         if (options.extraBefore) {
           for (const [id, state] of options.extraBefore) before.set(String(id), state);
         }
-
         mutator();
         render();
         await nextFrame();
@@ -421,71 +391,48 @@
         for (const [id, newState] of after) {
           const el = stackEl.querySelector(`.stack-value[data-item-id="${id}"]`);
           const oldState = before.get(id);
-
           if (oldState) {
             const dx = oldState.rect.left - newState.rect.left;
             const dy = oldState.rect.top - newState.rect.top;
             const valueChanged = changed.has(id) || oldState.text !== newState.text;
 
-            if (valueChanged && before.has(id)) {
+            if (valueChanged) {
               const oldGhost = ghostFrom(oldState);
               animations.push(finished(oldGhost.animate(
-                [
-                  { opacity: 1, transform: 'scale(1)' },
-                  { opacity: 0, transform: 'scale(.82)' }
-                ],
+                [{ opacity: 1, transform: 'scale(1)' }, { opacity: 0, transform: 'scale(.82)' }],
                 { duration: MOVE_MS * 0.7, easing: 'ease-out', fill: 'forwards' }
               )).then(() => oldGhost.remove()));
             }
 
-            const frames = [
-              {
-                transform: `translate(${dx}px, ${dy}px) scale(${valueChanged ? .86 : 1})`,
-                opacity: valueChanged ? 0.15 : 1
-              },
+            animations.push(finished(el.animate([
+              { transform: `translate(${dx}px, ${dy}px) scale(${valueChanged ? .86 : 1})`, opacity: valueChanged ? 0.15 : 1 },
               { transform: 'translate(0, 0) scale(1.04)', opacity: 1, offset: 0.82 },
               { transform: 'translate(0, 0) scale(1)', opacity: 1 }
-            ];
-            animations.push(finished(el.animate(frames, {
-              duration: MOVE_MS,
-              easing: EASE
-            })));
+            ], { duration: MOVE_MS, easing: EASE })));
           } else {
-            animations.push(finished(el.animate(
-              [
-                { opacity: 0, transform: 'scale(.7)' },
-                { opacity: 1, transform: 'scale(1.06)', offset: .78 },
-                { opacity: 1, transform: 'scale(1)' }
-              ],
-              { duration: MOVE_MS, easing: EASE }
-            )));
+            animations.push(finished(el.animate([
+              { opacity: 0, transform: 'scale(.7)' },
+              { opacity: 1, transform: 'scale(1.06)', offset: .78 },
+              { opacity: 1, transform: 'scale(1)' }
+            ], { duration: MOVE_MS, easing: EASE })));
           }
         }
 
         for (const [id, oldState] of before) {
           if (after.has(id)) continue;
-
           const ghost = ghostFrom(oldState);
           const targetId = removedTo[id];
           const target = targetId ? after.get(String(targetId)) : null;
           let dx = 0;
           let dy = -oldState.rect.height * 0.7;
-
           if (target) {
             dx = target.rect.left - oldState.rect.left;
             dy = target.rect.top - oldState.rect.top;
           }
-
-          animations.push(finished(ghost.animate(
-            [
-              { opacity: 1, transform: 'translate(0, 0) scale(1)' },
-              {
-                opacity: target ? 0.2 : 0,
-                transform: `translate(${dx}px, ${dy}px) scale(${target ? .72 : .82})`
-              }
-            ],
-            { duration: MOVE_MS, easing: EASE, fill: 'forwards' }
-          )).then(() => ghost.remove()));
+          animations.push(finished(ghost.animate([
+            { opacity: 1, transform: 'translate(0, 0) scale(1)' },
+            { opacity: target ? 0.2 : 0, transform: `translate(${dx}px, ${dy}px) scale(${target ? .72 : .82})` }
+          ], { duration: MOVE_MS, easing: EASE, fill: 'forwards' })).then(() => ghost.remove()));
         }
 
         animations.push(...animateLabels());
@@ -498,344 +445,184 @@
       }
 
       async function pulseEntry() {
-        await finished(entryValueEl.animate(
-          [
-            { transform: 'scale(1)' },
-            { transform: 'scale(1.06)', offset: .45 },
-            { transform: 'scale(1)' }
-          ],
-          { duration: 170, easing: 'ease-out' }
-        ));
+        await finished(entryValueEl.animate([
+          { transform: 'scale(1)' }, { transform: 'scale(1.06)', offset: .45 }, { transform: 'scale(1)' }
+        ], { duration: 680, easing: 'ease-out' }));
       }
 
       async function shake(el = entryFieldEl) {
-        await finished(el.animate(
-          [
-            { transform: 'translateX(0)' },
-            { transform: 'translateX(-7px)' },
-            { transform: 'translateX(7px)' },
-            { transform: 'translateX(-4px)' },
-            { transform: 'translateX(0)' }
-          ],
-          { duration: 300, easing: 'ease-out' }
-        ));
+        await finished(el.animate([
+          { transform: 'translateX(0)' }, { transform: 'translateX(-7px)' },
+          { transform: 'translateX(7px)' }, { transform: 'translateX(-4px)' }, { transform: 'translateX(0)' }
+        ], { duration: 1200, easing: 'ease-out' }));
       }
 
       async function beginDigit(digit) {
-        if (!entering) {
-          entry = '';
-          entering = true;
-        }
+        if (!entering) { entry = ''; entering = true; }
         if (entry === '0' && digit !== '0') entry = digit;
         else if (entry === '-0' && digit !== '0') entry = '-' + digit;
         else if (!(entry === '0' && digit === '0') && !(entry === '-0' && digit === '0')) entry += digit;
-        setStatus();
-        render();
-        await pulseEntry();
+        setStatus(); render(); await pulseEntry();
       }
 
       async function decimal() {
-        if (!entering) {
-          entry = '0.';
-          entering = true;
-        } else if (!entry.includes('.')) {
-          entry += entry === '-' ? '0.' : '.';
-        }
-        setStatus();
-        render();
-        await pulseEntry();
+        if (!entering) { entry = '0.'; entering = true; }
+        else if (!entry.includes('.')) entry += entry === '-' ? '0.' : '.';
+        setStatus(); render(); await pulseEntry();
       }
 
       async function toggleSign() {
         if (entering) {
           entry = entry.startsWith('-') ? entry.slice(1) : '-' + entry;
-          setStatus();
-          render();
-          await pulseEntry();
-          return;
+          setStatus(); render(); await pulseEntry(); return;
         }
-
         if (stack.length) {
           const id = stack[0].id;
-          await transition(() => {
-            stack[0] = { ...stack[0], value: -stack[0].value };
-          }, { changedIds: [id] });
-          setStatus();
-          return;
+          await transition(() => { stack[0] = { ...stack[0], value: -stack[0].value }; }, { changedIds: [id] });
+          setStatus(); return;
         }
-
-        entry = '-';
-        entering = true;
-        setStatus();
-        render();
-        await pulseEntry();
+        entry = '-'; entering = true; setStatus(); render(); await pulseEntry();
       }
 
       async function backspace() {
         if (!entering) return;
         entry = entry.slice(0, -1);
         if (!entry) entering = false;
-        setStatus();
-        render();
-        await pulseEntry();
+        setStatus(); render(); await pulseEntry();
       }
 
       async function commitEntryAnimated() {
         if (!entering) return false;
         const value = parsedEntry();
-        if (value === null) {
-          setStatus('Некорректное число');
-          await shake();
-          return false;
-        }
-
+        if (value === null) { setStatus('Некорректное число'); await shake(); return false; }
         const item = newItem(value);
         const source = captureElement(entryValueEl, entry);
         const extraBefore = new Map([[item.id, source]]);
-
-        await transition(() => {
-          pushItem(item);
-          entry = '';
-          entering = false;
-        }, { extraBefore });
-
-        setStatus();
-        return true;
+        await transition(() => { pushItem(item); entry = ''; entering = false; }, { extraBefore });
+        setStatus(); return true;
       }
 
       async function enter() {
-        if (entering) {
-          await commitEntryAnimated();
-          return;
-        }
-
-        if (!stack.length) {
-          setStatus('Сначала введите число');
-          await shake();
-          return;
-        }
-
+        if (entering) { await commitEntryAnimated(); return; }
+        if (!stack.length) { setStatus('Сначала введите число'); await shake(); return; }
         const sourceEl = stackEl.querySelector(`.stack-value[data-item-id="${stack[0].id}"]`);
         const duplicate = newItem(stack[0].value);
         const source = captureElement(sourceEl, formatNumber(stack[0].value));
-        const extraBefore = new Map([[duplicate.id, source]]);
-
-        await transition(() => pushItem(duplicate), { extraBefore });
+        await transition(() => pushItem(duplicate), { extraBefore: new Map([[duplicate.id, source]]) });
         setStatus();
       }
 
       async function binary(op) {
         if (entering && !(await commitEntryAnimated())) return;
-
-        if (stack.length < 2) {
-          setStatus('Недостаточно элементов');
-          await shake(stackEl);
-          return;
-        }
-
-        const x = stack[0];
-        const y = stack[1];
+        if (stack.length < 2) { setStatus('Недостаточно элементов'); await shake(stackEl); return; }
+        const x = stack[0], y = stack[1];
         let result;
-
         if (op === '+') result = y.value + x.value;
         if (op === '-') result = y.value - x.value;
         if (op === '*') result = y.value * x.value;
         if (op === '/') {
-          if (x.value === 0) {
-            setStatus('Деление на ноль');
-            await shake(stackEl);
-            return;
-          }
+          if (x.value === 0) { setStatus('Деление на ноль'); await shake(stackEl); return; }
           result = y.value / x.value;
         }
-
-        if (!Number.isFinite(result)) {
-          setStatus('Результат вне диапазона');
-          await shake(stackEl);
-          return;
-        }
-
+        if (!Number.isFinite(result)) { setStatus('Результат вне диапазона'); await shake(stackEl); return; }
         const resultId = y.id;
-        const removedTo = { [x.id]: resultId };
-
-        await transition(() => {
-          stack.splice(0, 2, { id: resultId, value: result });
-        }, {
-          changedIds: [resultId],
-          removedTo
+        await transition(() => { stack.splice(0, 2, { id: resultId, value: result }); }, {
+          changedIds: [resultId], removedTo: { [x.id]: resultId }
         });
         setStatus();
       }
 
       async function unary(kind) {
         if (entering && !(await commitEntryAnimated())) return;
-
-        if (!stack.length) {
-          setStatus('Стек пуст');
-          await shake(stackEl);
-          return;
-        }
-
+        if (!stack.length) { setStatus('Стек пуст'); await shake(stackEl); return; }
         const x = stack[0];
         let result;
-
         switch (kind) {
           case 'reciprocal':
-            if (x.value === 0) {
-              setStatus('Деление на ноль');
-              await shake(stackEl);
-              return;
-            }
-            result = 1 / x.value;
-            break;
-          case 'square':
-            result = x.value * x.value;
-            break;
-          case 'cube':
-            result = x.value * x.value * x.value;
-            break;
+            if (x.value === 0) { setStatus('Деление на ноль'); await shake(stackEl); return; }
+            result = 1 / x.value; break;
+          case 'square': result = x.value * x.value; break;
+          case 'cube': result = x.value * x.value * x.value; break;
           case 'sqrt':
-            if (x.value < 0) {
-              setStatus('Квадратный корень отрицательного числа');
-              await shake(stackEl);
-              return;
-            }
-            result = Math.sqrt(x.value);
-            break;
-          case 'cbrt':
-            result = Math.cbrt(x.value);
-            break;
-          default:
-            return;
+            if (x.value < 0) { setStatus('Квадратный корень отрицательного числа'); await shake(stackEl); return; }
+            result = Math.sqrt(x.value); break;
+          case 'cbrt': result = Math.cbrt(x.value); break;
+          default: return;
         }
-
-        if (!Number.isFinite(result)) {
-          setStatus('Результат вне диапазона');
-          await shake(stackEl);
-          return;
-        }
-
-        await transition(() => {
-          stack[0] = { ...stack[0], value: result };
-        }, { changedIds: [x.id] });
+        if (!Number.isFinite(result)) { setStatus('Результат вне диапазона'); await shake(stackEl); return; }
+        await transition(() => { stack[0] = { ...stack[0], value: result }; }, { changedIds: [x.id] });
         setStatus();
       }
 
       async function drop() {
         if (entering) {
-          const animation = entryValueEl.animate(
-            [
-              { opacity: 1, transform: 'translateY(0)' },
-              { opacity: 0, transform: 'translateY(-18px) scale(.85)' }
-            ],
-            { duration: 320, easing: 'ease-in', fill: 'forwards' }
-          );
-          await finished(animation);
-          entry = '';
-          entering = false;
-          render();
-          setStatus();
-          return;
+          await finished(entryValueEl.animate([
+            { opacity: 1, transform: 'translateY(0)' },
+            { opacity: 0, transform: 'translateY(-18px) scale(.85)' }
+          ], { duration: 1280, easing: 'ease-in', fill: 'forwards' }));
+          entry = ''; entering = false; render(); setStatus(); return;
         }
-
-        if (stack.length) {
-          await transition(() => stack.shift());
-        }
+        if (stack.length) await transition(() => stack.shift());
         setStatus();
       }
 
       async function swap() {
         if (entering && !(await commitEntryAnimated())) return;
-
-        if (stack.length < 2) {
-          setStatus('Недостаточно элементов');
-          await shake(stackEl);
-          return;
-        }
-
-        await transition(() => {
-          [stack[0], stack[1]] = [stack[1], stack[0]];
-        }, { duration: 700 });
+        if (stack.length < 2) { setStatus('Недостаточно элементов'); await shake(stackEl); return; }
+        await transition(() => { [stack[0], stack[1]] = [stack[1], stack[0]]; });
         setStatus();
       }
 
       async function rollDown() {
         if (entering && !(await commitEntryAnimated())) return;
-
-        if (stack.length < 2) {
-          setStatus('Недостаточно элементов');
-          await shake(stackEl);
-          return;
-        }
-
+        if (stack.length < 2) { setStatus('Недостаточно элементов'); await shake(stackEl); return; }
         await transition(() => stack.push(stack.shift()));
         setStatus();
       }
 
       async function clearAll() {
-        if (entering) {
-          entry = '';
-          entering = false;
-          render();
-        }
-        if (stack.length) {
-          await transition(() => { stack = []; });
-        }
+        if (entering) { entry = ''; entering = false; render(); }
+        if (stack.length) await transition(() => { stack = []; });
         setStatus();
       }
 
       async function runAction(action) {
         if (busy) return;
         setBusy(true);
-        try {
-          await action();
-        } finally {
-          setBusy(false);
-        }
+        try { await action(); } finally { setBusy(false); }
       }
 
       document.querySelector('.keys').addEventListener('click', event => {
         const button = event.target.closest('button');
         if (!button || busy) return;
-
         runAction(async () => {
           if (button.dataset.digit !== undefined) await beginDigit(button.dataset.digit);
           else if (button.dataset.binary) await binary(button.dataset.binary);
           else if (button.dataset.unary) await unary(button.dataset.unary);
-          else {
-            switch (button.dataset.action) {
-              case 'decimal': await decimal(); break;
-              case 'sign': await toggleSign(); break;
-              case 'backspace': await backspace(); break;
-              case 'enter': await enter(); break;
-              case 'drop': await drop(); break;
-              case 'swap': await swap(); break;
-              case 'roll': await rollDown(); break;
-              case 'clear': await clearAll(); break;
-            }
+          else switch (button.dataset.action) {
+            case 'decimal': await decimal(); break;
+            case 'sign': await toggleSign(); break;
+            case 'backspace': await backspace(); break;
+            case 'enter': await enter(); break;
+            case 'drop': await drop(); break;
+            case 'swap': await swap(); break;
+            case 'roll': await rollDown(); break;
+            case 'clear': await clearAll(); break;
           }
         });
       });
 
       window.addEventListener('keydown', event => {
         if (busy) return;
-
         let action = null;
         if (/^[0-9]$/.test(event.key)) action = () => beginDigit(event.key);
         else if (event.key === '.' || event.key === ',') action = decimal;
         else if (event.key === 'Enter') action = enter;
         else if (['+', '-', '*', '/'].includes(event.key)) {
-          action = event.key === '-' && entering && (entry === '' || entry === '-')
-            ? toggleSign
-            : () => binary(event.key);
-        }
-        else if (event.key === 'Backspace') action = backspace;
+          action = event.key === '-' && entering && (entry === '' || entry === '-') ? toggleSign : () => binary(event.key);
+        } else if (event.key === 'Backspace') action = backspace;
         else if (event.key === 'Escape') action = clearAll;
-
-        if (action) {
-          event.preventDefault();
-          runAction(action);
-        }
+        if (action) { event.preventDefault(); runAction(action); }
       });
 
       render();
