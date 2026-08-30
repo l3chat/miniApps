@@ -119,6 +119,20 @@
       font-size: clamp(1.08rem, 5.4vmin, 2.25rem);
     }
 
+    .ghost-number {
+      position: fixed;
+      z-index: 1000;
+      margin: 0;
+      pointer-events: none;
+      overflow: hidden;
+      color: var(--ink);
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      font-variant-numeric: tabular-nums;
+      text-align: right;
+      white-space: nowrap;
+      transform-origin: center;
+    }
+
     .keys {
       min-height: 0;
       height: 100%;
@@ -149,6 +163,10 @@
     button:focus-visible {
       outline: 3px solid rgba(23, 107, 91, 0.25);
       outline-offset: -3px;
+    }
+
+    button:disabled {
+      cursor: default;
     }
 
     .fn { background: var(--function); }
@@ -250,16 +268,28 @@
 
       const MAX_STACK = 6;
       const labels = ['X', 'Y', 'Z', 'T', 'U', 'V'];
+      const MOVE_MS = 560;
+      const EASE = 'cubic-bezier(.22,.75,.2,1)';
+
       let stack = [];
       let entry = '';
       let entering = false;
+      let nextId = 1;
+      let busy = false;
 
       const stackEl = document.getElementById('stack');
       const entryValueEl = document.getElementById('entryValue');
+      const entryFieldEl = document.querySelector('.entry-field');
       const statusEl = document.getElementById('status');
+      const keyButtons = [...document.querySelectorAll('.keys button')];
 
       function setStatus(message = '') {
         statusEl.textContent = message;
+      }
+
+      function setBusy(value) {
+        busy = value;
+        keyButtons.forEach(button => { button.disabled = value; });
       }
 
       function formatNumber(value) {
@@ -280,6 +310,10 @@
         return Number.isFinite(value) ? value : null;
       }
 
+      function newItem(value) {
+        return { id: String(nextId++), value };
+      }
+
       function render() {
         stackEl.replaceChildren();
         const emptyRows = MAX_STACK - stack.length;
@@ -288,6 +322,7 @@
           const row = document.createElement('div');
           const stackIndex = rowIndex - emptyRows;
           const filled = stackIndex >= 0;
+          const item = filled ? stack[stackIndex] : null;
           row.className = 'stack-row' + (filled && stackIndex === 0 ? ' x-row' : '');
 
           const label = document.createElement('span');
@@ -296,7 +331,12 @@
 
           const value = document.createElement('span');
           value.className = 'stack-value';
-          value.textContent = filled ? formatNumber(stack[stackIndex]) : '';
+          if (item) {
+            value.dataset.itemId = item.id;
+            value.textContent = formatNumber(item.value);
+          } else {
+            value.textContent = '';
+          }
 
           row.append(label, value);
           stackEl.append(row);
@@ -305,12 +345,183 @@
         entryValueEl.textContent = entering ? entry : '';
       }
 
-      function push(value) {
-        stack.unshift(value);
+      function captureStack() {
+        const result = new Map();
+        stackEl.querySelectorAll('.stack-value[data-item-id]').forEach(el => {
+          const rect = el.getBoundingClientRect();
+          result.set(el.dataset.itemId, {
+            rect,
+            text: el.textContent,
+            fontSize: getComputedStyle(el).fontSize
+          });
+        });
+        return result;
+      }
+
+      function captureElement(el, text = el.textContent) {
+        const rect = el.getBoundingClientRect();
+        return {
+          rect,
+          text,
+          fontSize: getComputedStyle(el).fontSize
+        };
+      }
+
+      function ghostFrom(state) {
+        const ghost = document.createElement('div');
+        ghost.className = 'ghost-number';
+        ghost.textContent = state.text;
+        Object.assign(ghost.style, {
+          left: `${state.rect.left}px`,
+          top: `${state.rect.top}px`,
+          width: `${state.rect.width}px`,
+          height: `${state.rect.height}px`,
+          lineHeight: `${state.rect.height}px`,
+          fontSize: state.fontSize
+        });
+        document.body.appendChild(ghost);
+        return ghost;
+      }
+
+      function finished(animation) {
+        return animation.finished.catch(() => undefined);
+      }
+
+      function nextFrame() {
+        return new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      }
+
+      function animateLabels() {
+        const animations = [];
+        stackEl.querySelectorAll('.stack-label').forEach(label => {
+          if (!label.textContent) return;
+          animations.push(finished(label.animate(
+            [{ opacity: 0.25 }, { opacity: 1 }],
+            { duration: 300, delay: 170, easing: 'ease-out' }
+          )));
+        });
+        return animations;
+      }
+
+      async function transition(mutator, options = {}) {
+        const before = captureStack();
+        if (options.extraBefore) {
+          for (const [id, state] of options.extraBefore) before.set(String(id), state);
+        }
+
+        mutator();
+        render();
+        await nextFrame();
+
+        const after = captureStack();
+        const animations = [];
+        const changed = new Set((options.changedIds || []).map(String));
+        const removedTo = options.removedTo || {};
+
+        for (const [id, newState] of after) {
+          const el = stackEl.querySelector(`.stack-value[data-item-id="${id}"]`);
+          const oldState = before.get(id);
+
+          if (oldState) {
+            const dx = oldState.rect.left - newState.rect.left;
+            const dy = oldState.rect.top - newState.rect.top;
+            const valueChanged = changed.has(id) || oldState.text !== newState.text;
+
+            if (valueChanged && before.has(id)) {
+              const oldGhost = ghostFrom(oldState);
+              animations.push(finished(oldGhost.animate(
+                [
+                  { opacity: 1, transform: 'scale(1)' },
+                  { opacity: 0, transform: 'scale(.82)' }
+                ],
+                { duration: MOVE_MS * 0.7, easing: 'ease-out', fill: 'forwards' }
+              )).then(() => oldGhost.remove()));
+            }
+
+            const frames = [
+              {
+                transform: `translate(${dx}px, ${dy}px) scale(${valueChanged ? .86 : 1})`,
+                opacity: valueChanged ? 0.15 : 1
+              },
+              { transform: 'translate(0, 0) scale(1.04)', opacity: 1, offset: 0.82 },
+              { transform: 'translate(0, 0) scale(1)', opacity: 1 }
+            ];
+            animations.push(finished(el.animate(frames, {
+              duration: MOVE_MS,
+              easing: EASE
+            })));
+          } else {
+            animations.push(finished(el.animate(
+              [
+                { opacity: 0, transform: 'scale(.7)' },
+                { opacity: 1, transform: 'scale(1.06)', offset: .78 },
+                { opacity: 1, transform: 'scale(1)' }
+              ],
+              { duration: MOVE_MS, easing: EASE }
+            )));
+          }
+        }
+
+        for (const [id, oldState] of before) {
+          if (after.has(id)) continue;
+
+          const ghost = ghostFrom(oldState);
+          const targetId = removedTo[id];
+          const target = targetId ? after.get(String(targetId)) : null;
+          let dx = 0;
+          let dy = -oldState.rect.height * 0.7;
+
+          if (target) {
+            dx = target.rect.left - oldState.rect.left;
+            dy = target.rect.top - oldState.rect.top;
+          }
+
+          animations.push(finished(ghost.animate(
+            [
+              { opacity: 1, transform: 'translate(0, 0) scale(1)' },
+              {
+                opacity: target ? 0.2 : 0,
+                transform: `translate(${dx}px, ${dy}px) scale(${target ? .72 : .82})`
+              }
+            ],
+            { duration: MOVE_MS, easing: EASE, fill: 'forwards' }
+          )).then(() => ghost.remove()));
+        }
+
+        animations.push(...animateLabels());
+        await Promise.allSettled(animations);
+      }
+
+      function pushItem(item) {
+        stack.unshift(item);
         if (stack.length > MAX_STACK) stack.length = MAX_STACK;
       }
 
-      function beginDigit(digit) {
+      async function pulseEntry() {
+        await finished(entryValueEl.animate(
+          [
+            { transform: 'scale(1)' },
+            { transform: 'scale(1.06)', offset: .45 },
+            { transform: 'scale(1)' }
+          ],
+          { duration: 170, easing: 'ease-out' }
+        ));
+      }
+
+      async function shake(el = entryFieldEl) {
+        await finished(el.animate(
+          [
+            { transform: 'translateX(0)' },
+            { transform: 'translateX(-7px)' },
+            { transform: 'translateX(7px)' },
+            { transform: 'translateX(-4px)' },
+            { transform: 'translateX(0)' }
+          ],
+          { duration: 300, easing: 'ease-out' }
+        ));
+      }
+
+      async function beginDigit(digit) {
         if (!entering) {
           entry = '';
           entering = true;
@@ -320,9 +531,10 @@
         else if (!(entry === '0' && digit === '0') && !(entry === '-0' && digit === '0')) entry += digit;
         setStatus();
         render();
+        await pulseEntry();
       }
 
-      function decimal() {
+      async function decimal() {
         if (!entering) {
           entry = '0.';
           entering = true;
@@ -331,61 +543,93 @@
         }
         setStatus();
         render();
+        await pulseEntry();
       }
 
-      function toggleSign() {
+      async function toggleSign() {
         if (entering) {
           entry = entry.startsWith('-') ? entry.slice(1) : '-' + entry;
-        } else if (stack.length) {
-          stack[0] = -stack[0];
-        } else {
-          entry = '-';
-          entering = true;
+          setStatus();
+          render();
+          await pulseEntry();
+          return;
         }
+
+        if (stack.length) {
+          const id = stack[0].id;
+          await transition(() => {
+            stack[0] = { ...stack[0], value: -stack[0].value };
+          }, { changedIds: [id] });
+          setStatus();
+          return;
+        }
+
+        entry = '-';
+        entering = true;
         setStatus();
         render();
+        await pulseEntry();
       }
 
-      function backspace() {
+      async function backspace() {
         if (!entering) return;
         entry = entry.slice(0, -1);
         if (!entry) entering = false;
         setStatus();
         render();
+        await pulseEntry();
       }
 
-      function commitEntry() {
+      async function commitEntryAnimated() {
         if (!entering) return false;
         const value = parsedEntry();
         if (value === null) {
           setStatus('Некорректное число');
+          await shake();
           return false;
         }
-        push(value);
-        entry = '';
-        entering = false;
+
+        const item = newItem(value);
+        const source = captureElement(entryValueEl, entry);
+        const extraBefore = new Map([[item.id, source]]);
+
+        await transition(() => {
+          pushItem(item);
+          entry = '';
+          entering = false;
+        }, { extraBefore });
+
+        setStatus();
         return true;
       }
 
-      function enter() {
+      async function enter() {
         if (entering) {
-          commitEntry();
-        } else if (stack.length) {
-          push(stack[0]);
-        } else {
-          setStatus('Сначала введите число');
-        }
-        render();
-      }
-
-      function binary(op) {
-        if (entering && !commitEntry()) {
-          render();
+          await commitEntryAnimated();
           return;
         }
+
+        if (!stack.length) {
+          setStatus('Сначала введите число');
+          await shake();
+          return;
+        }
+
+        const sourceEl = stackEl.querySelector(`.stack-value[data-item-id="${stack[0].id}"]`);
+        const duplicate = newItem(stack[0].value);
+        const source = captureElement(sourceEl, formatNumber(stack[0].value));
+        const extraBefore = new Map([[duplicate.id, source]]);
+
+        await transition(() => pushItem(duplicate), { extraBefore });
+        setStatus();
+      }
+
+      async function binary(op) {
+        if (entering && !(await commitEntryAnimated())) return;
+
         if (stack.length < 2) {
           setStatus('Недостаточно элементов');
-          render();
+          await shake(stackEl);
           return;
         }
 
@@ -393,37 +637,42 @@
         const y = stack[1];
         let result;
 
-        if (op === '+') result = y + x;
-        if (op === '-') result = y - x;
-        if (op === '*') result = y * x;
+        if (op === '+') result = y.value + x.value;
+        if (op === '-') result = y.value - x.value;
+        if (op === '*') result = y.value * x.value;
         if (op === '/') {
-          if (x === 0) {
+          if (x.value === 0) {
             setStatus('Деление на ноль');
-            render();
+            await shake(stackEl);
             return;
           }
-          result = y / x;
+          result = y.value / x.value;
         }
 
         if (!Number.isFinite(result)) {
           setStatus('Результат вне диапазона');
-          render();
+          await shake(stackEl);
           return;
         }
 
-        stack.splice(0, 2, result);
+        const resultId = y.id;
+        const removedTo = { [x.id]: resultId };
+
+        await transition(() => {
+          stack.splice(0, 2, { id: resultId, value: result });
+        }, {
+          changedIds: [resultId],
+          removedTo
+        });
         setStatus();
-        render();
       }
 
-      function unary(kind) {
-        if (entering && !commitEntry()) {
-          render();
-          return;
-        }
+      async function unary(kind) {
+        if (entering && !(await commitEntryAnimated())) return;
+
         if (!stack.length) {
           setStatus('Стек пуст');
-          render();
+          await shake(stackEl);
           return;
         }
 
@@ -432,29 +681,29 @@
 
         switch (kind) {
           case 'reciprocal':
-            if (x === 0) {
+            if (x.value === 0) {
               setStatus('Деление на ноль');
-              render();
+              await shake(stackEl);
               return;
             }
-            result = 1 / x;
+            result = 1 / x.value;
             break;
           case 'square':
-            result = x * x;
+            result = x.value * x.value;
             break;
           case 'cube':
-            result = x * x * x;
+            result = x.value * x.value * x.value;
             break;
           case 'sqrt':
-            if (x < 0) {
+            if (x.value < 0) {
               setStatus('Квадратный корень отрицательного числа');
-              render();
+              await shake(stackEl);
               return;
             }
-            result = Math.sqrt(x);
+            result = Math.sqrt(x.value);
             break;
           case 'cbrt':
-            result = Math.cbrt(x);
+            result = Math.cbrt(x.value);
             break;
           default:
             return;
@@ -462,113 +711,130 @@
 
         if (!Number.isFinite(result)) {
           setStatus('Результат вне диапазона');
-          render();
+          await shake(stackEl);
           return;
         }
 
-        stack[0] = result;
+        await transition(() => {
+          stack[0] = { ...stack[0], value: result };
+        }, { changedIds: [x.id] });
         setStatus();
-        render();
       }
 
-      function drop() {
+      async function drop() {
+        if (entering) {
+          const animation = entryValueEl.animate(
+            [
+              { opacity: 1, transform: 'translateY(0)' },
+              { opacity: 0, transform: 'translateY(-18px) scale(.85)' }
+            ],
+            { duration: 320, easing: 'ease-in', fill: 'forwards' }
+          );
+          await finished(animation);
+          entry = '';
+          entering = false;
+          render();
+          setStatus();
+          return;
+        }
+
+        if (stack.length) {
+          await transition(() => stack.shift());
+        }
+        setStatus();
+      }
+
+      async function swap() {
+        if (entering && !(await commitEntryAnimated())) return;
+
+        if (stack.length < 2) {
+          setStatus('Недостаточно элементов');
+          await shake(stackEl);
+          return;
+        }
+
+        await transition(() => {
+          [stack[0], stack[1]] = [stack[1], stack[0]];
+        }, { duration: 700 });
+        setStatus();
+      }
+
+      async function rollDown() {
+        if (entering && !(await commitEntryAnimated())) return;
+
+        if (stack.length < 2) {
+          setStatus('Недостаточно элементов');
+          await shake(stackEl);
+          return;
+        }
+
+        await transition(() => stack.push(stack.shift()));
+        setStatus();
+      }
+
+      async function clearAll() {
         if (entering) {
           entry = '';
           entering = false;
-        } else if (stack.length) {
-          stack.shift();
+          render();
+        }
+        if (stack.length) {
+          await transition(() => { stack = []; });
         }
         setStatus();
-        render();
       }
 
-      function swap() {
-        if (entering && !commitEntry()) {
-          render();
-          return;
+      async function runAction(action) {
+        if (busy) return;
+        setBusy(true);
+        try {
+          await action();
+        } finally {
+          setBusy(false);
         }
-        if (stack.length < 2) {
-          setStatus('Недостаточно элементов');
-        } else {
-          [stack[0], stack[1]] = [stack[1], stack[0]];
-          setStatus();
-        }
-        render();
-      }
-
-      function rollDown() {
-        if (entering && !commitEntry()) {
-          render();
-          return;
-        }
-        if (stack.length < 2) {
-          setStatus('Недостаточно элементов');
-        } else {
-          stack.push(stack.shift());
-          setStatus();
-        }
-        render();
-      }
-
-      function clearAll() {
-        stack = [];
-        entry = '';
-        entering = false;
-        setStatus();
-        render();
       }
 
       document.querySelector('.keys').addEventListener('click', event => {
         const button = event.target.closest('button');
-        if (!button) return;
+        if (!button || busy) return;
 
-        if (button.dataset.digit !== undefined) beginDigit(button.dataset.digit);
-        else if (button.dataset.binary) binary(button.dataset.binary);
-        else if (button.dataset.unary) unary(button.dataset.unary);
-        else {
-          switch (button.dataset.action) {
-            case 'decimal': decimal(); break;
-            case 'sign': toggleSign(); break;
-            case 'backspace': backspace(); break;
-            case 'enter': enter(); break;
-            case 'drop': drop(); break;
-            case 'swap': swap(); break;
-            case 'roll': rollDown(); break;
-            case 'clear': clearAll(); break;
+        runAction(async () => {
+          if (button.dataset.digit !== undefined) await beginDigit(button.dataset.digit);
+          else if (button.dataset.binary) await binary(button.dataset.binary);
+          else if (button.dataset.unary) await unary(button.dataset.unary);
+          else {
+            switch (button.dataset.action) {
+              case 'decimal': await decimal(); break;
+              case 'sign': await toggleSign(); break;
+              case 'backspace': await backspace(); break;
+              case 'enter': await enter(); break;
+              case 'drop': await drop(); break;
+              case 'swap': await swap(); break;
+              case 'roll': await rollDown(); break;
+              case 'clear': await clearAll(); break;
+            }
           }
-        }
+        });
       });
 
       window.addEventListener('keydown', event => {
-        if (/^[0-9]$/.test(event.key)) {
-          beginDigit(event.key);
-          event.preventDefault();
-          return;
+        if (busy) return;
+
+        let action = null;
+        if (/^[0-9]$/.test(event.key)) action = () => beginDigit(event.key);
+        else if (event.key === '.' || event.key === ',') action = decimal;
+        else if (event.key === 'Enter') action = enter;
+        else if (['+', '-', '*', '/'].includes(event.key)) {
+          action = event.key === '-' && entering && (entry === '' || entry === '-')
+            ? toggleSign
+            : () => binary(event.key);
         }
-        if (event.key === '.' || event.key === ',') {
-          decimal();
+        else if (event.key === 'Backspace') action = backspace;
+        else if (event.key === 'Escape') action = clearAll;
+
+        if (action) {
           event.preventDefault();
-          return;
-        }
-        if (event.key === 'Enter') {
-          enter();
-          event.preventDefault();
-          return;
-        }
-        if (['+', '-', '*', '/'].includes(event.key)) {
-          if (event.key === '-' && entering && (entry === '' || entry === '-')) toggleSign();
-          else binary(event.key);
-          event.preventDefault();
-          return;
-        }
-        if (event.key === 'Backspace') {
-          backspace();
-          event.preventDefault();
-          return;
-        }
-        if (event.key === 'Escape') {
-          clearAll();
-          event.preventDefault();
+          runAction(action);
         }
       });
 
