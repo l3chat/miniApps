@@ -77,7 +77,7 @@
     .entry-field {
       min-height: 0;
       display: grid;
-      grid-template-columns: clamp(28px, 10vw, 46px) minmax(0, 1fr);
+      grid-template-columns: clamp(44px, 13vw, 76px) minmax(0, 1fr);
       align-items: center;
       padding: 0 clamp(8px, 2.5vw, 18px);
       border: 1px solid var(--line);
@@ -99,8 +99,9 @@
     .stack-label,
     .entry-label {
       color: var(--muted);
-      font-size: clamp(0.72rem, 2.8vmin, 1rem);
-      font-weight: 850;
+      font-size: clamp(1.15rem, 5.5vmin, 2.3rem);
+      font-weight: 900;
+      line-height: 1;
     }
 
     .stack-value,
@@ -108,7 +109,9 @@
       min-width: 0;
       overflow: hidden;
       font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
-      font-size: clamp(1rem, 5vmin, 2.1rem);
+      font-size: clamp(2rem, 12vmin, 5rem);
+      font-weight: 900;
+      line-height: 1;
       font-variant-numeric: tabular-nums;
       text-align: right;
       text-overflow: ellipsis;
@@ -116,7 +119,8 @@
     }
 
     .entry-value {
-      font-size: clamp(1.08rem, 5.4vmin, 2.25rem);
+      font-size: clamp(2.2rem, 13vmin, 5.4rem);
+      font-weight: 900;
     }
 
     .ghost-number {
@@ -127,6 +131,7 @@
       overflow: hidden;
       color: var(--ink);
       font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      font-weight: 900;
       font-variant-numeric: tabular-nums;
       text-align: right;
       white-space: nowrap;
@@ -197,14 +202,20 @@
 
       .stack-row,
       .entry-field {
-        grid-template-columns: clamp(30px, 5vw, 52px) minmax(0, 1fr);
+        grid-template-columns: clamp(46px, 7vw, 82px) minmax(0, 1fr);
         padding: 0 clamp(8px, 1.8vw, 18px);
       }
 
       .stack-value,
-      .entry-value { font-size: clamp(1rem, 5.2vh, 2.15rem); }
+      .entry-value {
+        font-size: clamp(1.8rem, 12vh, 4.8rem);
+        font-weight: 900;
+      }
       .stack-label,
-      .entry-label { font-size: clamp(0.72rem, 2.7vh, 1rem); }
+      .entry-label {
+        font-size: clamp(1.1rem, 5.8vh, 2.2rem);
+        font-weight: 900;
+      }
       button { font-size: clamp(0.88rem, 4vh, 1.5rem); }
     }
   </style>
