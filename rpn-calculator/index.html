@@ -10,6 +10,7 @@
       color-scheme: light;
       --bg: #eef3ee;
       --panel: #ffffff;
+      --entry-bg: #fff3c4;
       --ink: #17211c;
       --muted: #68766f;
       --line: #cfd9d2;
@@ -61,7 +62,7 @@
     .display-panel {
       min-height: 0;
       display: grid;
-      grid-template-rows: minmax(0, 6fr) minmax(42px, 1fr);
+      grid-template-rows: minmax(42px, 1fr) minmax(0, 6fr);
       gap: 4px;
     }
 
@@ -90,8 +91,9 @@
     }
 
     .entry-field {
-      border: 2px solid var(--accent-strong);
-      box-shadow: inset 4px 0 0 var(--accent-strong);
+      border: 2px solid #d2a900;
+      background: var(--entry-bg);
+      box-shadow: inset 4px 0 0 #d2a900;
     }
 
     .stack-label,
@@ -195,11 +197,11 @@
   <main>
     <section class="calculator" aria-label="Калькулятор с обратной польской записью">
       <div class="display-panel">
-        <div id="stack" class="stack" aria-live="polite"></div>
         <div class="entry-field" aria-label="Поле ввода числа">
           <span class="entry-label">›</span>
           <span id="entryValue" class="entry-value"></span>
         </div>
+        <div id="stack" class="stack" aria-live="polite"></div>
       </div>
 
       <div class="keys">
