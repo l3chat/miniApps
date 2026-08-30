@@ -1,0 +1,600 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#17211c">
+  <title>RPN Calculator</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #eef3ee;
+      --panel: #ffffff;
+      --ink: #17211c;
+      --muted: #68766f;
+      --line: #d7e0d9;
+      --accent: #176b5b;
+      --accent-strong: #0f4c41;
+      --number: #f7faf7;
+      --function: #e7efea;
+      --operator: #176b5b;
+      --operator-ink: #ffffff;
+      --danger: #8f3c34;
+      --shadow: 0 18px 48px rgba(20, 31, 25, 0.12);
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body { min-height: 100%; }
+
+    body {
+      margin: 0;
+      min-height: 100svh;
+      background:
+        linear-gradient(120deg, rgba(23, 107, 91, 0.13), transparent 34%),
+        linear-gradient(300deg, rgba(189, 89, 76, 0.10), transparent 36%),
+        var(--bg);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+        "Segoe UI", sans-serif;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    main {
+      width: min(100%, 760px);
+      margin: 0 auto;
+      padding: clamp(14px, 4vw, 32px);
+    }
+
+    .calculator {
+      display: grid;
+      grid-template-columns: minmax(260px, 0.9fr) minmax(300px, 1.1fr);
+      gap: 16px;
+      padding: clamp(14px, 3vw, 22px);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.90);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(10px);
+    }
+
+    .stack-panel, .key-panel { min-width: 0; }
+
+    h1 {
+      margin: 0 0 12px;
+      font-size: clamp(1.45rem, 5vw, 2rem);
+      line-height: 1.05;
+    }
+
+    .subtitle {
+      margin: -4px 0 14px;
+      color: var(--muted);
+      font-size: 0.86rem;
+      font-weight: 650;
+    }
+
+    .stack {
+      display: grid;
+      gap: 7px;
+    }
+
+    .stack-row {
+      display: grid;
+      grid-template-columns: 28px 1fr;
+      align-items: center;
+      min-height: 47px;
+      padding: 7px 10px;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      background: var(--panel);
+    }
+
+    .stack-row:first-child {
+      border-color: rgba(23, 107, 91, 0.55);
+      box-shadow: inset 4px 0 0 var(--accent);
+    }
+
+    .stack-label {
+      color: var(--muted);
+      font-size: 0.78rem;
+      font-weight: 850;
+    }
+
+    .stack-value {
+      min-width: 0;
+      overflow: hidden;
+      color: var(--ink);
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      font-size: clamp(1rem, 4.7vw, 1.35rem);
+      font-variant-numeric: tabular-nums;
+      text-align: right;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .entry-indicator {
+      min-height: 21px;
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-align: right;
+    }
+
+    .key-panel {
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+    }
+
+    .keys {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+    }
+
+    button {
+      min-height: 52px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--number);
+      color: var(--ink);
+      font: inherit;
+      font-size: 1.08rem;
+      font-weight: 820;
+      cursor: pointer;
+      touch-action: manipulation;
+      user-select: none;
+    }
+
+    button:active { transform: translateY(1px); }
+    button:focus-visible { outline: 3px solid rgba(23, 107, 91, 0.25); outline-offset: 1px; }
+
+    .fn { background: var(--function); }
+    .op { border-color: var(--operator); background: var(--operator); color: var(--operator-ink); }
+    .enter { grid-column: span 2; background: var(--accent-strong); color: white; border-color: var(--accent-strong); }
+    .clear { color: var(--danger); }
+
+    .status {
+      min-height: 22px;
+      margin: 10px 2px 0;
+      color: var(--muted);
+      font-size: 0.82rem;
+      font-weight: 650;
+      text-align: center;
+    }
+
+    .status.error { color: var(--danger); }
+
+    .hint {
+      margin-top: 14px;
+      color: var(--muted);
+      font-size: 0.78rem;
+      line-height: 1.45;
+      text-align: center;
+    }
+
+    @media (max-width: 650px) {
+      main { padding: 10px; }
+      .calculator { grid-template-columns: 1fr; gap: 12px; padding: 12px; border-radius: 11px; }
+      h1 { margin-bottom: 8px; }
+      .subtitle { margin-bottom: 10px; }
+      .stack { gap: 5px; }
+      .stack-row { min-height: 39px; padding: 5px 9px; }
+      .entry-indicator { margin-top: 5px; min-height: 18px; }
+      button { min-height: 49px; }
+      .hint { margin-top: 9px; }
+    }
+
+    @media (max-height: 720px) and (max-width: 650px) {
+      main { padding-top: 6px; padding-bottom: 6px; }
+      .calculator { gap: 8px; padding: 9px; }
+      h1 { font-size: 1.25rem; }
+      .subtitle { display: none; }
+      .stack-row { min-height: 33px; padding-top: 3px; padding-bottom: 3px; }
+      .entry-indicator { display: none; }
+      button { min-height: 42px; }
+      .keys { gap: 6px; }
+      .status { margin-top: 5px; }
+      .hint { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="calculator" aria-label="Калькулятор с обратной польской записью">
+      <div class="stack-panel">
+        <h1>RPN Calculator</h1>
+        <p class="subtitle">6-уровневый стек · операция выполняется как Y op X</p>
+        <div id="stack" class="stack" aria-live="polite"></div>
+        <div id="entryIndicator" class="entry-indicator"></div>
+      </div>
+
+      <div class="key-panel">
+        <div class="keys">
+          <button class="fn" data-unary="reciprocal" aria-label="Обратная величина">1/x</button>
+          <button class="fn" data-unary="square" aria-label="Квадрат">x²</button>
+          <button class="fn" data-unary="cube" aria-label="Куб">x³</button>
+          <button class="clear" data-action="clear">AC</button>
+
+          <button class="fn" data-unary="sqrt" aria-label="Квадратный корень">√x</button>
+          <button class="fn" data-unary="cbrt" aria-label="Кубический корень">∛x</button>
+          <button class="fn" data-action="sign">±</button>
+          <button class="fn" data-action="backspace" aria-label="Удалить последнюю цифру">⌫</button>
+
+          <button data-digit="7">7</button>
+          <button data-digit="8">8</button>
+          <button data-digit="9">9</button>
+          <button class="op" data-binary="/">÷</button>
+
+          <button data-digit="4">4</button>
+          <button data-digit="5">5</button>
+          <button data-digit="6">6</button>
+          <button class="op" data-binary="*">×</button>
+
+          <button data-digit="1">1</button>
+          <button data-digit="2">2</button>
+          <button data-digit="3">3</button>
+          <button class="op" data-binary="-">−</button>
+
+          <button data-digit="0">0</button>
+          <button data-action="decimal">.</button>
+          <button class="op" data-binary="+">+</button>
+          <button class="fn" data-action="drop">DROP</button>
+
+          <button class="enter" data-action="enter">ENTER</button>
+          <button class="fn" data-action="swap">X↔Y</button>
+          <button class="fn" data-action="roll">R↓</button>
+        </div>
+        <div id="status" class="status">Введите число и нажмите ENTER</div>
+        <div class="hint">Клавиатура: 0–9, точка/запятая, Enter, + − * /, Backspace, Esc.</div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    (() => {
+      'use strict';
+
+      const MAX_STACK = 6;
+      const labels = ['X', 'Y', 'Z', 'T', 'U', 'V'];
+      let stack = [];
+      let entry = '';
+      let entering = false;
+
+      const stackEl = document.getElementById('stack');
+      const statusEl = document.getElementById('status');
+      const entryIndicatorEl = document.getElementById('entryIndicator');
+
+      function setStatus(message = '', error = false) {
+        statusEl.textContent = message;
+        statusEl.classList.toggle('error', error);
+      }
+
+      function formatNumber(value) {
+        if (!Number.isFinite(value)) return 'Error';
+        if (Object.is(value, -0)) value = 0;
+        const abs = Math.abs(value);
+        if (abs !== 0 && (abs >= 1e12 || abs < 1e-9)) {
+          return value.toExponential(10).replace(/\.0+(?=e)/, '').replace(/(\.\d*?)0+(?=e)/, '$1');
+        }
+        return Number(value.toPrecision(12)).toString();
+      }
+
+      function parsedEntry() {
+        if (!entering || entry === '' || entry === '-' || entry === '.' || entry === '-.') return null;
+        const value = Number(entry);
+        return Number.isFinite(value) ? value : null;
+      }
+
+      function visibleStack() {
+        if (!entering) return stack.slice(0, MAX_STACK);
+        const value = parsedEntry();
+        const shown = value === null ? entry : entry;
+        return [shown, ...stack].slice(0, MAX_STACK);
+      }
+
+      function render() {
+        const values = visibleStack();
+        stackEl.replaceChildren();
+
+        for (let i = 0; i < MAX_STACK; i += 1) {
+          const row = document.createElement('div');
+          row.className = 'stack-row';
+
+          const label = document.createElement('span');
+          label.className = 'stack-label';
+          label.textContent = labels[i];
+
+          const value = document.createElement('span');
+          value.className = 'stack-value';
+          const raw = values[i];
+          value.textContent = raw === undefined ? '—' : (typeof raw === 'number' ? formatNumber(raw) : raw);
+
+          row.append(label, value);
+          stackEl.append(row);
+        }
+
+        entryIndicatorEl.textContent = entering ? 'ввод числа' : (stack.length ? 'стек' : 'стек пуст');
+      }
+
+      function push(value) {
+        stack.unshift(value);
+        if (stack.length > MAX_STACK) stack.length = MAX_STACK;
+      }
+
+      function beginDigit(digit) {
+        if (!entering) {
+          entry = '';
+          entering = true;
+        }
+        if (entry === '0' && digit !== '0') entry = digit;
+        else if (entry === '-0' && digit !== '0') entry = '-' + digit;
+        else if (!(entry === '0' && digit === '0') && !(entry === '-0' && digit === '0')) entry += digit;
+        setStatus('');
+        render();
+      }
+
+      function decimal() {
+        if (!entering) {
+          entry = '0.';
+          entering = true;
+        } else if (!entry.includes('.')) {
+          entry += entry === '-' ? '0.' : '.';
+        }
+        setStatus('');
+        render();
+      }
+
+      function toggleSign() {
+        if (entering) {
+          entry = entry.startsWith('-') ? entry.slice(1) : '-' + entry;
+        } else if (stack.length) {
+          stack[0] = -stack[0];
+        } else {
+          entry = '-';
+          entering = true;
+        }
+        setStatus('');
+        render();
+      }
+
+      function backspace() {
+        if (!entering) return;
+        entry = entry.slice(0, -1);
+        if (!entry) entering = false;
+        setStatus('');
+        render();
+      }
+
+      function commitEntry() {
+        if (!entering) return false;
+        const value = parsedEntry();
+        if (value === null) {
+          setStatus('Некорректное число', true);
+          return false;
+        }
+        push(value);
+        entry = '';
+        entering = false;
+        return true;
+      }
+
+      function enter() {
+        if (entering) {
+          if (commitEntry()) setStatus('Число помещено в X');
+        } else if (stack.length) {
+          push(stack[0]);
+          setStatus('X продублирован');
+        } else {
+          setStatus('Сначала введите число', true);
+        }
+        render();
+      }
+
+      function binary(op) {
+        if (entering && !commitEntry()) {
+          render();
+          return;
+        }
+        if (stack.length < 2) {
+          setStatus('Для операции нужны X и Y', true);
+          render();
+          return;
+        }
+
+        const x = stack[0];
+        const y = stack[1];
+        let result;
+
+        if (op === '+') result = y + x;
+        if (op === '-') result = y - x;
+        if (op === '*') result = y * x;
+        if (op === '/') {
+          if (x === 0) {
+            setStatus('Деление на ноль', true);
+            render();
+            return;
+          }
+          result = y / x;
+        }
+
+        if (!Number.isFinite(result)) {
+          setStatus('Результат вне диапазона', true);
+          render();
+          return;
+        }
+
+        stack.splice(0, 2, result);
+        setStatus(`${formatNumber(y)} ${op === '*' ? '×' : op === '/' ? '÷' : op} ${formatNumber(x)}`);
+        render();
+      }
+
+      function unary(kind) {
+        if (entering && !commitEntry()) {
+          render();
+          return;
+        }
+        if (!stack.length) {
+          setStatus('Стек пуст', true);
+          render();
+          return;
+        }
+
+        const x = stack[0];
+        let result;
+        let name;
+
+        switch (kind) {
+          case 'reciprocal':
+            if (x === 0) {
+              setStatus('Обратная величина нуля не определена', true);
+              render();
+              return;
+            }
+            result = 1 / x;
+            name = '1/x';
+            break;
+          case 'square':
+            result = x * x;
+            name = 'x²';
+            break;
+          case 'cube':
+            result = x * x * x;
+            name = 'x³';
+            break;
+          case 'sqrt':
+            if (x < 0) {
+              setStatus('√x для отрицательного x не является вещественным', true);
+              render();
+              return;
+            }
+            result = Math.sqrt(x);
+            name = '√x';
+            break;
+          case 'cbrt':
+            result = Math.cbrt(x);
+            name = '∛x';
+            break;
+          default:
+            return;
+        }
+
+        if (!Number.isFinite(result)) {
+          setStatus('Результат вне диапазона', true);
+          render();
+          return;
+        }
+
+        stack[0] = result;
+        setStatus(name);
+        render();
+      }
+
+      function drop() {
+        if (entering) {
+          entry = '';
+          entering = false;
+          setStatus('Ввод отменён');
+        } else if (stack.length) {
+          stack.shift();
+          setStatus('X удалён');
+        }
+        render();
+      }
+
+      function swap() {
+        if (entering && !commitEntry()) {
+          render();
+          return;
+        }
+        if (stack.length < 2) {
+          setStatus('Для обмена нужны X и Y', true);
+        } else {
+          [stack[0], stack[1]] = [stack[1], stack[0]];
+          setStatus('X ↔ Y');
+        }
+        render();
+      }
+
+      function rollDown() {
+        if (entering && !commitEntry()) {
+          render();
+          return;
+        }
+        if (stack.length < 2) {
+          setStatus('Недостаточно элементов', true);
+        } else {
+          stack.push(stack.shift());
+          setStatus('Стек прокручен вниз');
+        }
+        render();
+      }
+
+      function clearAll() {
+        stack = [];
+        entry = '';
+        entering = false;
+        setStatus('Стек очищен');
+        render();
+      }
+
+      document.querySelector('.keys').addEventListener('click', (event) => {
+        const button = event.target.closest('button');
+        if (!button) return;
+
+        if (button.dataset.digit !== undefined) beginDigit(button.dataset.digit);
+        else if (button.dataset.binary) binary(button.dataset.binary);
+        else if (button.dataset.unary) unary(button.dataset.unary);
+        else {
+          switch (button.dataset.action) {
+            case 'decimal': decimal(); break;
+            case 'sign': toggleSign(); break;
+            case 'backspace': backspace(); break;
+            case 'enter': enter(); break;
+            case 'drop': drop(); break;
+            case 'swap': swap(); break;
+            case 'roll': rollDown(); break;
+            case 'clear': clearAll(); break;
+          }
+        }
+      });
+
+      window.addEventListener('keydown', (event) => {
+        if (/^[0-9]$/.test(event.key)) {
+          beginDigit(event.key);
+          event.preventDefault();
+          return;
+        }
+        if (event.key === '.' || event.key === ',') {
+          decimal();
+          event.preventDefault();
+          return;
+        }
+        if (event.key === 'Enter') {
+          enter();
+          event.preventDefault();
+          return;
+        }
+        if (['+', '-', '*', '/'].includes(event.key)) {
+          if (event.key === '-' && (entering && (entry === '' || entry === '-'))) toggleSign();
+          else binary(event.key);
+          event.preventDefault();
+          return;
+        }
+        if (event.key === 'Backspace') {
+          backspace();
+          event.preventDefault();
+          return;
+        }
+        if (event.key === 'Escape') {
+          clearAll();
+          event.preventDefault();
+        }
+      });
+
+      render();
+    })();
+  </script>
+</body>
+</html>
