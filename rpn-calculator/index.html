@@ -6,21 +6,51 @@
   <meta name="theme-color" content="#eef3ee">
   <title>RPN Calculator</title>
   <style>
-    :root { color-scheme: light; --bg:#eef3ee; --panel:#ffffff; --entry-bg:#fff3c4; --ink:#17211c; --muted:#68766f; --line:#cfd9d2; --accent:#176b5b; --accent-strong:#0f4c41; --number:#f8faf8; --function:#e4ece7; --danger:#8f3c34; }
+    :root {
+      color-scheme: light;
+      --bg:#eef3ee;
+      --panel:#ffffff;
+      --rpn-bg:#dfeefb;
+      --alg-bg:#e5f2e8;
+      --entry-bg:#fff3c4;
+      --ink:#17211c;
+      --muted:#68766f;
+      --line:#cfd9d2;
+      --accent:#176b5b;
+      --accent-strong:#0f4c41;
+      --number:#f8faf8;
+      --function:#e4ece7;
+      --danger:#8f3c34;
+    }
+
     * { box-sizing:border-box; }
     html,body { width:100%; height:100%; margin:0; overflow:hidden; background:var(--bg); }
     body { color:var(--ink); font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; -webkit-tap-highlight-color:transparent; overscroll-behavior:none; }
     main { width:100vw; height:100vh; height:100svh; height:100dvh; padding:max(4px,env(safe-area-inset-top)) max(4px,env(safe-area-inset-right)) max(4px,env(safe-area-inset-bottom)) max(4px,env(safe-area-inset-left)); }
-    .calculator { width:100%; height:100%; display:grid; grid-template-rows:minmax(0,43fr) minmax(0,57fr); gap:5px; }
-    .display-panel { min-height:0; display:grid; grid-template-rows:minmax(42px,1fr) minmax(0,6fr); gap:4px; }
+
+    .calculator { width:100%; height:100%; display:grid; grid-template-rows:minmax(0,52fr) minmax(0,48fr); gap:5px; }
+    .display-panel { min-height:0; display:grid; grid-template-rows:minmax(36px,.75fr) minmax(36px,.75fr) minmax(42px,1fr) minmax(0,6fr); gap:4px; }
+
+    .exercise-field,
+    .stack-row,
+    .entry-field { min-height:0; display:grid; grid-template-columns:clamp(58px,16vw,90px) minmax(0,1fr); align-items:center; padding:0 clamp(8px,2.5vw,18px); border:1px solid var(--line); border-radius:7px; background:var(--panel); }
+
+    .exercise-field.rpn { background:var(--rpn-bg); border-color:#9fc8e6; }
+    .exercise-field.alg { background:var(--alg-bg); border-color:#a8cfb1; }
+    .exercise-label { font-size:clamp(.9rem,3.5vmin,1.35rem); font-weight:900; color:var(--ink); }
+    .exercise-input { width:100%; min-width:0; height:100%; border:0; outline:0; padding:0; background:transparent; color:var(--ink); font-family:"SFMono-Regular",Consolas,"Liberation Mono",monospace; font-size:clamp(1rem,4.6vmin,1.85rem); font-weight:800; text-align:right; }
+    .exercise-input::placeholder { color:rgba(23,33,28,.32); font-weight:600; }
+    .exercise-field:focus-within { box-shadow:inset 4px 0 0 rgba(23,107,91,.65); }
+
     .stack { min-height:0; display:grid; grid-template-rows:repeat(6,minmax(0,1fr)); gap:3px; }
-    .stack-row,.entry-field { min-height:0; display:grid; grid-template-columns:clamp(44px,13vw,76px) minmax(0,1fr); align-items:center; padding:0 clamp(8px,2.5vw,18px); border:1px solid var(--line); border-radius:7px; background:var(--panel); }
     .stack-row.x-row { border-color:rgba(23,107,91,.7); box-shadow:inset 4px 0 0 var(--accent); }
     .entry-field { border:2px solid #d2a900; background:var(--entry-bg); box-shadow:inset 4px 0 0 #d2a900; }
     .stack-label,.entry-label { color:var(--muted); font-size:clamp(1.15rem,5.5vmin,2.3rem); font-weight:900; line-height:1; }
     .stack-value,.entry-value { min-width:0; overflow:hidden; font-family:"SFMono-Regular",Consolas,"Liberation Mono",monospace; font-size:clamp(2rem,12vmin,5rem); font-weight:900; line-height:1; font-variant-numeric:tabular-nums; text-align:right; text-overflow:ellipsis; white-space:nowrap; }
-    .entry-value { font-size:clamp(2.2rem,13vmin,5.4rem); font-weight:900; }
+    .entry-value { font-size:clamp(2.2rem,13vmin,5.4rem); }
+
     .ghost-number { position:fixed; z-index:1000; margin:0; pointer-events:none; overflow:hidden; color:var(--ink); font-family:"SFMono-Regular",Consolas,"Liberation Mono",monospace; font-weight:900; font-variant-numeric:tabular-nums; text-align:right; white-space:nowrap; transform-origin:center; }
+
     .keys { min-height:0; height:100%; display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); grid-template-rows:repeat(7,minmax(0,1fr)); gap:4px; }
     button { min-width:0; min-height:0; padding:0; border:1px solid var(--line); border-radius:8px; background:var(--number); color:var(--ink); font:inherit; font-size:clamp(.92rem,4.1vmin,1.65rem); font-weight:820; cursor:pointer; touch-action:manipulation; user-select:none; }
     button:active { transform:scale(.97); }
@@ -31,11 +61,15 @@
     .enter { grid-column:span 2; border-color:var(--accent-strong); background:var(--accent-strong); color:white; }
     .clear { color:var(--danger); }
     .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+
     @media (orientation:landscape) {
-      .calculator { grid-template-columns:minmax(0,40fr) minmax(0,60fr); grid-template-rows:1fr; }
-      .stack-row,.entry-field { grid-template-columns:clamp(46px,7vw,82px) minmax(0,1fr); padding:0 clamp(8px,1.8vw,18px); }
-      .stack-value,.entry-value { font-size:clamp(1.8rem,12vh,4.8rem); font-weight:900; }
-      .stack-label,.entry-label { font-size:clamp(1.1rem,5.8vh,2.2rem); font-weight:900; }
+      .calculator { grid-template-columns:minmax(0,43fr) minmax(0,57fr); grid-template-rows:1fr; }
+      .display-panel { grid-template-rows:minmax(34px,.72fr) minmax(34px,.72fr) minmax(38px,.9fr) minmax(0,6fr); }
+      .exercise-field,.stack-row,.entry-field { grid-template-columns:clamp(58px,7vw,92px) minmax(0,1fr); padding:0 clamp(8px,1.8vw,18px); }
+      .exercise-input { font-size:clamp(.9rem,4vh,1.7rem); }
+      .exercise-label { font-size:clamp(.82rem,3.2vh,1.25rem); }
+      .stack-value,.entry-value { font-size:clamp(1.8rem,12vh,4.8rem); }
+      .stack-label,.entry-label { font-size:clamp(1.1rem,5.8vh,2.2rem); }
       button { font-size:clamp(.88rem,4vh,1.5rem); }
     }
   </style>
@@ -44,9 +78,20 @@
   <main>
     <section class="calculator" aria-label="Калькулятор с обратной польской записью">
       <div class="display-panel">
-        <div class="entry-field" aria-label="Поле ввода числа"><span class="entry-label">›</span><span id="entryValue" class="entry-value"></span></div>
+        <label class="exercise-field rpn">
+          <span class="exercise-label">RPN</span>
+          <input id="rpnExercise" class="exercise-input" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="RPN упражнение">
+        </label>
+        <label class="exercise-field alg">
+          <span class="exercise-label">Alg</span>
+          <input id="algExercise" class="exercise-input" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Алгебраическое упражнение">
+        </label>
+        <div class="entry-field" aria-label="Поле ввода числа">
+          <span class="entry-label">›</span><span id="entryValue" class="entry-value"></span>
+        </div>
         <div id="stack" class="stack" aria-live="polite"></div>
       </div>
+
       <div class="keys">
         <button class="fn" data-unary="reciprocal">1/x</button><button class="fn" data-unary="square">x²</button><button class="fn" data-unary="cube">x³</button><button class="clear" data-action="clear">AC</button>
         <button class="fn" data-action="sign">±</button><button class="fn" data-unary="sqrt">√x</button><button class="fn" data-unary="cbrt">∛x</button><button class="fn" data-action="backspace">⌫</button>
@@ -59,13 +104,15 @@
       <div id="status" class="sr-only" aria-live="assertive"></div>
     </section>
   </main>
+
 <script>
 (() => {
 'use strict';
-const MAX_STACK=6, labels=['X','Y','Z','T','U','V'], MOVE_MS=1050, EASE='cubic-bezier(.22,.75,.2,1)';
+const MAX_STACK=6,labels=['X','Y','Z','T','U','V'],MOVE_MS=1050,EASE='cubic-bezier(.22,.75,.2,1)';
 let stack=[],entry='',entering=false,nextId=1,busy=false;
-const stackEl=document.getElementById('stack'),entryValueEl=document.getElementById('entryValue'),entryFieldEl=document.querySelector('.entry-field'),statusEl=document.getElementById('status'),keyButtons=[...document.querySelectorAll('.keys button')];
-function setStatus(m=''){statusEl.textContent=m} function setBusy(v){busy=v;keyButtons.forEach(b=>b.disabled=v)}
+const stackEl=document.getElementById('stack'),entryValueEl=document.getElementById('entryValue'),entryFieldEl=document.querySelector('.entry-field'),statusEl=document.getElementById('status'),keyButtons=[...document.querySelectorAll('.keys button')],rpnExerciseEl=document.getElementById('rpnExercise'),algExerciseEl=document.getElementById('algExercise');
+function setStatus(m=''){statusEl.textContent=m}
+function setBusy(v){busy=v;keyButtons.forEach(b=>b.disabled=v)}
 function formatNumber(v){if(!Number.isFinite(v))return'Error';if(Object.is(v,-0))v=0;const a=Math.abs(v);if(a!==0&&(a>=1e12||a<1e-9))return v.toExponential(10).replace(/\.0+(?=e)/,'').replace(/(\.\d*?)0+(?=e)/,'$1');return Number(v.toPrecision(12)).toString()}
 function parsedEntry(){if(!entering||entry===''||entry==='-'||entry==='.'||entry==='-.')return null;const v=Number(entry);return Number.isFinite(v)?v:null}
 function newItem(value){return{id:String(nextId++),value}}
@@ -73,7 +120,8 @@ function render(){stackEl.replaceChildren();const empty=MAX_STACK-stack.length;f
 function captureStack(){const m=new Map();stackEl.querySelectorAll('.stack-value[data-item-id]').forEach(el=>{const rect=el.getBoundingClientRect();m.set(el.dataset.itemId,{rect,text:el.textContent,fontSize:getComputedStyle(el).fontSize})});return m}
 function captureElement(el,text=el.textContent){const rect=el.getBoundingClientRect();return{rect,text,fontSize:getComputedStyle(el).fontSize}}
 function ghostFrom(s){const g=document.createElement('div');g.className='ghost-number';g.textContent=s.text;Object.assign(g.style,{left:`${s.rect.left}px`,top:`${s.rect.top}px`,width:`${s.rect.width}px`,height:`${s.rect.height}px`,lineHeight:`${s.rect.height}px`,fontSize:s.fontSize});document.body.appendChild(g);return g}
-function finished(a){return a.finished.catch(()=>undefined)} function nextFrame(){return new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))}
+function finished(a){return a.finished.catch(()=>undefined)}
+function nextFrame(){return new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))}
 function animateLabels(){const a=[];stackEl.querySelectorAll('.stack-label').forEach(l=>{if(l.textContent)a.push(finished(l.animate([{opacity:.25},{opacity:1}],{duration:500,delay:250,easing:'ease-out'})))});return a}
 async function transition(mutator,o={}){const before=captureStack();if(o.extraBefore)for(const[id,s]of o.extraBefore)before.set(String(id),s);mutator();render();await nextFrame();const after=captureStack(),animations=[],changed=new Set((o.changedIds||[]).map(String)),removedTo=o.removedTo||{};for(const[id,n]of after){const el=stackEl.querySelector(`.stack-value[data-item-id="${id}"]`),old=before.get(id);if(old){const dx=old.rect.left-n.rect.left,dy=old.rect.top-n.rect.top,vc=changed.has(id)||old.text!==n.text;if(vc){const g=ghostFrom(old);animations.push(finished(g.animate([{opacity:1,transform:'scale(1)'},{opacity:0,transform:'scale(.82)'}],{duration:MOVE_MS*.7,easing:'ease-out',fill:'forwards'})).then(()=>g.remove()))}animations.push(finished(el.animate([{transform:`translate(${dx}px, ${dy}px) scale(${vc?.86:1})`,opacity:vc?.15:1},{transform:'translate(0,0) scale(1.04)',opacity:1,offset:.82},{transform:'translate(0,0) scale(1)',opacity:1}],{duration:MOVE_MS,easing:EASE})))}else animations.push(finished(el.animate([{opacity:0,transform:'scale(.7)'},{opacity:1,transform:'scale(1.06)',offset:.78},{opacity:1,transform:'scale(1)'}],{duration:MOVE_MS,easing:EASE})))}for(const[id,old]of before){if(after.has(id))continue;const g=ghostFrom(old),targetId=removedTo[id],target=targetId?after.get(String(targetId)):null;let dx=0,dy=-old.rect.height*.7;if(target){dx=target.rect.left-old.rect.left;dy=target.rect.top-old.rect.top}animations.push(finished(g.animate([{opacity:1,transform:'translate(0,0) scale(1)'},{opacity:target?.2:0,transform:`translate(${dx}px, ${dy}px) scale(${target?.72:.82})`}],{duration:MOVE_MS,easing:EASE,fill:'forwards'})).then(()=>g.remove()))}animations.push(...animateLabels());await Promise.allSettled(animations)}
 function pushItem(i){stack.unshift(i);if(stack.length>MAX_STACK)stack.length=MAX_STACK}
@@ -93,8 +141,32 @@ async function rollDown(){if(entering&&!(await commitEntryAnimated()))return;if(
 async function clearAll(){if(entering){entry='';entering=false;render()}if(stack.length)await transition(()=>{stack=[]});setStatus()}
 async function runAction(a){if(busy)return;setBusy(true);try{await a()}finally{setBusy(false)}}
 function handleImmediateButton(b){if(b.dataset.digit!==undefined){beginDigit(b.dataset.digit);return true}if(b.dataset.action==='decimal'){decimal();return true}if(b.dataset.action==='backspace'){backspace();return true}if(b.dataset.action==='sign'&&(entering||!stack.length)){toggleSign();return true}return false}
+
 document.querySelector('.keys').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if(!busy&&handleImmediateButton(b))return;if(busy)return;runAction(async()=>{if(b.dataset.binary)await binary(b.dataset.binary);else if(b.dataset.unary)await unary(b.dataset.unary);else switch(b.dataset.action){case'sign':await toggleSign();break;case'enter':await enter();break;case'drop':await drop();break;case'swap':await swap();break;case'roll':await rollDown();break;case'clear':await clearAll();break}})});
-window.addEventListener('keydown',e=>{if(!busy&&/^[0-9]$/.test(e.key)){e.preventDefault();beginDigit(e.key);return}if(!busy&&(e.key==='.'||e.key===',')){e.preventDefault();decimal();return}if(!busy&&e.key==='Backspace'){e.preventDefault();backspace();return}if(!busy&&e.key==='-'&&(entering||!stack.length)){e.preventDefault();toggleSign();return}if(busy)return;let a=null;if(e.key==='Enter')a=enter;else if(['+','-','*','/'].includes(e.key))a=()=>binary(e.key);else if(e.key==='Escape')a=clearAll;if(a){e.preventDefault();runAction(a)}});
+
+rpnExerciseEl.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();algExerciseEl.focus();algExerciseEl.select()}});
+algExerciseEl.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();rpnExerciseEl.focus();rpnExerciseEl.select()}});
+
+window.addEventListener('keydown',e=>{
+  if(e.target instanceof HTMLInputElement && e.target.classList.contains('exercise-input')) return;
+  if(!busy&&/^[0-9]$/.test(e.key)){e.preventDefault();beginDigit(e.key);return}
+  if(!busy&&(e.key==='.'||e.key===',')){e.preventDefault();decimal();return}
+  if(!busy&&e.key==='Backspace'){e.preventDefault();backspace();return}
+  if(!busy&&e.key==='-'&&(entering||!stack.length)){e.preventDefault();toggleSign();return}
+  if(busy)return;
+  let a=null;
+  if(e.key==='Enter')a=enter;
+  else if(['+','-','*','/'].includes(e.key))a=()=>binary(e.key);
+  else if(e.key==='Escape')a=clearAll;
+  if(a){e.preventDefault();runAction(a)}
+});
+
+window.rpnTrainingFields={
+  set(rpn='',alg=''){rpnExerciseEl.value=rpn;algExerciseEl.value=alg},
+  clear(){rpnExerciseEl.value='';algExerciseEl.value=''},
+  values(){return{rpn:rpnExerciseEl.value,alg:algExerciseEl.value}}
+};
+
 render();
 })();
 </script>
