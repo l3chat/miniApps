@@ -774,6 +774,44 @@ async function checkExercise(){
   nextExerciseTimer=setTimeout(newExercise,1200);
 }
 
+async function checkManualExercise(){
+  cancelNextExercise();
+  clearExerciseState();
+
+  const rpn=normalizeRpn(rpnExerciseEl.value);
+  const algAsRpn=infixToRpn(algExerciseEl.value);
+
+  let invalid=false;
+  if(!rpn){
+    rpnExerciseFieldEl.classList.add('wrong');
+    invalid=true;
+  }
+  if(!algAsRpn){
+    algExerciseFieldEl.classList.add('wrong');
+    invalid=true;
+  }
+
+  if(invalid){
+    setStatus('Заполните обе корректные записи');
+    return;
+  }
+
+  if(rpn===algAsRpn){
+    rpnExerciseFieldEl.classList.add('correct');
+    algExerciseFieldEl.classList.add('correct');
+    setStatus('Верно');
+    return;
+  }
+
+  rpnExerciseFieldEl.classList.add('wrong');
+  algExerciseFieldEl.classList.add('wrong');
+  setStatus('Записи не эквивалентны');
+  await Promise.all([
+    finished(rpnExerciseFieldEl.animate([{transform:'translateX(0)'},{transform:'translateX(-5px)'},{transform:'translateX(5px)'},{transform:'translateX(0)'}],{duration:280,easing:'ease-out'})),
+    finished(algExerciseFieldEl.animate([{transform:'translateX(0)'},{transform:'translateX(5px)'},{transform:'translateX(-5px)'},{transform:'translateX(0)'}],{duration:280,easing:'ease-out'}))
+  ]);
+}
+
 function setAppMode(mode){
   appMode=mode;
   appEl.classList.toggle('calc-mode',mode==='calc');
@@ -832,30 +870,34 @@ rpnExerciseEl.addEventListener('input',()=>{
   if(trainingMode==='auto'&&currentExercise?.direction==='algToRpn'){
     rpnExerciseFieldEl.classList.remove('wrong','correct');
     rpnExerciseFieldEl.classList.add('target');
-    setStatus('');
+  }else if(trainingMode==='manual'){
+    clearExerciseState();
   }
+  setStatus('');
 });
 
 algExerciseEl.addEventListener('input',()=>{
   if(trainingMode==='auto'&&currentExercise?.direction==='rpnToAlg'){
     algExerciseFieldEl.classList.remove('wrong','correct');
     algExerciseFieldEl.classList.add('target');
-    setStatus('');
+  }else if(trainingMode==='manual'){
+    clearExerciseState();
   }
+  setStatus('');
 });
 
 function exerciseKeydown(event){
   if(event.key==='Enter'){
     event.preventDefault();
     if(trainingMode==='auto')checkExercise();
-    else{
-      const other=event.target===rpnExerciseEl?algExerciseEl:rpnExerciseEl;
-      other.focus();
-      other.select();
-    }
-  }else if(event.key==='Escape'&&trainingMode==='auto'){
+    else checkManualExercise();
+  }else if(event.key==='Escape'){
     event.preventDefault();
-    newExercise();
+    if(trainingMode==='auto')newExercise();
+    else{
+      clearExerciseState();
+      setStatus('');
+    }
   }
 }
 
@@ -885,7 +927,8 @@ window.rpnTrainingFields={
   clear(){rpnExerciseEl.value='';algExerciseEl.value='';clearExerciseState()},
   values(){return{rpn:rpnExerciseEl.value,alg:algExerciseEl.value}},
   next(){setTrainingMode('auto');newExercise()},
-  answer(){return currentExercise?{rpn:currentExercise.rpn,alg:currentExercise.alg,direction:currentExercise.direction}:null}
+  answer(){return currentExercise?{rpn:currentExercise.rpn,alg:currentExercise.alg,direction:currentExercise.direction}:null},
+  check(){return trainingMode==='manual'?checkManualExercise():checkExercise()}
 };
 
 setAppMode('train');
