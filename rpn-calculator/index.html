@@ -21,6 +21,10 @@
       --number:#f8faf8;
       --function:#e4ece7;
       --danger:#8f3c34;
+      --ok-bg:#d8f5dc;
+      --ok-line:#3b9860;
+      --bad-bg:#ffdede;
+      --bad-line:#c85151;
     }
 
     * { box-sizing:border-box; }
@@ -35,12 +39,16 @@
     .stack-row,
     .entry-field { min-height:0; display:grid; grid-template-columns:clamp(58px,16vw,90px) minmax(0,1fr); align-items:center; padding:0 clamp(8px,2.5vw,18px); border:1px solid var(--line); border-radius:7px; background:var(--panel); }
 
-    .exercise-field.rpn { background:var(--rpn-bg); border-color:#9fc8e6; }
-    .exercise-field.alg { background:var(--alg-bg); border-color:#a8cfb1; }
+    .exercise-field.rpn { background:var(--rpn-bg); border-color:#9fc8e6; transition:background-color .2s,border-color .2s,box-shadow .2s; }
+    .exercise-field.rpn.correct { background:var(--ok-bg); border-color:var(--ok-line); box-shadow:inset 5px 0 0 var(--ok-line); }
+    .exercise-field.rpn.wrong { background:var(--bad-bg); border-color:var(--bad-line); box-shadow:inset 5px 0 0 var(--bad-line); }
+    .exercise-field.alg { background:var(--alg-bg); border-color:#a8cfb1; cursor:pointer; }
     .exercise-label { font-size:clamp(.9rem,3.5vmin,1.35rem); font-weight:900; color:var(--ink); }
     .exercise-input { width:100%; min-width:0; height:100%; border:0; outline:0; padding:0; background:transparent; color:var(--ink); font-family:"SFMono-Regular",Consolas,"Liberation Mono",monospace; font-size:clamp(1rem,4.6vmin,1.85rem); font-weight:800; text-align:right; }
-    .exercise-input::placeholder { color:rgba(23,33,28,.32); font-weight:600; }
+    .exercise-input[readonly] { cursor:pointer; }
     .exercise-field:focus-within { box-shadow:inset 4px 0 0 rgba(23,107,91,.65); }
+    .exercise-field.rpn.correct:focus-within { box-shadow:inset 5px 0 0 var(--ok-line); }
+    .exercise-field.rpn.wrong:focus-within { box-shadow:inset 5px 0 0 var(--bad-line); }
 
     .stack { min-height:0; display:grid; grid-template-rows:repeat(6,minmax(0,1fr)); gap:3px; }
     .stack-row.x-row { border-color:rgba(23,107,91,.7); box-shadow:inset 4px 0 0 var(--accent); }
@@ -78,13 +86,13 @@
   <main>
     <section class="calculator" aria-label="Калькулятор с обратной польской записью">
       <div class="display-panel">
-        <label class="exercise-field rpn">
+        <label id="rpnExerciseField" class="exercise-field rpn">
           <span class="exercise-label">RPN</span>
-          <input id="rpnExercise" class="exercise-input" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="RPN упражнение">
+          <input id="rpnExercise" class="exercise-input" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Введите выражение в обратной польской записи">
         </label>
-        <label class="exercise-field alg">
+        <label id="algExerciseField" class="exercise-field alg" title="Нажмите для нового задания">
           <span class="exercise-label">Alg</span>
-          <input id="algExercise" class="exercise-input" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Алгебраическое упражнение">
+          <input id="algExercise" class="exercise-input" type="text" readonly tabindex="-1" aria-label="Алгебраическое выражение задания">
         </label>
         <div class="entry-field" aria-label="Поле ввода числа">
           <span class="entry-label">›</span><span id="entryValue" class="entry-value"></span>
@@ -110,7 +118,9 @@
 'use strict';
 const MAX_STACK=6,labels=['X','Y','Z','T','U','V'],MOVE_MS=1050,EASE='cubic-bezier(.22,.75,.2,1)';
 let stack=[],entry='',entering=false,nextId=1,busy=false;
-const stackEl=document.getElementById('stack'),entryValueEl=document.getElementById('entryValue'),entryFieldEl=document.querySelector('.entry-field'),statusEl=document.getElementById('status'),keyButtons=[...document.querySelectorAll('.keys button')],rpnExerciseEl=document.getElementById('rpnExercise'),algExerciseEl=document.getElementById('algExercise');
+let currentExercise=null,nextExerciseTimer=null;
+const stackEl=document.getElementById('stack'),entryValueEl=document.getElementById('entryValue'),entryFieldEl=document.querySelector('.entry-field'),statusEl=document.getElementById('status'),keyButtons=[...document.querySelectorAll('.keys button')],rpnExerciseEl=document.getElementById('rpnExercise'),algExerciseEl=document.getElementById('algExercise'),rpnExerciseFieldEl=document.getElementById('rpnExerciseField'),algExerciseFieldEl=document.getElementById('algExerciseField');
+
 function setStatus(m=''){statusEl.textContent=m}
 function setBusy(v){busy=v;keyButtons.forEach(b=>b.disabled=v)}
 function formatNumber(v){if(!Number.isFinite(v))return'Error';if(Object.is(v,-0))v=0;const a=Math.abs(v);if(a!==0&&(a>=1e12||a<1e-9))return v.toExponential(10).replace(/\.0+(?=e)/,'').replace(/(\.\d*?)0+(?=e)/,'$1');return Number(v.toPrecision(12)).toString()}
@@ -142,10 +152,70 @@ async function clearAll(){if(entering){entry='';entering=false;render()}if(stack
 async function runAction(a){if(busy)return;setBusy(true);try{await a()}finally{setBusy(false)}}
 function handleImmediateButton(b){if(b.dataset.digit!==undefined){beginDigit(b.dataset.digit);return true}if(b.dataset.action==='decimal'){decimal();return true}if(b.dataset.action==='backspace'){backspace();return true}if(b.dataset.action==='sign'&&(entering||!stack.length)){toggleSign();return true}return false}
 
+const TRAIN_OPS=[
+  {key:'+',display:'+'},
+  {key:'-',display:'−'},
+  {key:'*',display:'×'},
+  {key:'/',display:'÷'}
+];
+function randomInt(min,max){return Math.floor(Math.random()*(max-min+1))+min}
+function calc(op,a,b){if(op==='/'&&b===0)return null;const v=op==='+'?a+b:op==='-'?a-b:op==='*'?a*b:a/b;return Number.isFinite(v)?v:null}
+function makeExercise(){
+  for(let attempt=0;attempt<100;attempt++){
+    const a=randomInt(2,9),b=randomInt(2,9),c=randomInt(2,9),op1=TRAIN_OPS[randomInt(0,TRAIN_OPS.length-1)],op2=TRAIN_OPS[randomInt(0,TRAIN_OPS.length-1)],shape=randomInt(0,1);
+    let alg,rpn,value;
+    if(shape===0){
+      const first=calc(op1.key,a,b); if(first===null)continue;
+      value=calc(op2.key,first,c); if(value===null)continue;
+      alg=`(${a} ${op1.display} ${b}) ${op2.display} ${c}`;
+      rpn=`${a} ${b} ${op1.key} ${c} ${op2.key}`;
+    }else{
+      const second=calc(op2.key,b,c); if(second===null)continue;
+      value=calc(op1.key,a,second); if(value===null)continue;
+      alg=`${a} ${op1.display} (${b} ${op2.display} ${c})`;
+      rpn=`${a} ${b} ${c} ${op2.key} ${op1.key}`;
+    }
+    if(!Number.isFinite(value)||Math.abs(value)>500)continue;
+    return{alg,rpn};
+  }
+  return{alg:'3 + (4 × 5)',rpn:'3 4 5 * +'};
+}
+function normalizeRpn(s){return s.trim().replace(/[×xX]/g,'*').replace(/[÷:]/g,'/').replace(/−/g,'-').replace(/([+\-*/])/g,' $1 ').replace(/\s+/g,' ').trim()}
+function clearExerciseState(){rpnExerciseFieldEl.classList.remove('correct','wrong')}
+function newExercise(){
+  if(nextExerciseTimer){clearTimeout(nextExerciseTimer);nextExerciseTimer=null}
+  currentExercise=makeExercise();
+  algExerciseEl.value=currentExercise.alg;
+  rpnExerciseEl.value='';
+  clearExerciseState();
+  setStatus('');
+}
+async function checkExercise(){
+  if(!currentExercise)return;
+  const answer=normalizeRpn(rpnExerciseEl.value),expected=normalizeRpn(currentExercise.rpn);
+  if(!answer)return;
+  clearExerciseState();
+  if(answer===expected){
+    rpnExerciseEl.value=expected;
+    rpnExerciseFieldEl.classList.add('correct');
+    setStatus('Верно');
+    nextExerciseTimer=setTimeout(()=>{newExercise();rpnExerciseEl.focus()},1200);
+  }else{
+    rpnExerciseFieldEl.classList.add('wrong');
+    setStatus('Попробуйте ещё');
+    await finished(rpnExerciseFieldEl.animate([{transform:'translateX(0)'},{transform:'translateX(-6px)'},{transform:'translateX(6px)'},{transform:'translateX(0)'}],{duration:300,easing:'ease-out'}));
+    rpnExerciseEl.focus();
+  }
+}
+
 document.querySelector('.keys').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if(!busy&&handleImmediateButton(b))return;if(busy)return;runAction(async()=>{if(b.dataset.binary)await binary(b.dataset.binary);else if(b.dataset.unary)await unary(b.dataset.unary);else switch(b.dataset.action){case'sign':await toggleSign();break;case'enter':await enter();break;case'drop':await drop();break;case'swap':await swap();break;case'roll':await rollDown();break;case'clear':await clearAll();break}})});
 
-rpnExerciseEl.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();algExerciseEl.focus();algExerciseEl.select()}});
-algExerciseEl.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();rpnExerciseEl.focus();rpnExerciseEl.select()}});
+rpnExerciseEl.addEventListener('input',()=>{rpnExerciseFieldEl.classList.remove('wrong','correct');setStatus('')});
+rpnExerciseEl.addEventListener('keydown',e=>{
+  if(e.key==='Enter'){e.preventDefault();checkExercise()}
+  else if(e.key==='Escape'){e.preventDefault();newExercise()}
+});
+algExerciseFieldEl.addEventListener('click',()=>{newExercise();rpnExerciseEl.focus()});
 
 window.addEventListener('keydown',e=>{
   if(e.target instanceof HTMLInputElement && e.target.classList.contains('exercise-input')) return;
@@ -162,11 +232,14 @@ window.addEventListener('keydown',e=>{
 });
 
 window.rpnTrainingFields={
-  set(rpn='',alg=''){rpnExerciseEl.value=rpn;algExerciseEl.value=alg},
-  clear(){rpnExerciseEl.value='';algExerciseEl.value=''},
-  values(){return{rpn:rpnExerciseEl.value,alg:algExerciseEl.value}}
+  set(rpn='',alg=''){if(nextExerciseTimer)clearTimeout(nextExerciseTimer);currentExercise={rpn,alg};rpnExerciseEl.value=rpn;algExerciseEl.value=alg;clearExerciseState()},
+  clear(){rpnExerciseEl.value='';algExerciseEl.value='';currentExercise=null;clearExerciseState()},
+  values(){return{rpn:rpnExerciseEl.value,alg:algExerciseEl.value}},
+  next:newExercise,
+  answer(){return currentExercise?currentExercise.rpn:''}
 };
 
+newExercise();
 render();
 })();
 </script>
