@@ -16,6 +16,23 @@
     status.textContent = message;
   }
 
+  function describeError(error) {
+    if (!error) return 'Unknown error';
+    if (typeof error === 'string') return error;
+
+    const parts = [error.code, error.message, error.reason]
+      .filter(Boolean)
+      .map(String);
+
+    if (parts.length) return parts.join(': ');
+
+    try {
+      return JSON.stringify(error);
+    } catch {
+      return String(error);
+    }
+  }
+
   function onCollaborateChange(event) {
     const active = event?.action === 'start' || event?.status === 'started';
     setStatus(active ? 'Совместный режим запущен' : 'Состояние совместного режима изменилось');
@@ -65,7 +82,10 @@
       setStatus('Приглашение отправлено участникам');
     } catch (error) {
       console.error('Unable to start Collaborate Mode.', error);
-      setStatus('Не удалось запустить совместный режим');
+      const details = describeError(error);
+      setStatus(`Ошибка: ${details}`);
+      status.title = details;
+      window.alert(`Zoom startCollaborate error:\n${details}`);
       button.disabled = false;
     }
   });
