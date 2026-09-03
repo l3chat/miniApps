@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>RPN Calculator — Authorization complete</title>
+  <style>
+    :root { color-scheme: light; font-family: system-ui, sans-serif; }
+    body { min-height: 100vh; margin: 0; display: grid; place-items: center; background: #eef3ee; color: #17211c; }
+    main { max-width: 32rem; margin: 1rem; padding: 2rem; border-radius: 1rem; background: white; text-align: center; box-shadow: 0 0.5rem 2rem #17211c18; }
+    h1 { margin-top: 0; font-size: 1.5rem; }
+  </style>
+  <script>
+    if (location.search || location.hash) {
+      history.replaceState(null, document.title, location.pathname);
+    }
+  </script>
+</head>
+<body>
+  <main>
+    <h1>Authorization complete</h1>
+    <p>You can close this page and return to Zoom.</p>
+  </main>
+</body>
+</html>
