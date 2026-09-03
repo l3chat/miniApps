@@ -52,6 +52,7 @@
         capabilities: [
           'getRunningContext',
           'startCollaborate',
+          'showAppInvitationDialog',
           'onCollaborateChange'
         ]
       });
@@ -78,14 +79,28 @@
     setStatus('Запуск совместного режима…');
 
     try {
-      await window.zoomSdk.startCollaborate();
+      await window.zoomSdk.startCollaborate({ shareScreen: true });
       setStatus('Приглашение отправлено участникам');
     } catch (error) {
-      console.error('Unable to start Collaborate Mode.', error);
+      const unsupported = error?.reason === 'client_not_support' || error?.code === 80001;
+
+      if (unsupported) {
+        try {
+          setStatus('Открытие окна приглашения…');
+          await window.zoomSdk.showAppInvitationDialog();
+          setStatus('Выберите участников в окне Zoom');
+          return;
+        } catch (invitationError) {
+          error = invitationError;
+        }
+      }
+
+      console.error('Unable to invite participants.', error);
       const details = describeError(error);
-      setStatus(`Ошибка: ${details}`);
+      setStatus(`Ошибка приглашения: ${details}`);
       status.title = details;
-      window.alert(`Zoom startCollaborate error:\n${details}`);
+      window.alert(`Zoom invitation error:\n${details}`);
+    } finally {
       button.disabled = false;
     }
   });
