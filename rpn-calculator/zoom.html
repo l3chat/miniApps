@@ -10,11 +10,17 @@
   <script src="./zoom-bootstrap.js" defer></script>
 </head>
 <body>
-  <iframe
-    id="calculator"
-    src="./index.html"
-    title="RPN Calculator"
-    allow="clipboard-read; clipboard-write"
-  ></iframe>
+  <main id="zoom-shell">
+    <header id="zoom-toolbar" aria-live="polite">
+      <button id="collaborate-button" type="button">Открыть участникам</button>
+      <span id="zoom-status">Подключение к Zoom…</span>
+    </header>
+    <iframe
+      id="calculator"
+      src="./index.html"
+      title="RPN Calculator"
+      allow="clipboard-read; clipboard-write"
+    ></iframe>
+  </main>
 </body>
 </html>
