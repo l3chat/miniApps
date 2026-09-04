@@ -60,7 +60,7 @@
       console.info('Zoom App initialized:', config);
       document.body.classList.add('zoom-ready');
       button.disabled = false;
-      setStatus('Готово к совместному запуску');
+      setStatus('Готово к приглашению участников');
 
       window.zoomSdk.addEventListener('onCollaborateChange', onCollaborateChange);
 
@@ -76,25 +76,12 @@
   button.disabled = true;
   button.addEventListener('click', async () => {
     button.disabled = true;
-    setStatus('Запуск совместного режима…');
+    setStatus('Открытие окна приглашения…');
 
     try {
-      await window.zoomSdk.startCollaborate({ shareScreen: false });
-      setStatus('Приглашение отправлено участникам');
+      await window.zoomSdk.showAppInvitationDialog();
+      setStatus('Приглашение отправлено выбранным участникам');
     } catch (error) {
-      const unsupported = error?.reason === 'client_not_support' || error?.code === 80001;
-
-      if (unsupported) {
-        try {
-          setStatus('Открытие окна приглашения…');
-          await window.zoomSdk.showAppInvitationDialog();
-          setStatus('Выберите участников в окне Zoom');
-          return;
-        } catch (invitationError) {
-          error = invitationError;
-        }
-      }
-
       console.error('Unable to invite participants.', error);
       const details = describeError(error);
       setStatus(`Ошибка приглашения: ${details}`);
