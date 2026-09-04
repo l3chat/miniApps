@@ -79,7 +79,7 @@
     setStatus('Запуск совместного режима…');
 
     try {
-      await window.zoomSdk.startCollaborate({ shareScreen: true });
+      await window.zoomSdk.startCollaborate({ shareScreen: false });
       setStatus('Приглашение отправлено участникам');
     } catch (error) {
       const unsupported = error?.reason === 'client_not_support' || error?.code === 80001;
