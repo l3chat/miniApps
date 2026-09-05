@@ -74,12 +74,8 @@ export default {
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ room, hostSecret }),
         });
-        if (response.status === 201) {
-          return json({ room, hostSecret }, { status: 201 });
-        }
-        if (response.status !== 409) {
-          return json({ error: 'Could not create room' }, { status: 500 });
-        }
+        if (response.status === 201) return json({ room, hostSecret }, { status: 201 });
+        if (response.status !== 409) return json({ error: 'Could not create room' }, { status: 500 });
       }
       return json({ error: 'Could not allocate a room code' }, { status: 503 });
     }
@@ -104,7 +100,6 @@ export default {
       doUrl.searchParams.set('clientId', clientId);
       doUrl.searchParams.set('role', requestedRole);
       if (requestedRole === 'host') doUrl.searchParams.set('secret', hostSecret);
-
       return stub.fetch(new Request(doUrl, request));
     }
 
@@ -197,7 +192,7 @@ export class GameRoom extends DurableObject {
     for (const ws of this.ctx.getWebSockets()) {
       if (ws.readyState !== WebSocket.OPEN) continue;
       const attachment = this.getAttachment(ws);
-      if (attachment.role === 'player' && this.room?.players?.[attachment.clientId]) {
+      if (attachment.clientId && this.room?.players?.[attachment.clientId]) {
         ids.add(attachment.clientId);
       }
     }
@@ -213,7 +208,7 @@ export class GameRoom extends DurableObject {
 
   publicStateFor(attachment) {
     const isHost = attachment.role === 'host';
-    const me = attachment.role === 'player' ? this.room.players[attachment.clientId] || null : null;
+    const me = this.room.players[attachment.clientId] || null;
     const activePlayers = this.getActivePlayers();
 
     const base = {
@@ -245,14 +240,11 @@ export class GameRoom extends DurableObject {
   send(ws, payload) {
     try {
       ws.send(JSON.stringify(payload));
-    } catch {
-      // The close/error handler will eventually remove the dead socket.
-    }
+    } catch {}
   }
 
   sendSnapshot(ws) {
-    if (!this.room) return;
-    this.send(ws, this.publicStateFor(this.getAttachment(ws)));
+    if (this.room) this.send(ws, this.publicStateFor(this.getAttachment(ws)));
   }
 
   broadcast() {
@@ -283,67 +275,62 @@ export class GameRoom extends DurableObject {
 
     const attachment = this.getAttachment(ws);
     const isHost = attachment.role === 'host';
+    const clientId = attachment.clientId;
 
     if (data.type === 'ping') {
       this.send(ws, { type: 'pong', now: Date.now() });
       return;
     }
 
-    if (isHost) {
-      if (data.type === 'startRound') {
-        const target = Number(data.target);
-        if (!isSafeTarget(target)) {
-          this.sendError(ws, 'Target must be an integer between -1000000000 and 1000000000');
-          return;
-        }
-        this.room.round += 1;
-        this.room.phase = 'choosing';
-        this.room.target = target;
-        this.room.targetVisible = Boolean(data.targetVisible);
-        this.room.result = null;
-        for (const player of Object.values(this.room.players)) {
-          player.value = null;
-          player.ready = false;
-        }
-        await this.persist();
-        this.broadcast();
+    if (isHost && data.type === 'startRound') {
+      const target = Number(data.target);
+      if (!isSafeTarget(target)) {
+        this.sendError(ws, 'Target must be an integer between -1000000000 and 1000000000');
         return;
       }
-
-      if (data.type === 'reveal') {
-        if (this.room.phase !== 'choosing') {
-          this.sendError(ws, 'No active round');
-          return;
-        }
-        const activePlayers = this.getActivePlayers();
-        if (activePlayers.length === 0 || !activePlayers.every((player) => player.ready && Number.isInteger(player.value))) {
-          this.sendError(ws, 'All active players must be ready');
-          return;
-        }
-        const entries = activePlayers.map((player) => ({
-          clientId: player.clientId,
-          name: player.name,
-          value: player.value,
-        }));
-        const sum = entries.reduce((total, player) => total + player.value, 0);
-        this.room.result = {
-          target: this.room.target,
-          sum,
-          success: sum === this.room.target,
-          players: entries,
-          revealedAt: Date.now(),
-        };
-        this.room.phase = 'reveal';
-        await this.persist();
-        this.broadcast();
-        return;
+      this.room.round += 1;
+      this.room.phase = 'choosing';
+      this.room.target = target;
+      this.room.targetVisible = Boolean(data.targetVisible);
+      this.room.result = null;
+      for (const player of Object.values(this.room.players)) {
+        player.value = null;
+        player.ready = false;
       }
-
-      this.sendError(ws, 'Unknown host command');
+      await this.persist();
+      this.broadcast();
       return;
     }
 
-    const clientId = attachment.clientId;
+    if (isHost && data.type === 'reveal') {
+      if (this.room.phase !== 'choosing') {
+        this.sendError(ws, 'No active round');
+        return;
+      }
+      const activePlayers = this.getActivePlayers();
+      if (activePlayers.length === 0 || !activePlayers.every((player) => player.ready && Number.isInteger(player.value))) {
+        this.sendError(ws, 'All active players must be ready');
+        return;
+      }
+      const entries = activePlayers.map((player) => ({
+        clientId: player.clientId,
+        name: player.name,
+        value: player.value,
+      }));
+      const sum = entries.reduce((total, player) => total + player.value, 0);
+      this.room.result = {
+        target: this.room.target,
+        sum,
+        success: sum === this.room.target,
+        players: entries,
+        revealedAt: Date.now(),
+      };
+      this.room.phase = 'reveal';
+      await this.persist();
+      this.broadcast();
+      return;
+    }
+
     if (!clientId) {
       this.sendError(ws, 'Missing client id');
       return;
@@ -373,7 +360,7 @@ export class GameRoom extends DurableObject {
 
     const player = this.room.players[clientId];
     if (!player) {
-      this.sendError(ws, 'Enter your name first');
+      this.sendError(ws, isHost ? 'Join as a player first' : 'Enter your name first');
       return;
     }
 
@@ -413,7 +400,12 @@ export class GameRoom extends DurableObject {
       return;
     }
 
-    this.sendError(ws, 'Unknown player command');
+    if (!isHost && (data.type === 'startRound' || data.type === 'reveal')) {
+      this.sendError(ws, 'Host permission required');
+      return;
+    }
+
+    this.sendError(ws, 'Unknown command');
   }
 
   async webSocketClose(ws, code, reason) {
@@ -423,15 +415,12 @@ export class GameRoom extends DurableObject {
     this.broadcast();
     try {
       ws.close(code, reason);
-    } catch {
-      // With modern compatibility dates Cloudflare can auto-complete close frames.
-    }
+    } catch {}
   }
 
-  async webSocketError(ws) {
+  async webSocketError() {
     await this.ensureLoaded();
-    if (!this.room) return;
-    this.broadcast();
+    if (this.room) this.broadcast();
   }
 
   async touch() {
@@ -459,9 +448,7 @@ export class GameRoom extends DurableObject {
     for (const ws of this.ctx.getWebSockets()) {
       try {
         ws.close(1001, 'Room expired');
-      } catch {
-        // Ignore already closed sockets.
-      }
+      } catch {}
     }
     this.room = null;
     await this.ctx.storage.deleteAll();
