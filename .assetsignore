@@ -1,0 +1,7 @@
+.git*
+node_modules/
+worker-src/
+wrangler.jsonc
+package.json
+package-lock.json
+client-script.js

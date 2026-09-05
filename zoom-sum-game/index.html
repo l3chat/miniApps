@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Zoom Sum Game</title>
+<style>
+:root{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color-scheme:light dark;--gap:clamp(10px,2vw,18px)}*{box-sizing:border-box}body{margin:0;min-height:100dvh;background:Canvas;color:CanvasText}.wrap{min-height:100dvh;display:grid;grid-template-rows:auto 1fr auto;gap:var(--gap);padding:max(12px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left));max-width:980px;margin:auto}header{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}h1,h2,p{margin:.2em 0}.card{border:1px solid color-mix(in srgb,CanvasText 18%,transparent);border-radius:18px;padding:clamp(14px,3vw,24px);background:color-mix(in srgb,Canvas 92%,CanvasText 8%)}.grid{display:grid;gap:var(--gap)}.two{grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}label{display:grid;gap:6px;font-weight:600}input[type=text],input[type=number]{width:100%;font:inherit;padding:12px 14px;border-radius:12px;border:1px solid color-mix(in srgb,CanvasText 25%,transparent);background:Canvas;color:CanvasText}button{font:inherit;font-weight:700;border:0;border-radius:14px;padding:12px 16px;cursor:pointer;background:#2563eb;color:white}button.secondary{background:color-mix(in srgb,CanvasText 14%,Canvas);color:CanvasText}button:disabled{opacity:.45;cursor:not-allowed}.numbers{display:grid;grid-template-columns:repeat(6,1fr);gap:8px}.numbers button{min-height:56px;font-size:1.25rem}.numbers button.selected{outline:4px solid #22c55e}.status{font-size:.95rem;opacity:.8}.roomcode{font-size:clamp(2rem,8vw,4rem);font-weight:800;letter-spacing:.12em}.result{font-size:clamp(1.4rem,5vw,2.6rem);font-weight:800}.ok{color:#16a34a}.bad{color:#dc2626}.players{display:grid;gap:8px}.player{display:flex;justify-content:space-between;gap:12px;padding:10px 12px;border-radius:12px;background:color-mix(in srgb,CanvasText 7%,Canvas)}.hidden{display:none!important}.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.grow{flex:1 1 220px}.small{font-size:.9rem}.banner{padding:10px 12px;border-radius:12px;background:color-mix(in srgb,#f59e0b 20%,Canvas)}@media(max-width:600px){.numbers{grid-template-columns:repeat(3,1fr)}.wrap{padding:10px}.card{border-radius:14px}}@media(orientation:landscape) and (max-height:650px){.wrap{grid-template-rows:auto auto}.card{padding:12px}.numbers button{min-height:44px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header><div><h1>Игра «Сумма»</h1><div id="conn" class="status">Не подключено</div></div><button id="homeBtn" class="secondary hidden">На главную</button></header>
+<main class="grid">
+<section id="landing" class="grid two">
+<div class="card grid"><h2>Ведущий</h2><p>Создайте комнату и отправьте ссылку участникам.</p><button id="createBtn">Создать комнату</button></div>
+<div class="card grid"><h2>Участник</h2><label>Код комнаты<input id="joinCode" type="text" maxlength="6" autocomplete="off" autocapitalize="characters" placeholder="ABC234"></label><button id="joinByCode">Войти</button></div>
+</section>
+<section id="hostPanel" class="grid hidden">
+<div class="card grid"><div class="row"><div class="grow"><div class="small">Код комнаты</div><div id="hostCode" class="roomcode"></div></div><div class="grid"><button id="copyLink">Скопировать ссылку</button><button id="shareLink" class="secondary">Поделиться</button></div></div></div>
+<div class="grid two">
+<div class="card grid"><h2>Раунд</h2><label>Загаданное целое число<input id="targetInput" type="number" step="1" inputmode="numeric"></label><label class="row"><input id="targetVisible" type="checkbox">Показывать участникам сразу</label><button id="startRound">Начать раунд</button><button id="revealBtn" disabled>Раскрыть результат</button></div>
+<div class="card grid"><h2>Участники</h2><div id="readyInfo" class="status">0 участников</div><div id="hostPlayers" class="players"></div></div>
+</div>
+<div id="hostResult" class="card grid hidden"></div>
+</section>
+<section id="playerPanel" class="grid hidden">
+<div class="card grid"><div class="small">Комната</div><div id="playerCode" class="roomcode"></div><label>Ваше имя<input id="nameInput" type="text" maxlength="40" autocomplete="name"></label><button id="saveName">Войти в игру</button></div>
+<div id="playCard" class="card grid hidden"><h2 id="roundTitle">Ожидание раунда</h2><div id="targetDisplay" class="result">Цель: —</div><div class="numbers" id="numbers"></div><button id="readyBtn" disabled>Готов</button><div class="status" id="playerHint"></div></div>
+<div id="playerResult" class="card grid hidden"></div>
+</section>
+<div id="message" class="banner hidden"></div>
+</main>
+<footer class="status">Обычная браузерная игра. Zoom SDK не используется.</footer>
+</div>
+<script>
+(()=>{
+const $=id=>document.getElementById(id);const basePath='/zoom-sum-game/';const apiBase=basePath+'api/';
+const ids={landing:$('landing'),hostPanel:$('hostPanel'),playerPanel:$('playerPanel'),conn:$('conn'),message:$('message')};
+let ws=null,state=null,role=null,room=null,hostSecret=null,retryTimer=null,retryCount=0,manualClose=false;
+const clientIdKey='zoomSumGameClientId';const hostKeyPrefix='zoomSumGameHost:';let clientId=localStorage.getItem(clientIdKey);if(!clientId){clientId=crypto.randomUUID?.()||Math.random().toString(36).slice(2)+Date.now();localStorage.setItem(clientIdKey,clientId)}
+function msg(text){ids.message.textContent=text;ids.message.classList.toggle('hidden',!text)}
+function setConn(text){ids.conn.textContent=text}
+function showPanel(which){ids.landing.classList.add('hidden');ids.hostPanel.classList.add('hidden');ids.playerPanel.classList.add('hidden');which.classList.remove('hidden');$('homeBtn').classList.remove('hidden')}
+function normalizeCode(v){return String(v||'').toUpperCase().replace(/[^A-HJ-NP-Z2-9]/g,'').slice(0,6)}
+function roomFromLocation(){const u=new URL(location.href);return normalizeCode(u.searchParams.get('room'))}
+function hostSecretFromLocation(){return new URL(location.href).searchParams.get('host')||''}
+function participantLink(){const u=new URL(basePath,location.origin);u.searchParams.set('room',room);return u.href}
+function send(data){if(ws&&ws.readyState===WebSocket.OPEN)ws.send(JSON.stringify(data));else msg('Нет соединения с сервером')}
+async function createRoom(){msg('');$('createBtn').disabled=true;try{const r=await fetch(apiBase+'create',{method:'POST',headers:{'content-type':'application/json'}});const d=await r.json();if(!r.ok)throw new Error(d.error||'Ошибка создания комнаты');room=d.room;hostSecret=d.hostSecret;localStorage.setItem(hostKeyPrefix+room,hostSecret);const u=new URL(basePath,location.origin);u.searchParams.set('room',room);u.searchParams.set('host',hostSecret);history.replaceState(null,'',u);startHost()}catch(e){msg(e.message)}finally{$('createBtn').disabled=false}}
+function openSocket(){if(!room)return;clearTimeout(retryTimer);manualClose=false;const proto=location.protocol==='https:'?'wss:':'ws:';const u=new URL(apiBase+'ws',location.href);u.protocol=proto;u.searchParams.set('room',room);u.searchParams.set('clientId',clientId);u.searchParams.set('role',role);if(role==='host')u.searchParams.set('secret',hostSecret);setConn('Подключение…');ws=new WebSocket(u);ws.onopen=()=>{retryCount=0;setConn('Подключено');msg('')};ws.onmessage=e=>{try{const d=JSON.parse(e.data);if(d.type==='state'){state=d;render()}else if(d.type==='error')msg(d.message)}catch{}};ws.onclose=e=>{setConn('Соединение потеряно');if(role==='host'&&e.code===1006)msg('Не удалось подключить ведущего. Проверьте секрет комнаты.');if(!manualClose)scheduleReconnect()};ws.onerror=()=>setConn('Ошибка соединения')}
+function scheduleReconnect(){clearTimeout(retryTimer);const delay=Math.min(10000,500*2**Math.min(retryCount++,4));retryTimer=setTimeout(openSocket,delay)}
+function startHost(){role='host';showPanel(ids.hostPanel);$('hostCode').textContent=room;openSocket()}
+function startPlayer(){role='player';showPanel(ids.playerPanel);$('playerCode').textContent=room;const saved=localStorage.getItem('zoomSumGameName')||'';$('nameInput').value=saved;openSocket()}
+function render(){if(!state)return;if(role==='host')renderHost();else renderPlayer()}
+function renderHost(){const players=state.players||[];$('hostPlayers').innerHTML=players.length?players.map(p=>`<div class="player"><span>${escapeHtml(p.name)}</span><strong>${p.ready?'✓ готов':'…'}</strong></div>`).join(''):'<div class="status">Пока никто не подключён</div>';const ready=players.filter(p=>p.ready).length;$('readyInfo').textContent=`Готовы ${ready} из ${players.length}`;$('revealBtn').disabled=!(state.phase==='choosing'&&state.allReady);if(state.phase==='reveal'&&state.result)showResult($('hostResult'),state.result);else $('hostResult').classList.add('hidden')}
+function renderPlayer(){if(state.me){$('nameInput').value=state.me.name||$('nameInput').value;$('playCard').classList.remove('hidden')}else $('playCard').classList.add('hidden');if(state.phase==='setup'){$('roundTitle').textContent='Ожидание первого раунда';$('targetDisplay').textContent='Цель: —';setNumbersDisabled(true);$('readyBtn').disabled=true;$('playerResult').classList.add('hidden');return}if(state.phase==='choosing'){$('roundTitle').textContent=`Раунд ${state.round}`;$('targetDisplay').textContent=state.target===null?'Цель скрыта':`Цель: ${state.target}`;$('playerResult').classList.add('hidden');const me=state.me;markSelected(me?.value);setNumbersDisabled(!me||me.ready);$('readyBtn').disabled=!me||(!me.ready&&!Number.isInteger(me.value));$('readyBtn').textContent=me?.ready?'Снять готовность':'Готов';$('playerHint').textContent=me?.ready?'Чтобы изменить число, сначала снимите готовность.':'Выберите число от 0 до 5.';return}if(state.phase==='reveal'&&state.result){setNumbersDisabled(true);$('readyBtn').disabled=true;showResult($('playerResult'),state.result)}}
+function showResult(el,r){el.classList.remove('hidden');el.innerHTML=`<h2>Результат</h2><div class="result ${r.success?'ok':'bad'}">${r.success?'Совпало!':'Не совпало'}</div><div class="result">Цель: ${r.target} · Сумма: ${r.sum}</div><div class="players">${r.players.map(p=>`<div class="player"><span>${escapeHtml(p.name)}</span><strong>${p.value}</strong></div>`).join('')}</div>`}
+function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function markSelected(v){[...$('numbers').children].forEach(b=>b.classList.toggle('selected',Number(b.dataset.value)===v))}
+function setNumbersDisabled(disabled){[...$('numbers').children].forEach(b=>b.disabled=disabled)}
+for(let i=0;i<=5;i++){const b=document.createElement('button');b.textContent=i;b.dataset.value=i;b.onclick=()=>send({type:'select',value:i});$('numbers').appendChild(b)}
+$('createBtn').onclick=createRoom;$('joinCode').oninput=e=>e.target.value=normalizeCode(e.target.value);$('joinByCode').onclick=()=>{const c=normalizeCode($('joinCode').value);if(c.length!==6)return msg('Введите шестизначный код комнаты');const u=new URL(basePath,location.origin);u.searchParams.set('room',c);location.href=u.href};$('copyLink').onclick=async()=>{await navigator.clipboard.writeText(participantLink());msg('Ссылка скопирована')};$('shareLink').onclick=async()=>{const url=participantLink();if(navigator.share)await navigator.share({title:'Игра «Сумма»',url});else{await navigator.clipboard.writeText(url);msg('Ссылка скопирована')}};$('startRound').onclick=()=>{const v=Number($('targetInput').value);if(!Number.isSafeInteger(v))return msg('Введите целое число');send({type:'startRound',target:v,targetVisible:$('targetVisible').checked})};$('revealBtn').onclick=()=>send({type:'reveal'});$('saveName').onclick=()=>{const name=$('nameInput').value.trim();if(!name)return msg('Введите имя');localStorage.setItem('zoomSumGameName',name);send({type:'join',name})};$('readyBtn').onclick=()=>{if(!state?.me)return;send({type:'setReady',ready:!state.me.ready})};$('homeBtn').onclick=()=>{manualClose=true;try{ws?.close()}catch{};history.replaceState(null,'',basePath);location.reload()};
+room=roomFromLocation();if(room){hostSecret=hostSecretFromLocation()||localStorage.getItem(hostKeyPrefix+room)||'';if(hostSecret)startHost();else startPlayer()}else{ids.landing.classList.remove('hidden');setConn('Готово')}
+})();
+</script>
+</body>
+</html>
