@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#111827">
+<title>Игра «Сумма» — Zoom App</title>
+<script src="https://appssdk.zoom.us/sdk.js"></script>
+<style>
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#111827;color:#fff}body{display:grid;grid-template-rows:auto 1fr}.zoom-bar{display:flex;align-items:center;gap:8px;padding:max(7px,env(safe-area-inset-top)) 8px 7px;background:#111827;border-bottom:1px solid rgba(255,255,255,.12);min-width:0}.zoom-bar button{border:0;border-radius:9px;padding:8px 11px;font:inherit;font-size:.82rem;font-weight:750;background:#2563eb;color:#fff;cursor:pointer;white-space:nowrap}.zoom-bar button:disabled{opacity:.45;cursor:not-allowed}.zoom-status{font-size:.76rem;opacity:.72;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1}.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;background:#f59e0b}.dot.ready{background:#22c55e}.dot.error{background:#ef4444}iframe{display:block;width:100%;height:100%;border:0;background:#fff}@media(max-width:420px){.zoom-bar{padding-left:6px;padding-right:6px}.zoom-bar button{padding:7px 9px;font-size:.78rem}.zoom-status{font-size:.7rem}}
+</style>
+</head>
+<body>
+<header class="zoom-bar">
+  <button id="invite" type="button" disabled>Пригласить</button>
+  <div id="status" class="zoom-status"><span id="dot" class="dot"></span><span id="statusText">Подключение к Zoom…</span></div>
+</header>
+<iframe id="game" src="./index.html" title="Игра Сумма" allow="clipboard-read; clipboard-write"></iframe>
+<script>
+(()=>{
+'use strict';
+const invite=document.getElementById('invite');
+const dot=document.getElementById('dot');
+const statusText=document.getElementById('statusText');
+
+function status(text,state='wait'){
+  statusText.textContent=text;
+  dot.className='dot'+(state==='ready'?' ready':state==='error'?' error':'');
+}
+function describeError(error){
+  if(!error)return 'Unknown error';
+  if(typeof error==='string')return error;
+  const parts=[error.code,error.message,error.reason].filter(Boolean).map(String);
+  if(parts.length)return parts.join(': ');
+  try{return JSON.stringify(error)}catch{return String(error)}
+}
+function removeOAuthCode(){
+  const url=new URL(location.href);
+  if(!url.searchParams.has('code'))return;
+  url.searchParams.delete('code');
+  url.searchParams.delete('state');
+  history.replaceState(null,document.title,url.pathname+url.search+url.hash);
+}
+async function init(){
+  removeOAuthCode();
+  if(!window.zoomSdk){
+    status('Открыто вне Zoom','error');
+    return;
+  }
+  try{
+    const cfg=await window.zoomSdk.config({
+      version:'0.16',
+      capabilities:['getRunningContext','showAppInvitationDialog']
+    });
+    console.info('Zoom App initialized',cfg);
+    let context='';
+    try{
+      if(typeof window.zoomSdk.getRunningContext==='function'){
+        const r=await window.zoomSdk.getRunningContext();
+        context=r?.context||r?.runningContext||'';
+        console.info('Zoom running context',r);
+      }
+    }catch(e){console.info('getRunningContext failed',e)}
+    invite.disabled=false;
+    status(context==='inMeeting'?'В конференции':'Zoom App готово','ready');
+  }catch(error){
+    console.error('Zoom initialization failed',error);
+    status('Ошибка Zoom: '+describeError(error),'error');
+  }
+}
+invite.addEventListener('click',async()=>{
+  invite.disabled=true;
+  status('Открываю приглашение…');
+  try{
+    await window.zoomSdk.showAppInvitationDialog();
+    status('Приглашение отправлено','ready');
+  }catch(error){
+    console.error('Invitation failed',error);
+    const details=describeError(error);
+    status('Ошибка приглашения: '+details,'error');
+    alert('Zoom invitation error:\n'+details);
+  }finally{
+    invite.disabled=false;
+  }
+});
+init();
+})();
+</script>
+</body>
+</html>
