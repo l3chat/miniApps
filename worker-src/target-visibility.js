@@ -9,22 +9,22 @@ const visibilityClient = String.raw`
   const label=checkbox.closest('label');
   if(label){
     for(const node of label.childNodes){
-      if(node.nodeType===Node.TEXT_NODE && node.textContent.trim()){
-        node.textContent=' Показывать цель';
-      }
+      if(node.nodeType===Node.TEXT_NODE && node.textContent.trim()) node.textContent=' Показывать цель';
     }
   }
-
-  const pageUrl=new URL(location.href);
-  const room=String(pageUrl.searchParams.get('room')||'').toUpperCase();
-  const hostKey='zoomSumGameHost:'+room;
-  const secret=pageUrl.searchParams.get('host')||localStorage.getItem(hostKey)||'';
-  const clientId=localStorage.getItem('zoomSumGameClientId')||'';
-  if(!room||!secret||!clientId)return;
 
   let socket=null;
   let retry=null;
   let desired=null;
+  let connectedRoom='';
+
+  function credentials(){
+    const pageUrl=new URL(location.href);
+    const room=String(pageUrl.searchParams.get('room')||'').toUpperCase();
+    const secret=room?(pageUrl.searchParams.get('host')||localStorage.getItem('zoomSumGameHost:'+room)||''):'';
+    const clientId=localStorage.getItem('zoomSumGameClientId')||'';
+    return {room,secret,clientId};
+  }
 
   function sendVisibility(){
     if(socket?.readyState===WebSocket.OPEN && desired!==null){
@@ -35,7 +35,12 @@ const visibilityClient = String.raw`
 
   function connect(){
     clearTimeout(retry);
-    if(socket && (socket.readyState===WebSocket.OPEN||socket.readyState===WebSocket.CONNECTING))return;
+    const {room,secret,clientId}=credentials();
+    if(!room){retry=setTimeout(connect,400);return}
+    if(!secret||!clientId)return;
+    if(socket && connectedRoom===room && (socket.readyState===WebSocket.OPEN||socket.readyState===WebSocket.CONNECTING))return;
+    try{socket?.close()}catch{}
+    connectedRoom=room;
     const u=new URL('/zoom-sum-game/api/ws',location.origin);
     u.protocol=location.protocol==='https:'?'wss:':'ws:';
     u.searchParams.set('room',room);
