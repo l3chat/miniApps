@@ -8,7 +8,7 @@
     "directory": ".",
     "binding": "ASSETS",
     "run_worker_first": [
-      "/zoom-sum-game/api/*"
+      "/zoom-sum-game/*"
     ],
     "html_handling": "auto-trailing-slash"
   },
