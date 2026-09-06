@@ -1,7 +1,7 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "miniapps",
-  "main": "./worker-src/index.js",
+  "main": "./worker-src/target-visibility.js",
   "compatibility_date": "2026-09-05",
   "workers_dev": true,
   "assets": {
