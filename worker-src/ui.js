@@ -10,7 +10,20 @@ export default {
     if (!isGameIndex || !response.ok) return response;
 
     let html = await response.text();
-    html = html.replace('<div class="label">Ваш выбор</div><div id="hostChoice"', '<div class="label">Цель</div><div id="hostChoice"');
+    html = html.replace(
+      '<div class="label">Ваш выбор</div><div id="hostChoice"',
+      '<div class="label">Цель</div><div id="hostChoice"'
+    );
+
+    const hostTargetExpression = "state?.target??state?.result?.target??'—'";
+    html = html.replaceAll(
+      "$('hostChoice').textContent='—';",
+      `$('hostChoice').textContent=${hostTargetExpression};`
+    );
+    html = html.replaceAll(
+      "$('hostChoice').textContent=Number.isInteger(me.value)?me.value:'—';",
+      `$('hostChoice').textContent=${hostTargetExpression};`
+    );
 
     const headers = new Headers(response.headers);
     headers.delete('content-length');
