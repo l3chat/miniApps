@@ -47,7 +47,7 @@ const liveTargetClient = String.raw`
         const s=JSON.parse(event.data);
         if(s.type!=='state')return;
         if(document.activeElement!==input){
-          input.value=s.hasTarget && Number.isSafeInteger(s.target) ? String(s.target) : '';
+          input.value=s.hasTarget && Number.isSafeInteger(s.liveTarget) ? String(s.liveTarget) : '';
         }
       }catch{}
     };
@@ -88,7 +88,7 @@ export default {
       '<div class="label">Цель</div><div id="hostChoice"'
     );
 
-    const targetExpression = "!state?.hasTarget?'—':(state?.targetVisible?(state?.target??'—'):'?')";
+    const targetExpression = "!state?.hasTarget?'—':(state?.targetVisible?(state?.liveTarget??'—'):'?')";
 
     html = html.replaceAll(
       "$('hostChoice').textContent='—';",
@@ -106,6 +106,11 @@ export default {
     html = html.replace(
       "$('targetDisplay').textContent=state.target===null?'?':state.target;",
       `$('targetDisplay').textContent=${targetExpression};`
+    );
+
+    html = html.replace(
+      '<div class="scorebox"><div class="t">Цель</div><div class="n">${r.target}</div></div>',
+      '<div class="scorebox"><div class="t">Цель</div><div class="n">${r.success||state?.targetVisible?(r.target??\'?\'):\'?\'}</div></div>'
     );
 
     html = html.replace(
@@ -133,9 +138,16 @@ export class GameRoom extends BaseGameRoom {
     const isHost = attachment?.role === 'host';
 
     state.hasTarget = hasTarget;
+    state.liveTarget = hasTarget && (isHost || this.room.targetVisible) ? this.room.target : null;
+
     if (state.phase !== 'reveal') {
-      state.target = hasTarget && (isHost || this.room.targetVisible) ? this.room.target : null;
+      state.target = state.liveTarget;
     }
+
+    if (state.result && !isHost && !state.result.success && !this.room.targetVisible) {
+      state.result = { ...state.result, target: null };
+    }
+
     return state;
   }
 
