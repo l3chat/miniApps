@@ -1,3 +1,4 @@
+// Deployment refresh marker: 2026-09-07. No functional change.
 import worker, { GameRoom as BaseGameRoom } from './target-visibility.js';
 
 const liveTargetClient = String.raw`
