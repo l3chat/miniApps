@@ -14,6 +14,14 @@ Zoom App wrapper:
 
 `https://miniapps.lechat-reg.workers.dev/zoom-sum-game/zoom.html`
 
+Zoom OAuth start:
+
+`https://miniapps.lechat-reg.workers.dev/zoom-sum-game/oauth/start`
+
+Zoom OAuth redirect / callback:
+
+`https://miniapps.lechat-reg.workers.dev/zoom-sum-game/oauth/callback`
+
 ## Current status — 2026-09-07
 
 ### Browser version
@@ -208,18 +216,69 @@ Current limitation / next Zoom-specific step:
 - invited users may need to enter the short room code manually;
 - further automatic Zoom room association has not yet been implemented.
 
-**Development checkpoint:** leave the Zoom-specific integration at this point. Current priority is correction, simplification and mobile efficiency of the shared UI.
+## Zoom OAuth
+
+A minimal OAuth flow has been added for a user-managed Zoom App, primarily to satisfy Zoom App / mobile-client requirements without changing the game's Cloudflare-based multiplayer architecture.
+
+Implemented endpoints:
+
+- `/zoom-sum-game/oauth/start` — creates a CSRF `state`, stores it in a short-lived secure HttpOnly cookie, and redirects to Zoom authorization;
+- `/zoom-sum-game/oauth/callback` — receives Zoom `code`, validates `state` when present, exchanges the code at Zoom's token endpoint, and shows a success/error page;
+- `/zoom-sum-game/api/version` — reports current Worker build and whether OAuth credentials are configured.
+
+Current design deliberately **does not persist access or refresh tokens**, because the game currently does not use Zoom REST APIs. The authorization-code exchange is performed only to complete and validate the OAuth flow while avoiding unnecessary storage of user credentials/tokens.
+
+OAuth implementation commit:
+
+- `2c4c7810b188f0a71a709870ec3a82868d97e878` — add minimal Zoom OAuth endpoints.
+
+### Required Cloudflare secrets
+
+Configure these as Worker secrets/variables; never commit the actual values to GitHub:
+
+- `ZOOM_CLIENT_ID` — Zoom App Client ID;
+- `ZOOM_CLIENT_SECRET` — Zoom App Client Secret;
+- optionally `ZOOM_REDIRECT_URI` — normally set to the exact production callback URL below.
+
+Recommended production value:
+
+`ZOOM_REDIRECT_URI=https://miniapps.lechat-reg.workers.dev/zoom-sum-game/oauth/callback`
+
+With Wrangler this can be configured with secrets for the credentials, for example:
+
+```sh
+npx wrangler secret put ZOOM_CLIENT_ID
+npx wrangler secret put ZOOM_CLIENT_SECRET
+```
+
+`ZOOM_REDIRECT_URI` is not secret and may be configured as an ordinary Worker variable if desired. If omitted, the Worker derives the callback from the request origin as `/zoom-sum-game/oauth/callback`.
+
+### Required Zoom Marketplace settings
+
+For the Zoom App OAuth configuration use the exact callback URL:
+
+`https://miniapps.lechat-reg.workers.dev/zoom-sum-game/oauth/callback`
+
+The exact value used by Zoom and by the Worker token exchange must match. The app should remain user-managed for the mobile-client path. Request only the minimum scopes Zoom requires for the enabled Zoom App features; the game itself currently needs no Zoom REST API scope for its multiplayer state.
+
+For a manual production test after deployment, open:
+
+`https://miniapps.lechat-reg.workers.dev/zoom-sum-game/oauth/start`
+
+A successful flow ends on a page saying that Zoom authorization completed. If the callback reports a redirect mismatch, verify that Marketplace and `ZOOM_REDIRECT_URI` contain the exact same URL, including path and protocol.
+
+**Development checkpoint:** OAuth code is now present, but production OAuth cannot complete until the actual Zoom Client ID and Client Secret are configured in Cloudflare and the matching redirect URL is entered in Zoom Marketplace.
 
 ## Architecture
 
 - `index.html` — **authoritative complete shared game client**: HTML, CSS and JavaScript in one autonomous file;
 - `zoom.html` — thin Zoom App wrapper around the shared client;
 - `../worker-src/index.js` — base Cloudflare Worker API and base `GameRoom` Durable Object implementation;
-- `../worker-src/ui.js` — current Worker entry point containing server-side live-target/visibility behavior and delegating static assets to Cloudflare; it does **not** rewrite the game HTML;
+- `../worker-src/ui.js` — current Worker entry point containing server-side live-target/visibility behavior, Zoom OAuth routes, and delegation of static assets to Cloudflare; it does **not** rewrite the game HTML;
 - `../worker-src/target-visibility.js` — older intermediate layer retained in the repository but no longer part of the current Worker import path;
 - `../wrangler.jsonc` — Worker/static-assets/Durable Object configuration.
 
-Important architectural rule: **do not move ordinary UI corrections back into Worker-side HTML string replacement.** Client behavior belongs in `index.html`; server authority and synchronization belong in the Worker/Durable Object.
+Important architectural rule: **do not move ordinary UI corrections back into Worker-side HTML string replacement.** Client behavior belongs in `index.html`; server authority, synchronization and OAuth endpoints belong in the Worker/Durable Object.
 
 Each six-character room code maps to one Durable Object by `idFromName(roomCode)`. WebSocket state is server-authoritative. The host secret is generated server-side and stored only in the host browser's `localStorage`. Player identity is a random browser-local ID in `localStorage`; reconnecting does not create a second player entry. Inactive rooms expire after 12 hours.
 
