@@ -4,6 +4,13 @@
   "main": "./worker-src/ui.js",
   "compatibility_date": "2026-09-05",
   "workers_dev": true,
+  "keep_vars": true,
+  "secrets": {
+    "required": [
+      "ZOOM_CLIENT_ID",
+      "ZOOM_CLIENT_SECRET"
+    ]
+  },
   "assets": {
     "directory": ".",
     "binding": "ASSETS",
