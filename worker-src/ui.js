@@ -1,14 +1,5 @@
 import worker, { GameRoom as BaseGameRoom } from './target-visibility.js';
 
-const lowPowerStyle = String.raw`
-<style id="low-power-mobile-ui">
-/* Full-screen blur is expensive on mobile Safari/iOS. Keep the overlay opaque instead. */
-.countdownOverlay{
-  backdrop-filter:none!important;
-  -webkit-backdrop-filter:none!important;
-}
-</style>`;
-
 const liveTargetClient = String.raw`
 <script>
 (()=>{
@@ -127,17 +118,6 @@ export default {
       "$('startRound').onclick=()=>{const raw=$('targetInput').value.trim();if(raw==='')return msg('Введите целое число');const v=Number(raw);if(!Number.isSafeInteger(v))return msg('Введите целое число');"
     );
 
-    /*
-      Countdown only changes visible whole-second labels. 80 ms caused ~12.5 JS/DOM
-      wakeups per second; 220 ms keeps the transition visually responsive while
-      cutting timer-driven work to ~4.5 wakeups per second.
-    */
-    html = html.replace(
-      'countdownTicker=setInterval(updateCountdown,80)',
-      'countdownTicker=setInterval(updateCountdown,220)'
-    );
-
-    html = html.replace('</head>', lowPowerStyle + '\n</head>');
     html = html.replace('</body>', liveTargetClient + '\n</body>');
 
     const headers = new Headers(response.headers);
