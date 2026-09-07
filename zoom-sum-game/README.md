@@ -37,6 +37,45 @@ Implemented:
 - one Durable Object per room;
 - inactive-room cleanup.
 
+### Latest recovery and optimization checkpoint
+
+A mobile-heating report from an iPhone participant triggered an optimization attempt. The first attempt changed more than one thing at once (countdown timer frequency and full-screen blur) and was followed by broken game behavior. Rolling back only `ui.js` did not restore what was visible in production.
+
+Investigation found the important architectural cause:
+
+- the repository still contained an older static `zoom-sum-game/index.html`;
+- several newer UI rules had been applied by the Worker through runtime string replacements;
+- Cloudflare could serve the static asset directly, bypassing those runtime HTML transformations;
+- this produced an old-looking host UI (`Показывать сразу`, `Ваш выбор`) even though newer Worker-side UI code existed.
+
+The architecture was therefore simplified and made deterministic:
+
+- all agreed client UI and browser behavior now live directly in the autonomous `zoom-sum-game/index.html`;
+- the Worker no longer rewrites HTML;
+- the Worker is responsible only for API, WebSocket, Durable Object state and host-only server commands;
+- the resulting static-client version was tested by the user and confirmed working.
+
+Relevant recovery commits:
+
+- `4d371d6271af55a896b00c43d5125bde5feccb97` — make Worker server-only;
+- `7e92306339df8c0586a8b6f79af4b4ac7a1991e1` — move current UI rules directly into `index.html`.
+
+### Current optimization policy
+
+Optimization must now be performed **one isolated change at a time**, followed by a functional test before the next change.
+
+The first low-risk optimization has been applied:
+
+- removed the full-screen CSS `backdrop-filter: blur(10px)` from the countdown overlay;
+- countdown timing, WebSocket logic, selection logic and game mechanics were not changed;
+- the countdown interval remains at the known-working `80 ms` for now.
+
+Optimization commit:
+
+- `41497c15b81f7e9408059f936a99c61a950d9a00` — remove expensive countdown blur to reduce mobile GPU load.
+
+**Test status:** this optimization is currently **awaiting user testing**. Do not change the countdown timer frequency until this version has been functionally tested.
+
 ## Current game and UI rules
 
 These rules are the current agreed behavior and should be preserved unless explicitly changed.
@@ -169,21 +208,20 @@ Current limitation / next Zoom-specific step:
 - invited users may need to enter the short room code manually;
 - further automatic Zoom room association has not yet been implemented.
 
-**Development checkpoint:** leave the Zoom-specific integration at this point. Current priority is correction and simplification of the shared UI.
+**Development checkpoint:** leave the Zoom-specific integration at this point. Current priority is correction, simplification and mobile efficiency of the shared UI.
 
 ## Architecture
 
-- `index.html` — complete shared game client: HTML, CSS and JavaScript in one file.
-- `zoom.html` — thin Zoom App wrapper around the shared client.
-- `../worker-src/index.js` — base Cloudflare Worker API and base `GameRoom` Durable Object.
-- `../worker-src/target-visibility.js` — live target-visibility and single-viewport UI layer.
-- `../worker-src/ui.js` — current Worker entry point; live target editing and current UI behavior overrides.
+- `index.html` — **authoritative complete shared game client**: HTML, CSS and JavaScript in one autonomous file;
+- `zoom.html` — thin Zoom App wrapper around the shared client;
+- `../worker-src/index.js` — base Cloudflare Worker API and base `GameRoom` Durable Object implementation;
+- `../worker-src/ui.js` — current Worker entry point containing server-side live-target/visibility behavior and delegating static assets to Cloudflare; it does **not** rewrite the game HTML;
+- `../worker-src/target-visibility.js` — older intermediate layer retained in the repository but no longer part of the current Worker import path;
 - `../wrangler.jsonc` — Worker/static-assets/Durable Object configuration.
-- Each six-character room code maps to one Durable Object by `idFromName(roomCode)`.
-- WebSocket state is server-authoritative.
-- The host secret is generated server-side and stored only in the host browser's `localStorage`.
-- Player identity is a random browser-local ID in `localStorage`; reconnecting does not create a second player entry.
-- Inactive rooms expire after 12 hours.
+
+Important architectural rule: **do not move ordinary UI corrections back into Worker-side HTML string replacement.** Client behavior belongs in `index.html`; server authority and synchronization belong in the Worker/Durable Object.
+
+Each six-character room code maps to one Durable Object by `idFromName(roomCode)`. WebSocket state is server-authoritative. The host secret is generated server-side and stored only in the host browser's `localStorage`. Player identity is a random browser-local ID in `localStorage`; reconnecting does not create a second player entry. Inactive rooms expire after 12 hours.
 
 ## Protocol overview
 
