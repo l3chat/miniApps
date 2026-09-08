@@ -19,6 +19,14 @@ iframe{display:block;width:100%;height:100%;border:0;background:#fff}
 (()=>{
 'use strict';
 
+const game=document.getElementById('game');
+const basePath='/zoom-sum-game/';
+const apiBase=basePath+'api/';
+let meetingUUID='';
+let zoomName='';
+let linkedRoom='';
+let bindTimer=null;
+
 function removeOAuthCode(){
   const url=new URL(location.href);
   if(!url.searchParams.has('code'))return;
@@ -27,18 +35,122 @@ function removeOAuthCode(){
   history.replaceState(null,document.title,url.pathname+url.search+url.hash);
 }
 
+function cleanName(value){
+  return String(value||'').replace(/[\u0000-\u001f\u007f]/g,'').trim().slice(0,40);
+}
+
+function normalizeRoom(value){
+  const room=String(value||'').trim().toUpperCase();
+  return /^[A-HJ-NP-Z2-9]{6}$/.test(room)?room:'';
+}
+
+async function getZoomName(){
+  try{
+    if(typeof window.zoomSdk.getUserContext!=='function')return'';
+    const user=await window.zoomSdk.getUserContext();
+    return cleanName(user?.screenName||user?.displayName||user?.name||'');
+  }catch(error){
+    console.info('getUserContext failed',error);
+    return'';
+  }
+}
+
+async function getMeetingUUID(){
+  try{
+    if(typeof window.zoomSdk.getMeetingUUID!=='function')return'';
+    const response=await window.zoomSdk.getMeetingUUID();
+    return String(response?.meetingUUID||response?.uuid||'').trim();
+  }catch(error){
+    console.info('getMeetingUUID failed',error);
+    return'';
+  }
+}
+
+async function lookupRoom(){
+  if(!meetingUUID)return'';
+  try{
+    const u=new URL(apiBase+'zoom-meeting-room',location.origin);
+    u.searchParams.set('meetingUUID',meetingUUID);
+    const response=await fetch(u,{cache:'no-store'});
+    if(!response.ok)return'';
+    const data=await response.json();
+    return normalizeRoom(data.room);
+  }catch(error){
+    console.info('Zoom meeting room lookup failed',error);
+    return'';
+  }
+}
+
+function setGameUrl(room=''){
+  const u=new URL(basePath+'index.html',location.origin);
+  if(room)u.searchParams.set('room',room);
+  if(zoomName)u.searchParams.set('zoomName',zoomName);
+  const next=u.pathname+u.search;
+  if(game.getAttribute('src')!==next)game.src=next;
+}
+
+function iframeState(){
+  try{
+    const href=game.contentWindow?.location?.href;
+    if(!href)return null;
+    const u=new URL(href);
+    const room=normalizeRoom(u.searchParams.get('room'));
+    const hostSecret=String(u.searchParams.get('host')||'');
+    return {room,hostSecret};
+  }catch{
+    return null;
+  }
+}
+
+async function bindCurrentHostRoom(){
+  if(!meetingUUID)return;
+  const state=iframeState();
+  if(!state?.room||state.hostSecret.length<32)return;
+  if(linkedRoom===state.room)return;
+
+  try{
+    const response=await fetch(apiBase+'zoom-meeting-room',{
+      method:'POST',
+      headers:{'content-type':'application/json'},
+      body:JSON.stringify({meetingUUID,room:state.room,hostSecret:state.hostSecret})
+    });
+    if(response.status===204){
+      linkedRoom=state.room;
+      console.info('Zoom meeting linked to room',linkedRoom);
+      return;
+    }
+    const data=await response.json().catch(()=>({}));
+    console.warn('Could not link Zoom meeting to room',response.status,data);
+  }catch(error){
+    console.info('Zoom meeting room bind failed',error);
+  }
+}
+
+function startBindingWatch(){
+  clearInterval(bindTimer);
+  bindTimer=setInterval(bindCurrentHostRoom,1200);
+  bindCurrentHostRoom();
+}
+
 async function initZoom(){
   removeOAuthCode();
   if(!window.zoomSdk){
     console.warn('Zoom Apps SDK is unavailable; wrapper is running outside Zoom.');
     return;
   }
+
   try{
     const cfg=await window.zoomSdk.config({
       version:'0.16',
-      capabilities:['getRunningContext']
+      capabilities:['getRunningContext','getUserContext','getMeetingUUID']
     });
     console.info('Zoom App initialized',cfg);
+
+    [zoomName,meetingUUID]=await Promise.all([getZoomName(),getMeetingUUID()]);
+    const room=await lookupRoom();
+    linkedRoom=room;
+    setGameUrl(room);
+    startBindingWatch();
   }catch(error){
     console.error('Zoom initialization failed',error);
   }
