@@ -104,6 +104,26 @@ function iframeState(){
   }
 }
 
+function autoEnterParticipant(){
+  if(!zoomName)return;
+  const state=iframeState();
+  if(!state?.room||state.hostSecret)return;
+
+  try{
+    const doc=game.contentWindow.document;
+    const nameInput=doc.getElementById('nameInput');
+    const enterButton=doc.getElementById('saveName');
+    if(!nameInput||!enterButton)return;
+
+    nameInput.value=zoomName;
+    try{game.contentWindow.localStorage.setItem('zoomSumGameName',zoomName)}catch{}
+    enterButton.click();
+    console.info('Zoom participant entered game automatically',state.room);
+  }catch(error){
+    console.info('Automatic participant entry failed',error);
+  }
+}
+
 async function bindCurrentHostRoom(){
   if(!meetingUUID)return;
   const state=iframeState();
@@ -157,6 +177,10 @@ async function initZoom(){
     console.error('Zoom initialization failed',error);
   }
 }
+
+game.addEventListener('load',()=>{
+  setTimeout(autoEnterParticipant,0);
+});
 
 initZoom();
 })();
