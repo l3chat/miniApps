@@ -1,8 +1,10 @@
 import baseWorker, { GameRoom as BaseGameRoom } from './index.js';
 
-const BUILD = '2026-09-07-oauth-v1';
+const BUILD = '2026-09-08-zoom-context-v1';
 const OAUTH_COOKIE = 'zoom_sum_oauth_state';
 const OAUTH_MAX_AGE = 10 * 60;
+const MEETING_LINK_TTL_MS = 12 * 60 * 60 * 1000;
+const ROOM_CODE_RE = /^[A-HJ-NP-Z2-9]{6}$/;
 
 function json(data, init = {}) {
   const headers = new Headers(init.headers || {});
@@ -40,6 +42,59 @@ function getCookie(request, name) {
     if (key === name) return decodeURIComponent(rest.join('='));
   }
   return '';
+}
+
+function sameOrigin(request) {
+  const origin = request.headers.get('Origin');
+  if (!origin) return true;
+  try { return origin === new URL(request.url).origin; } catch { return false; }
+}
+
+function normalizeRoom(value) {
+  const room = String(value || '').trim().toUpperCase();
+  return ROOM_CODE_RE.test(room) ? room : null;
+}
+
+function normalizeMeetingUUID(value) {
+  const meetingUUID = String(value || '').trim();
+  if (!meetingUUID || meetingUUID.length > 512 || /[\u0000-\u001f\u007f]/.test(meetingUUID)) return null;
+  return meetingUUID;
+}
+
+function roomStub(env, room) {
+  return env.GAME_ROOMS.get(env.GAME_ROOMS.idFromName(room));
+}
+
+function meetingLinkStub(env, meetingUUID) {
+  return env.GAME_ROOMS.get(env.GAME_ROOMS.idFromName(`zoom-meeting:${meetingUUID}`));
+}
+
+async function lookupMeetingRoom(env, meetingUUID) {
+  const response = await meetingLinkStub(env, meetingUUID).fetch('https://room.internal/meeting-link');
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error('Meeting room lookup failed');
+  const data = await response.json();
+  return normalizeRoom(data.room);
+}
+
+async function bindMeetingRoom(env, meetingUUID, room, hostSecret) {
+  const verify = await roomStub(env, room).fetch('https://room.internal/verify-host', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ hostSecret }),
+  });
+  if (verify.status === 404) return { status: 404, error: 'Room not found' };
+  if (verify.status !== 204) return { status: 403, error: 'Host permission required' };
+
+  const response = await meetingLinkStub(env, meetingUUID).fetch('https://room.internal/meeting-link', {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ room, expiresAt: Date.now() + MEETING_LINK_TTL_MS }),
+  });
+
+  if (response.status === 409) return { status: 409, error: 'This Zoom meeting is already linked to another room' };
+  if (!response.ok) return { status: 500, error: 'Could not link Zoom meeting' };
+  return { status: 204 };
 }
 
 function oauthRedirectUri(request, env) {
@@ -90,10 +145,6 @@ async function oauthCallback(request, env) {
     return htmlPage('Zoom OAuth error', '<h1 class="err">Нет authorization code</h1><p>Zoom не передал параметр <code>code</code>.</p>', 400);
   }
 
-  // Our /oauth/start flow uses a SameSite=Lax HttpOnly cookie for CSRF protection.
-  // Zoom Local Test / Marketplace may invoke the registered redirect directly without our
-  // start endpoint; in that case both state values are absent and the callback is still safe
-  // because this app does not bind or persist OAuth tokens to a local user account.
   const returnedState = url.searchParams.get('state') || '';
   const expectedState = getCookie(request, OAUTH_COOKIE);
   if ((returnedState || expectedState) && (!returnedState || !expectedState || returnedState !== expectedState)) {
@@ -107,11 +158,7 @@ async function oauthCallback(request, env) {
   }
 
   const redirectUri = oauthRedirectUri(request, env);
-  const form = new URLSearchParams({
-    grant_type: 'authorization_code',
-    code,
-    redirect_uri: redirectUri,
-  });
+  const form = new URLSearchParams({ grant_type: 'authorization_code', code, redirect_uri: redirectUri });
 
   let tokenResponse;
   try {
@@ -138,9 +185,6 @@ async function oauthCallback(request, env) {
     });
   }
 
-  // The game currently does not call Zoom REST APIs, so access/refresh tokens are deliberately
-  // not persisted. Exchanging the code completes and validates the OAuth flow while keeping the
-  // game backend free of unnecessary user data and token storage.
   const scope = escapeHtml(tokenData.scope || '');
   return htmlPage('Zoom OAuth complete', `<h1 class="ok">Авторизация Zoom завершена</h1><p>Приложение успешно авторизовано. Можно закрыть эту страницу и вернуться в Zoom.</p>${scope ? `<p><small>Scopes: ${scope}</small></p>` : ''}`, 200, {
     'set-cookie': `${OAUTH_COOKIE}=; Max-Age=0; Path=/zoom-sum-game/oauth/; Secure; HttpOnly; SameSite=Lax`,
@@ -153,6 +197,35 @@ export default {
 
     if (url.pathname === '/zoom-sum-game/api/version') {
       return json({ build: BUILD, oauthConfigured: Boolean(env.ZOOM_CLIENT_ID && env.ZOOM_CLIENT_SECRET) });
+    }
+
+    if (url.pathname === '/zoom-sum-game/api/zoom-meeting-room') {
+      if (!sameOrigin(request)) return json({ error: 'Cross-origin request rejected' }, { status: 403 });
+
+      if (request.method === 'GET') {
+        const meetingUUID = normalizeMeetingUUID(url.searchParams.get('meetingUUID'));
+        if (!meetingUUID) return json({ error: 'Invalid meeting UUID' }, { status: 400 });
+        try {
+          const room = await lookupMeetingRoom(env, meetingUUID);
+          return json({ room });
+        } catch {
+          return json({ error: 'Could not look up Zoom meeting room' }, { status: 500 });
+        }
+      }
+
+      if (request.method === 'POST') {
+        let body;
+        try { body = await request.json(); } catch { return json({ error: 'Invalid JSON' }, { status: 400 }); }
+        const meetingUUID = normalizeMeetingUUID(body.meetingUUID);
+        const room = normalizeRoom(body.room);
+        const hostSecret = String(body.hostSecret || '');
+        if (!meetingUUID || !room || hostSecret.length < 32) return json({ error: 'Invalid meeting, room or host secret' }, { status: 400 });
+        const result = await bindMeetingRoom(env, meetingUUID, room, hostSecret);
+        if (result.status === 204) return new Response(null, { status: 204 });
+        return json({ error: result.error }, { status: result.status });
+      }
+
+      return json({ error: 'Method not allowed' }, { status: 405 });
     }
 
     if (url.pathname === '/zoom-sum-game/oauth/start' && request.method === 'GET') {
@@ -168,6 +241,49 @@ export default {
 };
 
 export class GameRoom extends BaseGameRoom {
+  async fetch(request) {
+    await this.ensureLoaded();
+    const url = new URL(request.url);
+
+    if (url.pathname === '/verify-host' && request.method === 'POST') {
+      if (!this.room) return new Response('Room not found', { status: 404 });
+      let body;
+      try { body = await request.json(); } catch { return new Response('Bad request', { status: 400 }); }
+      return String(body.hostSecret || '') === this.room.hostSecret
+        ? new Response(null, { status: 204 })
+        : new Response('Forbidden', { status: 403 });
+    }
+
+    if (url.pathname === '/meeting-link') {
+      if (request.method === 'GET') {
+        const link = await this.ctx.storage.get('meetingLink');
+        if (!link || !normalizeRoom(link.room) || Number(link.expiresAt || 0) <= Date.now()) {
+          if (link) await this.ctx.storage.delete('meetingLink');
+          return new Response('Not found', { status: 404 });
+        }
+        return json({ room: link.room, expiresAt: link.expiresAt });
+      }
+
+      if (request.method === 'PUT') {
+        let body;
+        try { body = await request.json(); } catch { return new Response('Bad request', { status: 400 }); }
+        const room = normalizeRoom(body.room);
+        const expiresAt = Number(body.expiresAt);
+        if (!room || !Number.isFinite(expiresAt) || expiresAt <= Date.now()) return new Response('Bad request', { status: 400 });
+
+        const existing = await this.ctx.storage.get('meetingLink');
+        if (existing && normalizeRoom(existing.room) && Number(existing.expiresAt || 0) > Date.now() && existing.room !== room) {
+          return new Response('Already linked', { status: 409 });
+        }
+
+        await this.ctx.storage.put('meetingLink', { room, expiresAt });
+        return new Response(null, { status: 204 });
+      }
+    }
+
+    return super.fetch(request);
+  }
+
   publicStateFor(attachment) {
     const state = super.publicStateFor(attachment);
     const hasTarget = this.room?.target !== null && this.room?.target !== undefined;
@@ -177,9 +293,7 @@ export class GameRoom extends BaseGameRoom {
     state.targetVisible = Boolean(this.room?.targetVisible);
     state.liveTarget = hasTarget && (isHost || this.room.targetVisible) ? this.room.target : null;
 
-    if (state.phase !== 'reveal') {
-      state.target = state.liveTarget;
-    }
+    if (state.phase !== 'reveal') state.target = state.liveTarget;
 
     if (state.result && !isHost && !state.result.success && !this.room.targetVisible) {
       state.result = { ...state.result, target: null };
