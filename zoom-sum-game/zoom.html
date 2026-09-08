@@ -82,9 +82,11 @@ async function lookupRoom(){
 }
 
 function setGameUrl(room=''){
+  if(zoomName){
+    try{localStorage.setItem('zoomSumGameName',zoomName)}catch{}
+  }
   const u=new URL(basePath+'index.html',location.origin);
   if(room)u.searchParams.set('room',room);
-  if(zoomName)u.searchParams.set('zoomName',zoomName);
   const next=u.pathname+u.search;
   if(game.getAttribute('src')!==next)game.src=next;
 }
