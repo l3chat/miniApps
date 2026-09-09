@@ -2,7 +2,12 @@
 
 A lightweight multiplayer game for Zoom meetings.
 
-The primary version is an ordinary browser game shared by URL. There is also an experimental Zoom App wrapper that embeds the same game client, so both variants use the same game logic and Cloudflare backend.
+The project has two front ends over the same Cloudflare backend:
+
+- a normal browser version that can be opened from any browser;
+- a Zoom App wrapper that embeds the same game client inside Zoom.
+
+Both variants share the same game logic, WebSocket protocol, Durable Objects and room state.
 
 ## Production URLs
 
@@ -22,265 +27,306 @@ Zoom OAuth redirect / callback:
 
 `https://miniapps.lechat-reg.workers.dev/zoom-sum-game/oauth/callback`
 
-## Current status — 2026-09-07
+## Current status — 2026-09-09
 
-### Browser version
+The project is now a working multiplayer Zoom game rather than only a prototype.
 
-Working MVP tested with a host on a tablet, another player in a second browser on the same tablet, and a player on a smartphone.
+Verified scenarios include:
 
-Implemented:
+- host on an Android tablet;
+- additional participant in another browser on the same tablet;
+- participant on a smartphone;
+- Zoom App running inside Zoom on Android;
+- Zoom App running on desktop Zoom;
+- OAuth authorization for the user-managed Zoom App;
+- in-meeting sharing through Zoom's built-in paper-plane / Send control;
+- automatic transfer of the current game room to invited Zoom participants;
+- automatic transfer of the participant's Zoom display name;
+- automatic entry into the game for invited Zoom participants without pressing an extra Enter button.
 
-- short room codes and participant links;
-- host secret and browser-local player identity;
-- names and choices 0–5;
-- normal mode with Ready / Unready;
-- host can also participate as a player;
-- countdown mode: `3 → 2 → 1 → START`;
-- in countdown mode each player gets one locked choice;
-- automatic reveal two seconds after all round participants choose;
-- target, sum and individual choices on reveal;
-- live target visibility controlled by the host;
-- live target editing controlled by the host;
-- WebSocket synchronization and reconnect support;
-- one Durable Object per room;
-- inactive-room cleanup.
+## Game rules
 
-### Latest recovery and optimization checkpoint
+- The host creates a room.
+- The room receives a short six-character code.
+- The host enters an integer target value.
+- The host can show or hide the target immediately using `Show target`.
+- Every participant chooses one number from `0` to `5`.
+- In normal mode the participant confirms with Ready and may unready before reveal.
+- In countdown mode the application displays `3 → 2 → 1 → START`; after START each participant gets one locked choice.
+- The server computes the sum.
+- On reveal everyone sees the sum and individual participant values.
+- The target is always revealed on a successful match; on a failed round it follows the current Show target setting.
+- The host can also participate as a normal player.
 
-A mobile-heating report from an iPhone participant triggered an optimization attempt. The first attempt changed more than one thing at once (countdown timer frequency and full-screen blur) and was followed by broken game behavior. Rolling back only `ui.js` did not restore what was visible in production.
+## Current target rules
 
-Investigation found the important architectural cause:
+The target is live room state, not only a parameter copied when a round starts.
 
-- the repository still contained an older static `zoom-sum-game/index.html`;
-- several newer UI rules had been applied by the Worker through runtime string replacements;
-- Cloudflare could serve the static asset directly, bypassing those runtime HTML transformations;
-- this produced an old-looking host UI (`Показывать сразу`, `Ваш выбор`) even though newer Worker-side UI code existed.
+- Editing the host target field immediately updates server state.
+- Clearing the field means that no target is set.
+- Empty target must never become zero implicitly.
+- Starting a round requires a valid integer target.
 
-The architecture was therefore simplified and made deterministic:
+Display rule:
 
-- all agreed client UI and browser behavior now live directly in the autonomous `zoom-sum-game/index.html`;
-- the Worker no longer rewrites HTML;
-- the Worker is responsible only for API, WebSocket, Durable Object state and host-only server commands;
-- the resulting static-client version was tested by the user and confirmed working.
+- no target → `—`;
+- target exists + Show target off → `?`;
+- target exists + Show target on → the actual value.
 
-Relevant recovery commits:
+The same rule applies to:
 
-- `4d371d6271af55a896b00c43d5125bde5feccb97` — make Worker server-only;
-- `7e92306339df8c0586a8b6f79af4b4ac7a1991e1` — move current UI rules directly into `index.html`.
+- participant target display;
+- host `My turn` target display;
+- a failed finished round.
 
-### Current optimization policy
+A successful finished round always reveals its target.
 
-Optimization must now be performed **one isolated change at a time**, followed by a functional test before the next change.
+## Normal mode
 
-The first low-risk optimization has been applied:
+- participant selects `0–5`;
+- participant presses Ready;
+- participant may unready and change the number before reveal;
+- host sees readiness state;
+- host reveals when all active participants are ready;
+- server computes the result.
 
-- removed the full-screen CSS `backdrop-filter: blur(10px)` from the countdown overlay;
-- countdown timing, WebSocket logic, selection logic and game mechanics were not changed;
-- the countdown interval remains at the known-working `80 ms` for now.
+## Countdown mode
 
-Optimization commit:
+When countdown mode is enabled:
 
-- `41497c15b81f7e9408059f936a99c61a950d9a00` — remove expensive countdown blur to reduce mobile GPU load.
-
-**Test status:** this optimization is currently **awaiting user testing**. Do not change the countdown timer frequency until this version has been functionally tested.
-
-## Current game and UI rules
-
-These rules are the current agreed behavior and should be preserved unless explicitly changed.
-
-### 1. Single-screen UI
-
-For both host and participant, on all supported devices and in both portrait and landscape orientation:
-
-- the complete primary UI must fit into one viewport;
-- the page itself must not require vertical scrolling;
-- controls scale with viewport size;
-- secondary lists may scroll internally if necessary;
-- on the host screen the participant list is collapsed by default;
-- the participant's main visual priorities are the target, the `0–5` choice buttons, Ready state, and the result;
-- secondary information should remain visually subordinate.
-
-This rule also applies to the shared client when embedded in the Zoom App wrapper.
-
-### 2. Target is live room state
-
-The target is not merely a parameter applied when a new round starts.
-
-- any valid edit of the host's target input is sent to the server immediately;
-- all connected clients receive the updated room state immediately;
-- clearing the target field means that the target is **not set**;
-- an empty target field must never be interpreted as `0`;
-- starting a round requires a valid integer target.
-
-The server remains authoritative for the current target.
-
-### 3. `Show target` checkbox
-
-The host control is named **`Показывать цель`** (`Show target`).
-
-Its effect is immediate and independent of starting a new round.
-
-Display rule for the current target:
-
-- target not set → `—`;
-- target set + `Show target` off → `?`;
-- target set + `Show target` on → actual target number.
-
-Changing the checkbox immediately updates all connected clients.
-
-### 4. Host `Мой ход` block
-
-The host may participate as an ordinary player while retaining host privileges.
-
-In the host's **`Мой ход`** block:
-
-- the large value is labeled **`Цель`**, not `Ваш выбор`;
-- that value follows exactly the same visibility rule as the participant target display:
-  - no target → `—`;
-  - hidden target → `?`;
-  - visible target → actual number;
-- the host's own selected number is represented by the highlighted `0–5` button rather than by replacing the target display.
-
-### 5. Current target vs finished-round target
-
-These are distinct values conceptually:
-
-- **current target** — the live value in the host input, which may be edited for the next round;
-- **finished-round target** — the target captured in the completed round result.
-
-Editing the current target after a round has finished must not alter the target stored in that finished result.
-
-### 6. Target visibility in the result block
-
-For a completed round, the result block shows the finished-round target according to this rule:
-
-- if `sum === target`, the target is shown **always**, regardless of the `Show target` checkbox;
-- if the sum does not match and `Show target` is on, show the finished-round target number;
-- if the sum does not match and `Show target` is off, show `?`.
-
-The sum itself is always shown.
-
-Changing `Show target` after a failed round should immediately change the visibility of that finished-round target, while the stored finished-round target value itself remains unchanged.
-
-### 7. Normal round mode
-
-- each participant chooses one number from `0` to `5`;
-- the participant presses `Готов`;
-- before reveal, the participant may unready and change the number;
-- the host sees readiness state;
-- the host reveals the result when all active participants are ready;
-- the server calculates the sum.
-
-### 8. Countdown round mode
-
-When **`Обратный отсчёт`** is enabled:
-
-- all clients show `3 → 2 → 1 → СТАРТ`;
-- after `СТАРТ`, each round participant has exactly one accepted choice from `0` to `5`;
-- the first accepted choice is locked and cannot be changed;
-- the round participant set is fixed when the countdown round begins;
-- users joining after the countdown begins wait for the next round;
-- when all round participants have chosen, the Durable Object waits two seconds and reveals automatically;
+- all clients show `3 → 2 → 1 → START`;
+- participants that were present when the round started are fixed as the round participant set;
+- users joining after the countdown starts wait for the next round;
+- after START, the first accepted choice is locked;
+- when all round participants have chosen, the Durable Object waits two seconds;
+- the result is then revealed automatically;
 - automatic reveal does not depend on the host browser remaining active.
 
-### 9. Host participation
+## Single-screen UI
 
-- the host may join the player set under a name;
-- the host's player choice is included in the sum exactly once;
-- host authorization remains separate from player identity;
-- being a player does not weaken host-only permissions such as starting rounds, changing target visibility, changing the live target, or revealing a normal round.
+For both host and participant:
 
-### 10. Reconnection and identity
+- the main interface should fit in one viewport;
+- the page itself should not require vertical scrolling;
+- controls scale with viewport size;
+- secondary lists may scroll internally;
+- the participant's main visual priorities are target, number choice, Ready state and result;
+- the host participant list is collapsed by default;
+- the same layout rules apply when embedded inside Zoom.
 
-- the browser stores a stable player `clientId` in `localStorage`;
-- reconnecting with the same identity must not create a duplicate player in the sum;
-- name, role and round state should be restored where possible after a short connection loss;
-- Ready/choice synchronization should tolerate brief WebSocket interruptions.
+## Multilingual UI
 
-## Zoom App wrapper
+The game client is multilingual.
 
-Status: **prototype exists; further Zoom-specific work is paused while the common game UI is being refined.**
+Currently supported languages:
 
-Implemented:
+- English;
+- Deutsch;
+- Русский;
+- Українська.
 
-- `zoom.html` loads the Zoom Apps SDK;
-- initializes as a Zoom App;
-- provides the standard Zoom invitation dialog;
-- embeds the common `index.html` game client;
-- uses the same Cloudflare Worker, WebSocket protocol and Durable Objects as the browser version;
-- common UI/game changes therefore automatically affect both browser and Zoom variants.
+Language behavior:
 
-Current limitation / next Zoom-specific step:
+- the client first uses a language saved in `localStorage`;
+- otherwise it selects from the browser / Zoom WebView language;
+- unsupported languages fall back to English;
+- a compact language selector in the header allows manual switching;
+- the selected language is stored locally;
+- game state is language-neutral, so different participants may use different interface languages in the same room.
 
-- the Zoom wrapper does not yet automatically transfer the current game-room code to invited participants;
-- invited users may need to enter the short room code manually;
-- further automatic Zoom room association has not yet been implemented.
+Localization covers static controls, connection status, countdown text, participant hints, result labels and the common server error messages.
+
+Localization commit:
+
+- `b21172054f1e58b677fb2101f71ea3a673049a5d` — add English, German, Russian and Ukrainian UI.
+
+## Browser version
+
+The browser version remains fully independent of Zoom.
+
+It supports:
+
+- room creation;
+- joining by room code or participant link;
+- local participant identity through `localStorage`;
+- reconnect support;
+- host participation;
+- normal and countdown modes;
+- live target visibility;
+- multilingual UI.
+
+This remains the fallback for platforms where the Zoom App is unavailable or intentionally unsupported.
+
+## Zoom App
+
+`zoom.html` is intentionally a thin wrapper around `index.html`.
+
+It performs Zoom-specific integration and leaves the actual game UI in the common browser client.
+
+### Invitation / Send behavior
+
+The application no longer implements its own Invite button.
+
+On desktop and Android Zoom, the host uses Zoom's built-in **Send / paper-plane** control for the current Zoom App. Zoom itself creates and displays the invitation.
+
+The exact location and presentation of that invitation are controlled by Zoom, not by this application. In the tested Android flow the invitation appears in meeting chat and can be opened by participants.
+
+### Automatic room association
+
+The game room is associated with the current Zoom meeting using the Meeting UUID.
+
+Flow:
+
+1. The host opens the Zoom App.
+2. The host creates a normal game room.
+3. `zoom.html` detects the new room and its host secret.
+4. The Cloudflare Worker verifies host ownership.
+5. The Worker stores a short-lived `Meeting UUID → room code` association.
+6. The host uses Zoom's built-in Send control.
+7. An invited participant opens the Zoom App.
+8. `zoom.html` gets the same Meeting UUID and looks up the associated room.
+9. The shared `index.html` is opened directly with that room code.
+
+The host secret is never returned to invited participants.
+
+Meeting-room associations expire automatically after approximately 12 hours.
+
+Relevant commits:
+
+- `515f137143782fbd629b02234ad68ed32ac67c02` — add server-side Zoom meeting → room association;
+- `e27a7022c39038b7e9bbd8e99f03c6d3159d518c` — obtain Zoom meeting/user context in the wrapper;
+- `bbabdf689d430bb1f76a310ec004a8a2ebe5f22d` — pass Zoom user name to the shared client;
+- `83ca3f32314eee002dbe0eb2943caf2af6230980` — automatically enter invited Zoom participants into the game.
+
+### Automatic participant name
+
+The Zoom wrapper uses `getUserContext()` and takes the participant's Zoom display name (`screenName`).
+
+That name is stored in the shared game's existing local name key and is used for the game participant record.
+
+For an invited participant with a linked room:
+
+- room code is supplied automatically;
+- Zoom display name is supplied automatically;
+- the participant is joined automatically;
+- no extra `Enter game` click is required in the normal Zoom flow.
+
+The ordinary browser version still keeps the manual name-entry workflow.
+
+### Zoom SDK APIs currently used
+
+The Zoom wrapper currently relies on:
+
+- `getRunningContext`;
+- `getUserContext`;
+- `getMeetingUUID`.
+
+The earlier custom invitation SDK approach was removed because the tested Android client did not expose the invitation APIs through `getSupportedJsApis()`. Zoom's own Send control is simpler and works on both tested desktop and Android clients.
 
 ## Zoom OAuth
 
-A minimal OAuth flow has been added for a user-managed Zoom App, primarily to satisfy Zoom App / mobile-client requirements without changing the game's Cloudflare-based multiplayer architecture.
+The Zoom App is configured as a user-managed app with a minimal OAuth flow.
 
 Implemented endpoints:
 
-- `/zoom-sum-game/oauth/start` — creates a CSRF `state`, stores it in a short-lived secure HttpOnly cookie, and redirects to Zoom authorization;
-- `/zoom-sum-game/oauth/callback` — receives Zoom `code`, validates `state` when present, exchanges the code at Zoom's token endpoint, and shows a success/error page;
-- `/zoom-sum-game/api/version` — reports current Worker build and whether OAuth credentials are configured.
+- `/zoom-sum-game/oauth/start` — starts authorization and creates a CSRF state cookie;
+- `/zoom-sum-game/oauth/callback` — receives the authorization code and exchanges it at Zoom's token endpoint;
+- `/zoom-sum-game/api/version` — reports Worker build information and whether OAuth credentials are present.
 
-Current design deliberately **does not persist access or refresh tokens**, because the game currently does not use Zoom REST APIs. The authorization-code exchange is performed only to complete and validate the OAuth flow while avoiding unnecessary storage of user credentials/tokens.
+OAuth has been successfully tested in production.
 
-OAuth implementation commit:
+The tested authorization completed with the scope:
 
-- `2c4c7810b188f0a71a709870ec3a82868d97e878` — add minimal Zoom OAuth endpoints.
+`zoomapp:inmeeting`
 
-### Required Cloudflare secrets
+The current design deliberately does not persist access or refresh tokens because the multiplayer game itself does not call Zoom REST APIs.
 
-Configure these as Worker secrets/variables; never commit the actual values to GitHub:
+Required Cloudflare secrets:
 
-- `ZOOM_CLIENT_ID` — Zoom App Client ID;
-- `ZOOM_CLIENT_SECRET` — Zoom App Client Secret;
-- optionally `ZOOM_REDIRECT_URI` — normally set to the exact production callback URL below.
+- `ZOOM_CLIENT_ID`;
+- `ZOOM_CLIENT_SECRET`.
 
-Recommended production value:
+Optional variable:
 
-`ZOOM_REDIRECT_URI=https://miniapps.lechat-reg.workers.dev/zoom-sum-game/oauth/callback`
+- `ZOOM_REDIRECT_URI`.
 
-With Wrangler this can be configured with secrets for the credentials, for example:
-
-```sh
-npx wrangler secret put ZOOM_CLIENT_ID
-npx wrangler secret put ZOOM_CLIENT_SECRET
-```
-
-`ZOOM_REDIRECT_URI` is not secret and may be configured as an ordinary Worker variable if desired. If omitted, the Worker derives the callback from the request origin as `/zoom-sum-game/oauth/callback`.
-
-### Required Zoom Marketplace settings
-
-For the Zoom App OAuth configuration use the exact callback URL:
+Production redirect URL:
 
 `https://miniapps.lechat-reg.workers.dev/zoom-sum-game/oauth/callback`
 
-The exact value used by Zoom and by the Worker token exchange must match. The app should remain user-managed for the mobile-client path. Request only the minimum scopes Zoom requires for the enabled Zoom App features; the game itself currently needs no Zoom REST API scope for its multiplayer state.
+Relevant OAuth commit:
 
-For a manual production test after deployment, open:
-
-`https://miniapps.lechat-reg.workers.dev/zoom-sum-game/oauth/start`
-
-A successful flow ends on a page saying that Zoom authorization completed. If the callback reports a redirect mismatch, verify that Marketplace and `ZOOM_REDIRECT_URI` contain the exact same URL, including path and protocol.
-
-**Development checkpoint:** OAuth code is now present, but production OAuth cannot complete until the actual Zoom Client ID and Client Secret are configured in Cloudflare and the matching redirect URL is entered in Zoom Marketplace.
+- `2c4c7810b188f0a71a709870ec3a82868d97e878` — add minimal Zoom OAuth endpoints.
 
 ## Architecture
 
-- `index.html` — **authoritative complete shared game client**: HTML, CSS and JavaScript in one autonomous file;
-- `zoom.html` — thin Zoom App wrapper around the shared client;
-- `../worker-src/index.js` — base Cloudflare Worker API and base `GameRoom` Durable Object implementation;
-- `../worker-src/ui.js` — current Worker entry point containing server-side live-target/visibility behavior, Zoom OAuth routes, and delegation of static assets to Cloudflare; it does **not** rewrite the game HTML;
-- `../worker-src/target-visibility.js` — older intermediate layer retained in the repository but no longer part of the current Worker import path;
-- `../wrangler.jsonc` — Worker/static-assets/Durable Object configuration.
+### Client
 
-Important architectural rule: **do not move ordinary UI corrections back into Worker-side HTML string replacement.** Client behavior belongs in `index.html`; server authority, synchronization and OAuth endpoints belong in the Worker/Durable Object.
+`zoom-sum-game/index.html`
 
-Each six-character room code maps to one Durable Object by `idFromName(roomCode)`. WebSocket state is server-authoritative. The host secret is generated server-side and stored only in the host browser's `localStorage`. Player identity is a random browser-local ID in `localStorage`; reconnecting does not create a second player entry. Inactive rooms expire after 12 hours.
+- authoritative game UI;
+- HTML, CSS and JavaScript in one autonomous page;
+- WebSocket client;
+- game rendering;
+- responsive single-screen layout;
+- localization.
+
+`zoom-sum-game/zoom.html`
+
+- thin Zoom Apps SDK wrapper;
+- gets Zoom user context and Meeting UUID;
+- resolves the game room for the current Zoom meeting;
+- supplies Zoom participant name;
+- performs automatic participant entry;
+- contains no separate game implementation.
+
+### Server
+
+`worker-src/index.js`
+
+- base API;
+- room creation;
+- WebSocket routing;
+- base `GameRoom` Durable Object;
+- normal and countdown game mechanics.
+
+`worker-src/ui.js`
+
+- current Worker entry point;
+- live target / target visibility rules;
+- Zoom OAuth routes;
+- Zoom Meeting UUID → game-room association;
+- delegates static assets to Cloudflare;
+- does **not** rewrite game HTML.
+
+`wrangler.jsonc`
+
+- Worker configuration;
+- static assets;
+- Durable Object binding;
+- deployment settings.
+
+Important architectural rule: ordinary client UI changes belong in `index.html`. Do not reintroduce Worker-side HTML string replacements.
+
+## Durable Objects and identity
+
+Each six-character game room maps to one Durable Object using `idFromName(roomCode)`.
+
+The server is authoritative for game state.
+
+Player identity:
+
+- a random stable `clientId` is stored in browser `localStorage`;
+- reconnecting with the same browser identity does not create a duplicate player in the sum.
+
+Host identity:
+
+- the host receives a random server-generated secret;
+- the secret is stored only in the host browser;
+- host-only WebSocket operations require that secret;
+- the Zoom meeting-room binding endpoint verifies the same host secret before associating a room with a meeting.
+
+No personal data is intentionally stored beyond the participant-entered / Zoom-provided display name required for the current game room.
 
 ## Protocol overview
 
@@ -288,24 +334,60 @@ Browser clients connect to:
 
 `/zoom-sum-game/api/ws?room=ABC234&clientId=...&role=player`
 
-The host additionally connects with `role=host&secret=...`. Host-only commands are rejected unless the WebSocket was authenticated with the room's host secret.
+The host additionally supplies:
 
-Important commands currently include:
+`role=host&secret=...`
 
-Player / shared:
+Important WebSocket commands:
 
-- `join`
-- `select`
-- `setReady`
+Participant/shared:
+
+- `join`;
+- `select`;
+- `setReady`.
 
 Host:
 
-- `startRound`
-- `reveal`
-- `setTargetVisible`
-- `setTarget`
+- `startRound`;
+- `reveal`;
+- `setTargetVisible`;
+- `setTarget`.
 
-The Durable Object broadcasts individualized state snapshots after state changes.
+Zoom meeting-room helper endpoint:
+
+`/zoom-sum-game/api/zoom-meeting-room`
+
+- `GET` with Meeting UUID → returns the associated room code, if any;
+- `POST` with Meeting UUID, room code and host secret → creates the association after host verification.
+
+## Reconnection
+
+- WebSocket reconnect uses exponential backoff;
+- the browser keeps a stable client ID;
+- queued join / select / Ready commands may survive a short connection interruption;
+- participant state is restored from the server where possible;
+- a player must not be counted twice after reconnecting.
+
+## Mobile optimization checkpoint
+
+An iPhone participant reported noticeable heating during play.
+
+An initial optimization attempt changed multiple things at once and caused a regression. Investigation also revealed that older UI changes were being applied through Worker-side HTML replacements, which could be bypassed by direct static asset delivery.
+
+The architecture was corrected so that the complete client now lives directly in `index.html`.
+
+Optimization policy from this point onward:
+
+- make one isolated optimization at a time;
+- functionally test it before applying the next one.
+
+The first low-risk optimization removed the full-screen `backdrop-filter: blur(10px)` from the countdown overlay while leaving countdown timing unchanged.
+
+Commit:
+
+- `41497c15b81f7e9408059f936a99c61a950d9a00`.
+
+The countdown timer interval remains at the known-working `80 ms` until a later isolated optimization is tested.
 
 ## Development
 
