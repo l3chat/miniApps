@@ -7,9 +7,34 @@
 <style>
   html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#060a1c}
   canvas{display:block;width:100%;height:100%;touch-action:none}
+  .mode-switch{
+    position:fixed;
+    top:calc(10px + env(safe-area-inset-top,0px));
+    left:50%;
+    transform:translateX(-50%);
+    z-index:10;
+    display:flex;
+    gap:14px;
+    align-items:center;
+    padding:7px 12px;
+    border-radius:999px;
+    background:rgba(6,10,28,.58);
+    color:#eef4ff;
+    font:600 16px/1 system-ui,-apple-system,"Segoe UI",sans-serif;
+    user-select:none;
+    -webkit-user-select:none;
+    backdrop-filter:blur(5px);
+  }
+  .mode-switch label{display:flex;align-items:center;gap:5px;cursor:pointer}
+  .mode-switch input{margin:0;width:17px;height:17px;accent-color:#b9c9ff}
 </style>
 </head>
 <body>
+<div class="mode-switch" aria-label="Cylinder mode">
+  <label><input type="radio" name="mode" value="1" checked>1</label>
+  <label><input type="radio" name="mode" value="2">2</label>
+</div>
+
 <script type="module">
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
 
@@ -32,26 +57,39 @@ const CYLINDER_RADIUS = 1.48;
 const H = 5.05;
 const ROTATION_SPEED = 0.315;
 
-const pos = new Float32Array(COUNT * 3);
-const sizes = new Float32Array(COUNT);
-const brightness = new Float32Array(COUNT);
+const topPos = [];
+const topSizes = [];
+const topBrightness = [];
+const bottomPos = [];
+const bottomSizes = [];
+const bottomBrightness = [];
 
 for (let i = 0; i < COUNT; i++) {
   const angle = Math.random() * Math.PI * 2;
   const y = (Math.random() - 0.5) * H;
+  const x = Math.cos(angle) * CYLINDER_RADIUS;
+  const z = Math.sin(angle) * CYLINDER_RADIUS;
+  const size = 0.65 + Math.random() * 1.55;
+  const bright = 0.62 + Math.random() * 0.38;
 
-  pos[i * 3] = Math.cos(angle) * CYLINDER_RADIUS;
-  pos[i * 3 + 1] = y;
-  pos[i * 3 + 2] = Math.sin(angle) * CYLINDER_RADIUS;
-
-  sizes[i] = 0.65 + Math.random() * 1.55;
-  brightness[i] = 0.62 + Math.random() * 0.38;
+  if (y >= 0) {
+    topPos.push(x, y, z);
+    topSizes.push(size);
+    topBrightness.push(bright);
+  } else {
+    bottomPos.push(x, y, z);
+    bottomSizes.push(size);
+    bottomBrightness.push(bright);
+  }
 }
 
-const geometry = new THREE.BufferGeometry();
-geometry.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-geometry.setAttribute('aSize', new THREE.BufferAttribute(sizes, 1));
-geometry.setAttribute('aBright', new THREE.BufferAttribute(brightness, 1));
+function makeGeometry(positions, sizes, brightness){
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute('aSize', new THREE.Float32BufferAttribute(sizes, 1));
+  geometry.setAttribute('aBright', new THREE.Float32BufferAttribute(brightness, 1));
+  return geometry;
+}
 
 const material = new THREE.ShaderMaterial({
   transparent: true,
@@ -90,20 +128,44 @@ const material = new THREE.ShaderMaterial({
   `
 });
 
-const cloud = new THREE.Points(geometry, material);
-const group = new THREE.Group();
-group.add(cloud);
-scene.add(group);
+const topCloud = new THREE.Points(
+  makeGeometry(topPos, topSizes, topBrightness),
+  material
+);
+const bottomCloud = new THREE.Points(
+  makeGeometry(bottomPos, bottomSizes, bottomBrightness),
+  material
+);
 
-group.rotation.x = 0;
-group.rotation.z = 0;
+scene.add(topCloud, bottomCloud);
+
+let mode = 1;
+
+document.querySelectorAll('input[name="mode"]').forEach(input => {
+  input.addEventListener('change', () => {
+    mode = Number(document.querySelector('input[name="mode"]:checked').value);
+    if (mode === 2) {
+      bottomCloud.rotation.y = topCloud.rotation.y;
+    } else {
+      bottomCloud.rotation.y = topCloud.rotation.y;
+    }
+  });
+});
 
 const clock = new THREE.Clock();
 
 function animate(){
   requestAnimationFrame(animate);
   const delta = clock.getDelta();
-  group.rotation.y += ROTATION_SPEED * delta;
+
+  topCloud.rotation.y += ROTATION_SPEED * delta;
+
+  if (mode === 1) {
+    bottomCloud.rotation.y = topCloud.rotation.y;
+  } else {
+    bottomCloud.rotation.y += ROTATION_SPEED * 1.10 * delta;
+  }
+
   renderer.render(scene, camera);
 }
 animate();
@@ -125,7 +187,6 @@ function fitCamera(){
   renderer.setSize(innerWidth, innerHeight);
   material.uniforms.uPixelRatio.value = pixelRatio;
 
-  // Scale particles from the cylinder's actual visible width in CSS pixels.
   const worldViewWidth = camera.right - camera.left;
   const cylinderPixelWidth = (2 * CYLINDER_RADIUS / worldViewWidth) * innerWidth;
   material.uniforms.uPointScale.value = 5.2 * (cylinderPixelWidth / 600);
