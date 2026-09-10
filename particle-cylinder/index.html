@@ -8,23 +8,46 @@
   html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#060a1c}
   canvas{display:block;width:100%;height:100%;touch-action:none}
 
-  .speed-control{
+  .controls{
     position:fixed;
     top:calc(10px + env(safe-area-inset-top,0px));
     left:50%;
     transform:translateX(-50%);
     z-index:10;
     display:flex;
+    flex-direction:column;
     align-items:center;
-    gap:10px;
+    gap:7px;
     padding:8px 12px;
-    border-radius:999px;
+    border-radius:16px;
     background:rgba(6,10,28,.58);
     color:#eef4ff;
     font:600 15px/1 system-ui,-apple-system,"Segoe UI",sans-serif;
     user-select:none;
     -webkit-user-select:none;
     backdrop-filter:blur(5px);
+  }
+
+  .cylinder-control,
+  .speed-control{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    white-space:nowrap;
+  }
+
+  .cylinder-control label{
+    display:flex;
+    align-items:center;
+    gap:4px;
+    cursor:pointer;
+  }
+
+  .cylinder-control input{
+    margin:0;
+    width:17px;
+    height:17px;
+    accent-color:#b9c9ff;
   }
 
   .speed-control input[type="range"]{
@@ -41,11 +64,17 @@
 </style>
 </head>
 <body>
-<div class="speed-control">
-  <span>1×</span>
-  <input id="speedSlider" type="range" min="1" max="3" step="0.1" value="2" aria-label="Lower half speed multiplier">
-  <span>3×</span>
-  <span id="speedValue" class="speed-value">2.0×</span>
+<div class="controls">
+  <div class="cylinder-control" aria-label="Number of cylinders">
+    <label><input type="radio" name="cylinders" value="1" checked>1</label>
+    <label><input type="radio" name="cylinders" value="2">2</label>
+  </div>
+  <div class="speed-control">
+    <span>1×</span>
+    <input id="speedSlider" type="range" min="1" max="3" step="0.1" value="2" aria-label="Lower half speed multiplier">
+    <span>3×</span>
+    <span id="speedValue" class="speed-value">2.0×</span>
+  </div>
 </div>
 
 <script type="module">
@@ -67,6 +96,7 @@ document.body.appendChild(renderer.domElement);
 
 const COUNT = innerWidth < 600 ? 3600 : 6200;
 const CYLINDER_RADIUS = 1.48;
+const INNER_RADIUS = CYLINDER_RADIUS / 2;
 const H = 5.05;
 const ROTATION_SPEED = 0.315;
 
@@ -94,6 +124,23 @@ for (let i = 0; i < COUNT; i++) {
     bottomSizes.push(size);
     bottomBrightness.push(bright);
   }
+}
+
+const innerPos = [];
+const innerSizes = [];
+const innerBrightness = [];
+const INNER_COUNT = Math.round(COUNT / 2);
+
+for (let i = 0; i < INNER_COUNT; i++) {
+  const angle = Math.random() * Math.PI * 2;
+  const y = (Math.random() - 0.5) * H;
+  innerPos.push(
+    Math.cos(angle) * INNER_RADIUS,
+    y,
+    Math.sin(angle) * INNER_RADIUS
+  );
+  innerSizes.push(0.65 + Math.random() * 1.55);
+  innerBrightness.push(0.62 + Math.random() * 0.38);
 }
 
 function makeGeometry(positions, sizes, brightness){
@@ -149,8 +196,13 @@ const bottomCloud = new THREE.Points(
   makeGeometry(bottomPos, bottomSizes, bottomBrightness),
   material
 );
+const innerCloud = new THREE.Points(
+  makeGeometry(innerPos, innerSizes, innerBrightness),
+  material
+);
+innerCloud.visible = false;
 
-scene.add(topCloud, bottomCloud);
+scene.add(topCloud, bottomCloud, innerCloud);
 
 const speedSlider = document.getElementById('speedSlider');
 const speedValue = document.getElementById('speedValue');
@@ -170,6 +222,12 @@ speedSlider.addEventListener('input', () => {
   }
 });
 
+document.querySelectorAll('input[name="cylinders"]').forEach(input => {
+  input.addEventListener('change', () => {
+    innerCloud.visible = document.querySelector('input[name="cylinders"]:checked').value === '2';
+  });
+});
+
 const clock = new THREE.Clock();
 
 function animate(){
@@ -183,6 +241,9 @@ function animate(){
   } else {
     bottomCloud.rotation.y += ROTATION_SPEED * lowerSpeedMultiplier * delta;
   }
+
+  // The inner cylinder always rotates at the base angular speed.
+  innerCloud.rotation.y += ROTATION_SPEED * delta;
 
   renderer.render(scene, camera);
 }
