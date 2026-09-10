@@ -144,11 +144,7 @@ let mode = 1;
 document.querySelectorAll('input[name="mode"]').forEach(input => {
   input.addEventListener('change', () => {
     mode = Number(document.querySelector('input[name="mode"]:checked').value);
-    if (mode === 2) {
-      bottomCloud.rotation.y = topCloud.rotation.y;
-    } else {
-      bottomCloud.rotation.y = topCloud.rotation.y;
-    }
+    bottomCloud.rotation.y = topCloud.rotation.y;
   });
 });
 
@@ -163,7 +159,7 @@ function animate(){
   if (mode === 1) {
     bottomCloud.rotation.y = topCloud.rotation.y;
   } else {
-    bottomCloud.rotation.y += ROTATION_SPEED * 1.10 * delta;
+    bottomCloud.rotation.y += ROTATION_SPEED * 1.50 * delta;
   }
 
   renderer.render(scene, camera);
