@@ -7,32 +7,45 @@
 <style>
   html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#060a1c}
   canvas{display:block;width:100%;height:100%;touch-action:none}
-  .mode-switch{
+
+  .speed-control{
     position:fixed;
     top:calc(10px + env(safe-area-inset-top,0px));
     left:50%;
     transform:translateX(-50%);
     z-index:10;
     display:flex;
-    gap:14px;
     align-items:center;
-    padding:7px 12px;
+    gap:10px;
+    padding:8px 12px;
     border-radius:999px;
     background:rgba(6,10,28,.58);
     color:#eef4ff;
-    font:600 16px/1 system-ui,-apple-system,"Segoe UI",sans-serif;
+    font:600 15px/1 system-ui,-apple-system,"Segoe UI",sans-serif;
     user-select:none;
     -webkit-user-select:none;
     backdrop-filter:blur(5px);
   }
-  .mode-switch label{display:flex;align-items:center;gap:5px;cursor:pointer}
-  .mode-switch input{margin:0;width:17px;height:17px;accent-color:#b9c9ff}
+
+  .speed-control input[type="range"]{
+    width:min(52vw,260px);
+    margin:0;
+    accent-color:#b9c9ff;
+  }
+
+  .speed-value{
+    min-width:42px;
+    text-align:right;
+    font-variant-numeric:tabular-nums;
+  }
 </style>
 </head>
 <body>
-<div class="mode-switch" aria-label="Cylinder mode">
-  <label><input type="radio" name="mode" value="1" checked>1</label>
-  <label><input type="radio" name="mode" value="2">2</label>
+<div class="speed-control">
+  <span>1×</span>
+  <input id="speedSlider" type="range" min="1" max="8" step="0.1" value="2" aria-label="Lower half speed multiplier">
+  <span>8×</span>
+  <span id="speedValue" class="speed-value">2.0×</span>
 </div>
 
 <script type="module">
@@ -139,13 +152,22 @@ const bottomCloud = new THREE.Points(
 
 scene.add(topCloud, bottomCloud);
 
-let mode = 1;
+const speedSlider = document.getElementById('speedSlider');
+const speedValue = document.getElementById('speedValue');
+let lowerSpeedMultiplier = Number(speedSlider.value);
+let wasSynchronized = false;
 
-document.querySelectorAll('input[name="mode"]').forEach(input => {
-  input.addEventListener('change', () => {
-    mode = Number(document.querySelector('input[name="mode"]:checked').value);
+speedSlider.addEventListener('input', () => {
+  lowerSpeedMultiplier = Number(speedSlider.value);
+  speedValue.textContent = lowerSpeedMultiplier.toFixed(1) + '×';
+
+  if (lowerSpeedMultiplier === 1) {
     bottomCloud.rotation.y = topCloud.rotation.y;
-  });
+    wasSynchronized = true;
+  } else if (wasSynchronized) {
+    bottomCloud.rotation.y = topCloud.rotation.y;
+    wasSynchronized = false;
+  }
 });
 
 const clock = new THREE.Clock();
@@ -156,10 +178,10 @@ function animate(){
 
   topCloud.rotation.y += ROTATION_SPEED * delta;
 
-  if (mode === 1) {
+  if (lowerSpeedMultiplier === 1) {
     bottomCloud.rotation.y = topCloud.rotation.y;
   } else {
-    bottomCloud.rotation.y += ROTATION_SPEED * 1.50 * delta;
+    bottomCloud.rotation.y += ROTATION_SPEED * lowerSpeedMultiplier * delta;
   }
 
   renderer.render(scene, camera);
