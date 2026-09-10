@@ -125,8 +125,10 @@ function fitCamera(){
   renderer.setSize(innerWidth, innerHeight);
   material.uniforms.uPixelRatio.value = pixelRatio;
 
-  const shortSide = Math.min(innerWidth, innerHeight);
-  material.uniforms.uPointScale.value = 5.2 * (shortSide / 800);
+  // Scale particles from the cylinder's actual visible width in CSS pixels.
+  const worldViewWidth = camera.right - camera.left;
+  const cylinderPixelWidth = (2 * CYLINDER_RADIUS / worldViewWidth) * innerWidth;
+  material.uniforms.uPointScale.value = 5.2 * (cylinderPixelWidth / 600);
 }
 
 addEventListener('resize', fitCamera);
