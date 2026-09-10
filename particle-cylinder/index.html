@@ -15,18 +15,9 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.m
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x060a1c);
-// Perspective cues removed completely: no fog.
 scene.fog = null;
 
-const frustumSize = 6.2;
-const camera = new THREE.OrthographicCamera(
-  -frustumSize * (innerWidth / innerHeight) / 2,
-   frustumSize * (innerWidth / innerHeight) / 2,
-   frustumSize / 2,
-  -frustumSize / 2,
-   0.1,
-   100
-);
+const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 100);
 camera.position.set(0, 0, 10);
 camera.lookAt(0, 0, 0);
 
@@ -36,11 +27,10 @@ renderer.setSize(innerWidth, innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 document.body.appendChild(renderer.domElement);
 
-// ---- Particles on cylinder lateral surface --------------------------------
 const COUNT = innerWidth < 600 ? 3600 : 6200;
 const CYLINDER_RADIUS = 1.48;
 const H = 5.05;
-const ROTATION_SPEED = 0.315; // 3x faster than the original 0.105
+const ROTATION_SPEED = 0.315;
 
 const pos = new Float32Array(COUNT * 3);
 const sizes = new Float32Array(COUNT);
@@ -68,10 +58,12 @@ const material = new THREE.ShaderMaterial({
   depthWrite: false,
   blending: THREE.AdditiveBlending,
   uniforms: {
-    uPixelRatio: { value: Math.min(devicePixelRatio, 2) }
+    uPixelRatio: { value: Math.min(devicePixelRatio, 2) },
+    uPointScale: { value: 5.2 }
   },
   vertexShader: `
     uniform float uPixelRatio;
+    uniform float uPointScale;
     attribute float aSize;
     attribute float aBright;
     varying float vAlpha;
@@ -79,7 +71,7 @@ const material = new THREE.ShaderMaterial({
     void main(){
       vec4 mv = modelViewMatrix * vec4(position, 1.0);
       gl_Position = projectionMatrix * mv;
-      gl_PointSize = aSize * uPixelRatio * 5.2;
+      gl_PointSize = aSize * uPixelRatio * uPointScale;
       vAlpha = aBright;
     }
   `,
@@ -103,7 +95,6 @@ const group = new THREE.Group();
 group.add(cloud);
 scene.add(group);
 
-// No tilt: the cylinder is viewed straight-on to avoid any perspective-like feel.
 group.rotation.x = 0;
 group.rotation.z = 0;
 
@@ -112,18 +103,15 @@ const clock = new THREE.Clock();
 function animate(){
   requestAnimationFrame(animate);
   const delta = clock.getDelta();
-
-  // Perfectly uniform rigid rotation:
-  // all particle positions relative to each other remain unchanged.
   group.rotation.y += ROTATION_SPEED * delta;
-
   renderer.render(scene, camera);
 }
 animate();
 
 function fitCamera(){
   const aspect = innerWidth / innerHeight;
-  const halfHeight = H * 0.52;
+  const margin = 1.10;
+  const halfHeight = H * 0.52 * margin;
   const halfWidth = halfHeight * aspect;
 
   camera.left = -halfWidth;
@@ -132,9 +120,13 @@ function fitCamera(){
   camera.bottom = -halfHeight;
   camera.updateProjectionMatrix();
 
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  const pixelRatio = Math.min(devicePixelRatio, 2);
+  renderer.setPixelRatio(pixelRatio);
   renderer.setSize(innerWidth, innerHeight);
-  material.uniforms.uPixelRatio.value = Math.min(devicePixelRatio, 2);
+  material.uniforms.uPixelRatio.value = pixelRatio;
+
+  const shortSide = Math.min(innerWidth, innerHeight);
+  material.uniforms.uPointScale.value = 5.2 * (shortSide / 800);
 }
 
 addEventListener('resize', fitCamera);
