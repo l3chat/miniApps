@@ -56,9 +56,9 @@ export async function loadGame() {
     assert.equal(response.status,201);
     return r;
   }
-  async function connect(r,clientId,role='player',suppliedSecret=secret) {
+  async function connect(r,clientId,role='player',suppliedSecret=secret,resumeToken='') {
     const u=new URL('https://room.internal/websocket');
-    u.searchParams.set('clientId',clientId);u.searchParams.set('role',role);u.searchParams.set('secret',suppliedSecret);
+    u.searchParams.set('resumeToken',resumeToken);u.searchParams.set('clientId',clientId);u.searchParams.set('role',role);u.searchParams.set('secret',suppliedSecret);
     const response=await r.fetch(new Request(u,{headers:{Upgrade:'websocket'}}));
     if(response.status!==101) return {response};
     return r.ctx.sockets.at(-1);

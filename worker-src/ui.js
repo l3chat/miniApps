@@ -1,4 +1,4 @@
-import baseWorker, { GameRoom as BaseGameRoom } from './index.js';
+import baseWorker, { GameRoom as BaseGameRoom, parseMessage } from './index.js';
 
 const BUILD = '2026-09-08-zoom-context-v1';
 const OAUTH_COOKIE = 'zoom_sum_oauth_state';
@@ -77,7 +77,7 @@ async function lookupMeetingRoom(env, meetingUUID) {
   return normalizeRoom(data.room);
 }
 
-async function bindMeetingRoom(env, meetingUUID, room, hostSecret) {
+async function bindMeetingRoom(env, meetingUUID, room, hostSecret, previousRoom, previousHostSecret) {
   const verify = await roomStub(env, room).fetch('https://room.internal/verify-host', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -86,10 +86,20 @@ async function bindMeetingRoom(env, meetingUUID, room, hostSecret) {
   if (verify.status === 404) return { status: 404, error: 'Room not found' };
   if (verify.status !== 204) return { status: 403, error: 'Host permission required' };
 
+  const expectedRoom = await lookupMeetingRoom(env, meetingUUID);
+  if (expectedRoom && expectedRoom !== room) {
+    if (normalizeRoom(previousRoom) !== expectedRoom) return { status: 409, error: 'Meeting association changed. Retry lookup' };
+    const previous = await roomStub(env, expectedRoom).fetch('https://room.internal/verify-host', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ hostSecret: previousHostSecret }),
+    });
+    if (previous.status !== 204 && previous.status !== 404) return { status: 403, error: 'Previous room host permission required' };
+  }
+
   const response = await meetingLinkStub(env, meetingUUID).fetch('https://room.internal/meeting-link', {
     method: 'PUT',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ room, expiresAt: Date.now() + MEETING_LINK_TTL_MS }),
+    body: JSON.stringify({ room, expectedRoom, expiresAt: Date.now() + MEETING_LINK_TTL_MS }),
   });
 
   if (response.status === 409) return { status: 409, error: 'This Zoom meeting is already linked to another room' };
@@ -216,11 +226,12 @@ export default {
       if (request.method === 'POST') {
         let body;
         try { body = await request.json(); } catch { return json({ error: 'Invalid JSON' }, { status: 400 }); }
+        if (!body || typeof body !== 'object' || Array.isArray(body)) return json({ error: 'Invalid message' }, { status: 400 });
         const meetingUUID = normalizeMeetingUUID(body.meetingUUID);
         const room = normalizeRoom(body.room);
         const hostSecret = String(body.hostSecret || '');
         if (!meetingUUID || !room || hostSecret.length < 32) return json({ error: 'Invalid meeting, room or host secret' }, { status: 400 });
-        const result = await bindMeetingRoom(env, meetingUUID, room, hostSecret);
+        const result = await bindMeetingRoom(env, meetingUUID, room, hostSecret, body.previousRoom, body.previousHostSecret);
         if (result.status === 204) return new Response(null, { status: 204 });
         return json({ error: result.error }, { status: result.status });
       }
@@ -249,7 +260,7 @@ export class GameRoom extends BaseGameRoom {
       if (!this.room) return new Response('Room not found', { status: 404 });
       let body;
       try { body = await request.json(); } catch { return new Response('Bad request', { status: 400 }); }
-      return String(body.hostSecret || '') === this.room.hostSecret
+      return String(body?.hostSecret || '') === this.room.hostSecret
         ? new Response(null, { status: 204 })
         : new Response('Forbidden', { status: 403 });
     }
@@ -267,17 +278,18 @@ export class GameRoom extends BaseGameRoom {
       if (request.method === 'PUT') {
         let body;
         try { body = await request.json(); } catch { return new Response('Bad request', { status: 400 }); }
-        const room = normalizeRoom(body.room);
+        const room = normalizeRoom(body?.room);
         const expiresAt = Number(body.expiresAt);
         if (!room || !Number.isFinite(expiresAt) || expiresAt <= Date.now()) return new Response('Bad request', { status: 400 });
 
-        const existing = await this.ctx.storage.get('meetingLink');
-        if (existing && normalizeRoom(existing.room) && Number(existing.expiresAt || 0) > Date.now() && existing.room !== room) {
-          return new Response('Already linked', { status: 409 });
-        }
-
-        await this.ctx.storage.put('meetingLink', { room, expiresAt });
-        return new Response(null, { status: 204 });
+        const status = await this.ctx.storage.transaction(async (tx) => {
+          const existing = await tx.get('meetingLink');
+          const current = existing && Number(existing.expiresAt || 0) > Date.now() ? normalizeRoom(existing.room) : null;
+          if (current !== room && current !== normalizeRoom(body.expectedRoom)) return 409;
+          await tx.put('meetingLink', { room, expiresAt });
+          return 204;
+        });
+        return new Response(status === 204 ? null : 'Already linked', { status });
       }
     }
 
@@ -294,6 +306,7 @@ export class GameRoom extends BaseGameRoom {
     state.liveTarget = hasTarget && (isHost || this.room.targetVisible) ? this.room.target : null;
 
     if (state.phase !== 'reveal') state.target = state.liveTarget;
+    else state.target = state.result && (isHost || state.result.success || this.room.targetVisible) ? state.result.target : null;
 
     if (state.result && !isHost && !state.result.success && !this.room.targetVisible) {
       state.result = { ...state.result, target: null };
@@ -306,20 +319,20 @@ export class GameRoom extends BaseGameRoom {
     await this.ensureLoaded();
     if (!this.room) return;
 
-    let data = null;
-    if (typeof message === 'string') {
-      try { data = JSON.parse(message); } catch {}
-    }
+    const data = parseMessage(message);
+    if (!data) return this.sendError(ws, 'Invalid message');
 
     const attachment = this.getAttachment(ws);
     const isHost = attachment?.role === 'host';
+    if (!this.authenticated(attachment)) return this.sendError(ws, 'Client update required. Reload the page');
 
     if (data?.type === 'setTargetVisible') {
       if (!isHost) {
         this.sendError(ws, 'Host permission required');
         return;
       }
-      this.room.targetVisible = Boolean(data.visible);
+      if (typeof data.visible !== 'boolean') return this.sendError(ws, 'Invalid message');
+      this.room.targetVisible = data.visible;
       await this.persist();
       this.broadcast();
       return;
@@ -334,7 +347,7 @@ export class GameRoom extends BaseGameRoom {
       if (data.target === null) {
         this.room.target = null;
       } else {
-        const target = Number(data.target);
+        const target = data.target;
         if (!Number.isSafeInteger(target) || Math.abs(target) > 1_000_000_000) {
           this.sendError(ws, 'Target must be an integer between -1000000000 and 1000000000');
           return;

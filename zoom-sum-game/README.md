@@ -413,3 +413,11 @@ Work is tracked by the audit IDs below; publication uses the existing Cloudflare
 - Regression tests: `npm run test:zoom-sum` (Node.js 22 or newer). The adapters simulate platform services; these are logic tests, not real Zoom/device tests.
 
 Offline game commands are no longer replayed. Only a pending name/join request is sent after the first server snapshot. Old open pages must reload: roundless mutations receive an explicit update-required error.
+
+- SEC-1, TARGET-1: no hidden failed target in any player-visible field; an unset result target has a neutral status and displays `—`.
+- SEC-2: a private, server-issued resume token authenticates each player connection; the public player ID is not a credential. Tokens are never included in player lists/results or invitation links.
+- INPUT-1: object/size validation applies before either Worker message handler; numeric/boolean commands reject coercion.
+- ROOM-1, ROUND-1: 64 active players, at most 256 retained identities (12-hour retention); active countdown roster members are protected from pruning. Disconnected roster members stay in the round and are labelled offline.
+- UI-1: short narrow viewports retain the single-column host layout; reduced host/result sizes and wrapping prevent the previous minimum-width clipping.
+
+Migration: old open pages must reload once. Legacy player records without a resume token cannot be safely claimed by public ID; those players re-enter under a new room-specific ID. For a countdown already in progress at deployment, the host should start a new round after everyone reloads. Normal authenticated reconnection preserves the same player and accepted choice.
