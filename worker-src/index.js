@@ -183,6 +183,7 @@ export class GameRoom extends DurableObject {
 
   authenticated(attachment) {
     if (!attachment.clientId || !attachment.resumeToken) return false;
+    if (attachment.role === 'host') return true;
     const player = Object.hasOwn(this.room.players, attachment.clientId) ? this.room.players[attachment.clientId] : null;
     return !player || player.resumeToken === attachment.resumeToken;
   }

@@ -16,6 +16,7 @@ export async function loadGame() {
   }
   class Storage {
     constructor() { this.data = new Map(); this.alarm = null; }
+    async transaction(fn) { const previous=this.queue||Promise.resolve();let release;this.queue=new Promise(r=>{release=r});await previous;try{return await fn(this)}finally{release()} }
     async get(k) { return structuredClone(this.data.get(k)); }
     async put(k,v) { this.data.set(k,structuredClone(v)); }
     async delete(k) { return this.data.delete(k); }

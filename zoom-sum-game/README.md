@@ -363,8 +363,8 @@ Zoom meeting-room helper endpoint:
 ## Reconnection
 
 - WebSocket reconnect uses exponential backoff;
-- the browser keeps a stable client ID;
-- queued join / select / Ready commands may survive a short connection interruption;
+- the browser keeps a stable client ID plus a private room-specific resume token;
+- only a name/join request may wait for a short interruption; game actions are never replayed offline;
 - participant state is restored from the server where possible;
 - a player must not be counted twice after reconnecting.
 
@@ -421,3 +421,22 @@ Offline game commands are no longer replayed. Only a pending name/join request i
 - UI-1: short narrow viewports retain the single-column host layout; reduced host/result sizes and wrapping prevent the previous minimum-width clipping.
 
 Migration: old open pages must reload once. Legacy player records without a resume token cannot be safely claimed by public ID; those players re-enter under a new room-specific ID. For a countdown already in progress at deployment, the host should start a new round after everyone reloads. Normal authenticated reconnection preserves the same player and accepted choice.
+
+
+- ZOOM-1: replacing a meeting association verifies both the new room owner and the previous room owner; an atomic compare prevents stale overwrites. Permanent failures stop retries; transient failures have bounded backoff.
+- ZOOM-2: a participant who arrives before the room is linked gets up to eight lookup attempts. Network/foreground events restart lookup. Manual Exit leaves the landing page available, including for creating a replacement room.
+- ZOOM-3: context errors retry; context changes reconfigure the SDK. Optional event capabilities fall back to the original capability set on older/limited clients. A 30-second context check also detects changes when events are unavailable. Participants already in a room are not silently moved to another meeting.
+- ZOOM-4: the same-origin wrapper asks the client for its actual role and uses an explicit participant-entry method. It never clicks hidden controls or automatically joins a restored host.
+- OAUTH-1: callback requires matching state and cookie before code exchange. A Marketplace callback without either starts a fresh authorization flow with state; it does not exchange the uncorrelated code. Tokens remain unpersisted.
+
+SDK behavior follows the current [Zoom Apps SDK reference](https://appssdk.zoom.us/classes/ZoomSdk.ZoomSdk.html), including reconfiguration after context/role changes. OAuth uses Zoom’s [authorization-code flow](https://developers.zoom.us/docs/integrations/oauth/).
+
+### Validation and deployment
+
+All 17 audit groups are covered by the changes above. The original audit had 21 executable scenarios, not 21 independent bug groups. The regression suite now checks 30 scenarios, including accepted/lost selections, stale commands, normal and countdown rounds, participant authentication, capacity/retention, meeting replacement races, context recovery and OAuth state.
+
+UI-1 was checked by inspecting the responsive rules: short screens no longer force a two-column minimum width of 465 px. The countdown interval remains 80 ms, and pings remain at a 20-second cadence. The host result hides inactive participation controls to reserve space for the result and next-round settings; the page itself does not scroll. Participant lists and constrained settings may scroll internally.
+
+Real-device/Zoom smoke testing was not available in the implementation environment. Remaining verification on actual devices: 320/360/390 px portrait, landscape, host result and open keyboard; Zoom Share App on Android/desktop; first-time Marketplace authorization. The automated adapters do not claim to verify visual layout, native Zoom permissions, or real OAuth consent.
+
+Release build identifier: `2026-09-14-reliability-v2`. Existing main-branch Cloudflare Workers Builds publishes the release. No changes are required to the configured OAuth callback, scope, client secrets, Wrangler bindings, or other miniApps.

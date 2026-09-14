@@ -32,7 +32,7 @@ function runtime(html,href,stored={}){
  const location={url:new URL(href),get href(){return this.url.href;},set href(v){this.url=new URL(v,this.url);},get origin(){return this.url.origin;},get protocol(){return this.url.protocol;},reload(){this.reloaded=true;}};
  const document=documentFor(html);
  class AuditDate extends Date {constructor(...a){super(...(a.length?a:[clock.now]));}static now(){return clock.now;}}
- const context={document,location,localStorage,navigator:{languages:['en'],language:'en'},URL,Date:AuditDate,crypto:{randomUUID:()=> 'local-audit-client'},console:{info(){},warn(){},error(){}},history:{replaceState(_s,_t,u){location.href=u;}},setTimeout:(f,t=0)=>schedule(f,t,0),clearTimeout:id=>timers.delete(id),setInterval:(f,t)=>schedule(f,t,t),clearInterval:id=>timers.delete(id),addEventListener(k,f){(events[k]??=[]).push(f);}};
+ const context={document,location,localStorage,AbortController,Promise,navigator:{languages:['en'],language:'en'},URL,Date:AuditDate,crypto:{randomUUID:()=> 'local-audit-client'},console:{info(){},warn(){},error(){}},history:{replaceState(_s,_t,u){location.href=u;}},setTimeout:(f,t=0)=>schedule(f,t,0),clearTimeout:id=>timers.delete(id),setInterval:(f,t)=>schedule(f,t,t),clearInterval:id=>timers.delete(id),addEventListener(k,f){(events[k]??=[]).push(f);}};
  context.window=context;
  async function tick(ms){const end=clock.now+ms;let runs=0;for(;;){const next=[...timers].sort((a,b)=>a[1].at-b[1].at)[0];if(!next||next[1].at>end)break;const[id,t]=next;clock.now=t.at;t.repeat?t.at+=t.repeat:timers.delete(id);await t.fn();if(++runs>10000)throw Error('too many timers');}clock.now=end;await Promise.resolve();}
  return {context,clock,timers,storage,document,location,localStorage,tick,events};
@@ -51,15 +51,15 @@ export function client({host=false,stored={}}={}){
  return e;
 }
 export async function wrapper({lookup=null,uuidFails=false,stored={},bindStatus=204}={}){
- const e=runtime(wrapperHtml,'https://audit.local/zoom-sum-game/zoom.html',stored);const calls={lookup:0,bind:0,uuid:0,name:0,config:0};let currentLookup=lookup;
+ const e=runtime(wrapperHtml,'https://audit.local/zoom-sum-game/zoom.html',stored);const calls={lookup:0,bind:0,uuid:0,name:0,config:0};let currentLookup=lookup,currentUuid='audit-meeting',runningContext='inMeeting';const sdkEvents={};
  const frame=e.document.getElementById('game');const childName=new Element('input',{id:'nameInput'}),enter=new Element('button',{id:'saveName'});let enterClicks=0;enter.onclick=()=>{enterClicks++;};
- frame.contentWindow={location:{href:'https://audit.local/zoom-sum-game/index.html'},localStorage:e.localStorage,document:{getElementById:id=>({nameInput:childName,saveName:enter}[id])}};
+ frame.contentWindow={zoomSumGame:{context(){const u=new URL(frame.contentWindow.location.href);const room=u.searchParams.get('room')||'';const hostSecret=u.searchParams.get('host')||stored['zoomSumGameHost:'+room]||'';return {room,role:hostSecret?'host':'player',hostSecret,joined:false,connected:true}},enterParticipant(name){childName.value=name;enter.click();return true},notice(key){calls.notice=key}},location:{href:'https://audit.local/zoom-sum-game/index.html'},localStorage:e.localStorage,document:{getElementById:id=>({nameInput:childName,saveName:enter}[id])}};
  Object.defineProperty(frame,'src',{get:()=>frame.attrs.src,set(value){frame.attrs.src=value;frame.contentWindow.location.href=new URL(value,'https://audit.local').href;e.context.setTimeout(()=>frame.dispatch('load'),0);}});
- e.context.zoomSdk={config:async()=>{calls.config++;return {};},getUserContext:async()=>{calls.name++;return{screenName:'Zoom Tester'};},getMeetingUUID:async()=>{calls.uuid++;if(uuidFails)throw Error('not in meeting');return{meetingUUID:'audit-meeting'};}};
+ e.context.zoomSdk={config:async()=>{calls.config++;return {};},onRunningContextChange:fn=>{sdkEvents.running=fn},onMyUserContextChange:fn=>{sdkEvents.user=fn},getRunningContext:async()=>({context:runningContext}),getUserContext:async()=>{calls.name++;return{screenName:'Zoom Tester'};},getMeetingUUID:async()=>{calls.uuid++;if(uuidFails)throw Error('not in meeting');return{meetingUUID:currentUuid};}};
  e.context.fetch=async(_u,options={})=>{if(options.method==='POST'){calls.bind++;return new Response(bindStatus===204?null:JSON.stringify({error:'Already linked'}),{status:bindStatus});}calls.lookup++;return new Response(JSON.stringify({room:currentLookup}));};
  vm.runInNewContext(script(wrapperHtml),e.context,{filename:'zoom-sum-game/zoom.html'});
- for(let i=0;i<20;i++)await Promise.resolve();
+ for(let i=0;i<80;i++)await Promise.resolve();
  await e.tick(0);
- return {...e,calls,frame,get enterClicks(){return enterClicks;},setLookup(v){currentLookup=v;},childName};
+ return {...e,calls,frame,get enterClicks(){return enterClicks;},setLookup(v){currentLookup=v;},setUuidFailure(v){uuidFails=v},async changeMeeting(uuid){currentUuid=uuid;sdkEvents.running?.();for(let i=0;i<80;i++)await Promise.resolve();await e.tick(0)},childName};
 }
 

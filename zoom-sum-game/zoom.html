@@ -18,171 +18,121 @@ iframe{display:block;width:100%;height:100%;border:0;background:#fff}
 <script>
 (()=>{
 'use strict';
-
 const game=document.getElementById('game');
-const basePath='/zoom-sum-game/';
-const apiBase=basePath+'api/';
-let meetingUUID='';
-let zoomName='';
-let linkedRoom='';
-let bindTimer=null;
-
-function removeOAuthCode(){
-  const url=new URL(location.href);
-  if(!url.searchParams.has('code'))return;
-  url.searchParams.delete('code');
-  url.searchParams.delete('state');
-  history.replaceState(null,document.title,url.pathname+url.search+url.hash);
+const basePath='/zoom-sum-game/', apiBase=basePath+'api/';
+const capabilities=['getRunningContext','getUserContext','getMeetingUUID'];
+const contextEvents=['onRunningContextChange','onMyUserContextChange'];
+let meetingUUID='',zoomName='',linkedRoom='',configured=false,eventsRegistered=false,refreshing=false,busy=false;
+let contextAttempts=0,nextContextAt=0,lookupAttempts=0,nextLookupAt=0;
+let bindKey='',bindAttempts=0,nextBindAt=0,bindStopped=false;
+let epoch=0,blockedRoom='',lastFrameRoom='',lookupSuppressed=false,autoEnteredRoom='';
+const backoff=n=>Math.min(30000,1000*2**Math.min(n,5));
+function normalizeRoom(value){const room=String(value||'').trim().toUpperCase();return /^[A-HJ-NP-Z2-9]{6}$/.test(room)?room:''}
+function notice(key){try{game.contentWindow?.zoomSumGame?.notice(key)}catch{}}
+function iframeState(){try{return game.contentWindow?.zoomSumGame?.context()||null}catch{return null}}
+function setGameUrl(room){const u=new URL(basePath+'index.html',location.origin);u.searchParams.set('room',room);game.src=u.pathname+u.search}
+async function request(url,options={}){
+  const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),10000);
+  try{return await fetch(url,{...options,signal:controller.signal})}finally{clearTimeout(timeout)}
 }
-
-function cleanName(value){
-  return String(value||'').replace(/[\u0000-\u001f\u007f]/g,'').trim().slice(0,40);
+async function lookupRoom(uuid){
+  const u=new URL(apiBase+'zoom-meeting-room',location.origin);u.searchParams.set('meetingUUID',uuid);
+  const response=await request(u,{cache:'no-store'});if(!response.ok)throw Error('Lookup failed');
+  const data=await response.json();return normalizeRoom(data.room);
 }
-
-function normalizeRoom(value){
-  const room=String(value||'').trim().toUpperCase();
-  return /^[A-HJ-NP-Z2-9]{6}$/.test(room)?room:'';
-}
-
-async function getZoomName(){
-  try{
-    if(typeof window.zoomSdk.getUserContext!=='function')return'';
-    const user=await window.zoomSdk.getUserContext();
-    return cleanName(user?.screenName||user?.displayName||user?.name||'');
-  }catch(error){
-    console.info('getUserContext failed',error);
-    return'';
-  }
-}
-
-async function getMeetingUUID(){
-  try{
-    if(typeof window.zoomSdk.getMeetingUUID!=='function')return'';
-    const response=await window.zoomSdk.getMeetingUUID();
-    return String(response?.meetingUUID||response?.uuid||'').trim();
-  }catch(error){
-    console.info('getMeetingUUID failed',error);
-    return'';
-  }
-}
-
-async function lookupRoom(){
-  if(!meetingUUID)return'';
-  try{
-    const u=new URL(apiBase+'zoom-meeting-room',location.origin);
-    u.searchParams.set('meetingUUID',meetingUUID);
-    const response=await fetch(u,{cache:'no-store'});
-    if(!response.ok)return'';
-    const data=await response.json();
-    return normalizeRoom(data.room);
-  }catch(error){
-    console.info('Zoom meeting room lookup failed',error);
-    return'';
-  }
-}
-
-function setGameUrl(room=''){
-  if(zoomName){
-    try{localStorage.setItem('zoomSumGameName',zoomName)}catch{}
-  }
-  const u=new URL(basePath+'index.html',location.origin);
-  if(room)u.searchParams.set('room',room);
-  const next=u.pathname+u.search;
-  if(game.getAttribute('src')!==next)game.src=next;
-}
-
-function iframeState(){
-  try{
-    const href=game.contentWindow?.location?.href;
-    if(!href)return null;
-    const u=new URL(href);
-    const room=normalizeRoom(u.searchParams.get('room'));
-    const hostSecret=String(u.searchParams.get('host')||'');
-    return {room,hostSecret};
-  }catch{
-    return null;
-  }
-}
-
 function autoEnterParticipant(){
-  if(!zoomName)return;
-  const state=iframeState();
-  if(!state?.room||state.hostSecret)return;
-
-  try{
-    const doc=game.contentWindow.document;
-    const nameInput=doc.getElementById('nameInput');
-    const enterButton=doc.getElementById('saveName');
-    if(!nameInput||!enterButton)return;
-
-    nameInput.value=zoomName;
-    try{game.contentWindow.localStorage.setItem('zoomSumGameName',zoomName)}catch{}
-    enterButton.click();
-    console.info('Zoom participant entered game automatically',state.room);
-  }catch(error){
-    console.info('Automatic participant entry failed',error);
-  }
+  const state=iframeState();if(!zoomName||!state?.room||state.role!=='player'||state.joined||autoEnteredRoom===state.room)return;
+  try{if(game.contentWindow.zoomSumGame.enterParticipant(zoomName))autoEnteredRoom=state.room}catch{}
 }
-
-async function bindCurrentHostRoom(){
-  if(!meetingUUID)return;
-  const state=iframeState();
-  if(!state?.room||state.hostSecret.length<32)return;
-  if(linkedRoom===state.room)return;
-
+function resetAttempts(){lookupAttempts=0;nextLookupAt=0;contextAttempts=0;nextContextAt=0}
+async function refreshContext(reconfigure=false){
+  if(refreshing||!window.zoomSdk)return;
+  refreshing=true;const before=epoch;
   try{
-    const response=await fetch(apiBase+'zoom-meeting-room',{
-      method:'POST',
-      headers:{'content-type':'application/json'},
-      body:JSON.stringify({meetingUUID,room:state.room,hostSecret:state.hostSecret})
+    if(!configured||reconfigure){
+      try{await window.zoomSdk.config({version:'0.16',capabilities:[...capabilities,...contextEvents]})}
+      catch{await window.zoomSdk.config({version:'0.16',capabilities})}
+      configured=true;
+      if(!eventsRegistered){for(const event of contextEvents){try{if(typeof window.zoomSdk[event]==='function')window.zoomSdk[event](()=>{epoch++;configured=false;resetAttempts();resume()})}catch{}}eventsRegistered=true;}
+    }
+    const running=await window.zoomSdk.getRunningContext().catch(()=>null);
+    const [user,meeting]=await Promise.all([
+      window.zoomSdk.getUserContext().catch(()=>null),
+      running?.context==='inMainClient'?Promise.resolve({meetingUUID:''}):window.zoomSdk.getMeetingUUID().catch(()=>null)
+    ]);
+    if(before!==epoch)return;
+    if(user){zoomName=String(user.screenName||user.displayName||user.name||'').replace(/[\u0000-\u001f\u007f]/g,'').trim().slice(0,40)}
+    if(meeting){
+      const uuid=String(meeting.meetingUUID||meeting.uuid||'').trim();
+      if(uuid!==meetingUUID){
+        const current=iframeState();
+        if(meetingUUID&&current?.room){blockedRoom=current.room;notice('meetingChanged')}
+        meetingUUID=uuid;linkedRoom='';bindKey='';lookupSuppressed=false;epoch++;lookupAttempts=0;nextLookupAt=0;
+      }
+    }
+    contextAttempts=meetingUUID?0:contextAttempts+1;
+    nextContextAt=Date.now()+(meetingUUID?30000:backoff(contextAttempts));
+  }catch{
+    contextAttempts++;nextContextAt=Date.now()+backoff(contextAttempts);
+  }finally{refreshing=false}
+  autoEnterParticipant();
+}
+async function bindCurrentHostRoom(state){
+  const key=meetingUUID+':'+state.room;
+  if(bindKey!==key){bindKey=key;bindAttempts=0;nextBindAt=0;bindStopped=false}
+  if(linkedRoom===state.room||bindStopped||bindAttempts>=6||Date.now()<nextBindAt)return;
+  const currentEpoch=epoch,uuid=meetingUUID;
+  bindAttempts++;nextBindAt=Date.now()+backoff(bindAttempts);
+  try{
+    const previousRoom=await lookupRoom(uuid);
+    if(currentEpoch!==epoch||iframeState()?.room!==state.room)return;
+    let previousHostSecret='';try{previousHostSecret=localStorage.getItem('zoomSumGameHost:'+previousRoom)||''}catch{}
+    const response=await request(apiBase+'zoom-meeting-room',{
+      method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({meetingUUID:uuid,room:state.room,hostSecret:state.hostSecret,previousRoom,previousHostSecret})
     });
-    if(response.status===204){
-      linkedRoom=state.room;
-      console.info('Zoom meeting linked to room',linkedRoom);
+    if(currentEpoch!==epoch)return;
+    if(response.status===204){linkedRoom=state.room;return}
+    if([400,403,404,409].includes(response.status)){bindStopped=true;notice(response.status===403||response.status===409?'meetingConflict':'meetingBindFailed')}
+    else if(bindAttempts>=6)notice('meetingBindFailed');
+  }catch{if(bindAttempts>=6)notice('meetingBindFailed')}
+}
+async function tick(){
+  if(busy||document.hidden)return;
+  busy=true;
+  try{
+    if(Date.now()>=nextContextAt&&(meetingUUID||contextAttempts<6))await refreshContext();
+    const state=iframeState();
+    if(lastFrameRoom&&!state?.room){
+      lookupSuppressed=!blockedRoom;blockedRoom='';autoEnteredRoom='';lookupAttempts=0;nextLookupAt=0;
+    }
+    lastFrameRoom=state?.room||'';
+    if(!meetingUUID||blockedRoom)return;
+    if(state?.room){
+      autoEnterParticipant();
+      if(state.role==='host'&&state.hostSecret?.length>=32)await bindCurrentHostRoom(state);
       return;
     }
-    const data=await response.json().catch(()=>({}));
-    console.warn('Could not link Zoom meeting to room',response.status,data);
-  }catch(error){
-    console.info('Zoom meeting room bind failed',error);
-  }
+    if(!state||lookupSuppressed||lookupAttempts>=8||Date.now()<nextLookupAt)return;
+    const currentEpoch=epoch,uuid=meetingUUID;lookupAttempts++;nextLookupAt=Date.now()+backoff(lookupAttempts-1);
+    try{
+      const room=await lookupRoom(uuid);
+      if(currentEpoch!==epoch||iframeState()?.room)return;
+      if(room){linkedRoom=room;setGameUrl(room)}
+    }catch{}
+  }finally{busy=false}
 }
-
-function startBindingWatch(){
-  clearInterval(bindTimer);
-  bindTimer=setInterval(bindCurrentHostRoom,1200);
-  bindCurrentHostRoom();
+function resume(){resetAttempts();refreshContext(true).then(tick)}
+game.addEventListener('load',()=>{autoEnteredRoom='';autoEnterParticipant();tick()});
+window.addEventListener('online',resume);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)resume()});
+async function init(){
+  const url=new URL(location.href);
+  if(url.searchParams.has('code')){url.searchParams.delete('code');url.searchParams.delete('state');history.replaceState(null,document.title,url.pathname+url.search+url.hash)}
+  if(!window.zoomSdk)return;
+  await refreshContext();await tick();setInterval(tick,1200);
 }
-
-async function initZoom(){
-  removeOAuthCode();
-  if(!window.zoomSdk){
-    console.warn('Zoom Apps SDK is unavailable; wrapper is running outside Zoom.');
-    return;
-  }
-
-  try{
-    const cfg=await window.zoomSdk.config({
-      version:'0.16',
-      capabilities:['getRunningContext','getUserContext','getMeetingUUID']
-    });
-    console.info('Zoom App initialized',cfg);
-
-    [zoomName,meetingUUID]=await Promise.all([getZoomName(),getMeetingUUID()]);
-    const room=await lookupRoom();
-    linkedRoom=room;
-    setGameUrl(room);
-    startBindingWatch();
-  }catch(error){
-    console.error('Zoom initialization failed',error);
-  }
-}
-
-game.addEventListener('load',()=>{
-  setTimeout(autoEnterParticipant,0);
-});
-
-initZoom();
+init();
 })();
 </script>
 </body>

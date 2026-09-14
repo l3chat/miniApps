@@ -1,6 +1,6 @@
 import baseWorker, { GameRoom as BaseGameRoom, parseMessage } from './index.js';
 
-const BUILD = '2026-09-08-zoom-context-v1';
+const BUILD = '2026-09-14-reliability-v2';
 const OAUTH_COOKIE = 'zoom_sum_oauth_state';
 const OAUTH_MAX_AGE = 10 * 60;
 const MEETING_LINK_TTL_MS = 12 * 60 * 60 * 1000;
@@ -39,7 +39,7 @@ function getCookie(request, name) {
   const cookie = request.headers.get('cookie') || '';
   for (const part of cookie.split(';')) {
     const [key, ...rest] = part.trim().split('=');
-    if (key === name) return decodeURIComponent(rest.join('='));
+    if (key === name) { try { return decodeURIComponent(rest.join('=')); } catch { return ''; } }
   }
   return '';
 }
@@ -157,7 +157,10 @@ async function oauthCallback(request, env) {
 
   const returnedState = url.searchParams.get('state') || '';
   const expectedState = getCookie(request, OAUTH_COOKIE);
-  if ((returnedState || expectedState) && (!returnedState || !expectedState || returnedState !== expectedState)) {
+  // Marketplace can initiate authorization without our state cookie. Start a
+  // fresh correlated flow; never exchange that uncorrelated authorization code.
+  if (!returnedState && !expectedState) return oauthStart(request, env);
+  if (!returnedState || !expectedState || returnedState !== expectedState) {
     return htmlPage('Zoom OAuth error', '<h1 class="err">Неверный OAuth state</h1><p>Повторите авторизацию.</p>', 400, {
       'set-cookie': `${OAUTH_COOKIE}=; Max-Age=0; Path=/zoom-sum-game/oauth/; Secure; HttpOnly; SameSite=Lax`,
     });
