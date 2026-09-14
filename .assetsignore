@@ -5,3 +5,4 @@ wrangler.jsonc
 package.json
 package-lock.json
 client-script.js
+zoom-sum-game/tests/

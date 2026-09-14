@@ -3,9 +3,8 @@
   "private": true,
   "scripts": {
     "dev": "wrangler dev",
-    "deploy": "wrangler deploy"
+    "deploy": "wrangler deploy",
+    "test:zoom-sum": "node --experimental-vm-modules --test zoom-sum-game/tests/*.test.mjs"
   },
-  "devDependencies": {
-    "wrangler": "^4.0.0"
-  }
+  "devDependencies": { "wrangler": "^4.0.0" }
 }

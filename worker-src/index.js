@@ -221,10 +221,19 @@ export class GameRoom extends DurableObject {
     let data;
     try { data = JSON.parse(message); } catch { return this.sendError(ws, 'Invalid JSON'); }
 
+    if (!data || typeof data !== 'object' || Array.isArray(data) || typeof data.type !== 'string') return this.sendError(ws, 'Invalid message');
+
     const attachment = this.getAttachment(ws);
     const isHost = attachment.role === 'host';
     const clientId = attachment.clientId;
     if (data.type === 'ping') return this.send(ws, { type: 'pong', now: Date.now() });
+
+    if (data.type === 'sync') { this.send(ws, { ...this.publicStateFor(attachment), sync: true }); return; }
+    if (['select', 'setReady', 'startRound', 'reveal'].includes(data.type) && data.round !== this.room.round) {
+      this.sendError(ws, data.round === undefined ? 'Client update required. Reload the page' : 'Round changed. Choose again');
+      this.sendSnapshot(ws);
+      return;
+    }
 
     if (isHost && data.type === 'startRound') {
       const target = Number(data.target);

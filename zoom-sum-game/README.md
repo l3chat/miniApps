@@ -403,3 +403,13 @@ Deploy with:
 ```sh
 npm run deploy
 ```
+
+## Reliability fixes — 2026-09-14
+
+Work is tracked by the audit IDs below; publication uses the existing Cloudflare Workers Builds integration.
+
+- NET-1, NET-2, NET-3: round-bound game commands, authoritative recovery of pending countdown choices, and silent-connection watchdog.
+- UI-2, UI-3: restore countdown form state and translate the connection label immediately.
+- Regression tests: `npm run test:zoom-sum` (Node.js 22 or newer). The adapters simulate platform services; these are logic tests, not real Zoom/device tests.
+
+Offline game commands are no longer replayed. Only a pending name/join request is sent after the first server snapshot. Old open pages must reload: roundless mutations receive an explicit update-required error.
