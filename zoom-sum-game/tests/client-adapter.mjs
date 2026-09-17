@@ -47,7 +47,7 @@ export function client({host=false,stored={}}={}){
  e.context.WebSocket=Socket;e.context.fetch=async()=>{throw Error('unexpected fetch');};
  vm.runInNewContext(script(clientHtml).replace('function detectLang()','window.__I18N=I18N;function detectLang()'),e.context,{filename:'zoom-sum-game/index.html'});
  e.sockets=sockets;e.$=id=>e.document.getElementById(id);
- e.state=(extra={})=>({type:'state',room:'ABC234',serverNow:e.clock.now,phase:'choosing',round:1,hasTarget:true,targetVisible:false,liveTarget:null,target:null,countdownMode:true,countdownEndsAt:e.clock.now-1,autoRevealAt:null,players:[{clientId:'local-audit-client',name:'Tester',ready:false,chosen:false}],allReady:false,me:{name:'Tester',value:null,ready:false,eligible:true},result:null,...extra});
+ e.state=(extra={})=>({type:'state',room:'ABC234',serverNow:e.clock.now,phase:'choosing',round:1,targetRound:1,hasTarget:true,targetVisible:false,liveTarget:null,target:null,countdownMode:true,countdownEndsAt:e.clock.now-1,autoRevealAt:null,players:[{clientId:'local-audit-client',name:'Tester',ready:false,chosen:false}],allReady:false,me:{name:'Tester',value:null,ready:false,eligible:true},result:null,...extra});
  return e;
 }
 export async function wrapper({lookup=null,uuidFails=false,stored={},bindStatus=204}={}){

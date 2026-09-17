@@ -132,7 +132,7 @@ export class GameRoom extends DurableObject {
       if (!roomCode || hostSecret.length < 32) return new Response('bad request', { status: 400 });
       const now = Date.now();
       this.room = {
-        code: roomCode, hostSecret, phase: 'setup', round: 0, target: null, targetVisible: false,
+        code: roomCode, hostSecret, phase: 'setup', round: 0, targetRound: 0, roundTarget: null, target: null, targetVisible: false,
         countdownMode: true, countdownEndsAt: null, autoRevealAt: null, roundPlayerIds: null,
         result: null, players: {}, createdAt: now, lastActivity: now,
       };
@@ -237,6 +237,7 @@ export class GameRoom extends DurableObject {
     const eligible = !this.room.countdownMode || !Array.isArray(this.room.roundPlayerIds) ? true : this.room.roundPlayerIds.includes(attachment.clientId);
     const base = {
       type: 'state', serverNow: Date.now(), room: this.room.code, phase: this.room.phase, round: this.room.round,
+      targetRound: Number.isSafeInteger(this.room.targetRound) && this.room.targetRound > 0 ? this.room.targetRound : (this.room.round > 0 ? 1 : 0),
       targetVisible: this.room.targetVisible, target: null, countdownMode: Boolean(this.room.countdownMode),
       countdownEndsAt: this.room.countdownEndsAt || null, autoRevealAt: this.room.autoRevealAt || null,
       players: players.map((player) => ({ clientId: player.clientId, name: player.name, ready: Boolean(player.ready), chosen: Number.isInteger(player.value), online: activeIds.has(player.clientId) })),
@@ -257,7 +258,7 @@ export class GameRoom extends DurableObject {
   makeResult(players) {
     const entries = players.map((player) => ({ clientId: player.clientId, name: player.name, value: player.value }));
     const sum = entries.reduce((total, player) => total + player.value, 0);
-    return { target: this.room.target, sum, hasTarget: this.room.target !== null, success: this.room.target === null ? null : sum === this.room.target, players: entries, revealedAt: Date.now() };
+    return { round: this.room.round, targetRound: Number.isSafeInteger(this.room.targetRound) && this.room.targetRound > 0 ? this.room.targetRound : (this.room.round > 0 ? 1 : 0), target: this.room.target, sum, hasTarget: this.room.target !== null, success: this.room.target === null ? null : sum === this.room.target, players: entries, revealedAt: Date.now() };
   }
 
   async webSocketMessage(ws, message) {
@@ -287,7 +288,11 @@ export class GameRoom extends DurableObject {
       const activePlayers = this.getActivePlayers();
       if (countdownMode && activePlayers.length === 0) return this.sendError(ws, 'At least one player must be connected for countdown mode');
       const now = Date.now();
+      const previousRoundTarget = this.room.roundTarget ?? this.room.result?.target ?? (this.room.round > 0 ? this.room.target : null);
+      const previousTargetRound = Number.isSafeInteger(this.room.targetRound) && this.room.targetRound > 0 ? this.room.targetRound : (this.room.round > 0 ? 1 : 0);
       this.room.round += 1;
+      this.room.targetRound = previousRoundTarget === target ? previousTargetRound + 1 : 1;
+      this.room.roundTarget = target;
       this.room.phase = 'choosing';
       this.room.target = target;
       this.room.targetVisible = Boolean(data.targetVisible);

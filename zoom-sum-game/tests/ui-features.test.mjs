@@ -44,8 +44,8 @@ test('Waiting and late participants see current round data and roster',()=>{
   assert.equal(waiting.$('roundInfo').textContent,'waiting for round');
 
   const late=client(),lateSocket=late.sockets[0];lateSocket.open();
-  lateSocket.receive(late.state({round:7,countdownMode:true,targetVisible:true,liveTarget:9,target:9,countdownEndsAt:late.clock.now-1,players:[{clientId:'a',name:'Alpha',chosen:true,online:true}],me:{name:'Late',value:null,ready:false,eligible:false}}));
-  assert.equal(late.$('roundInfo').textContent,'round 7');
+  lateSocket.receive(late.state({round:7,targetRound:2,countdownMode:true,targetVisible:true,liveTarget:9,target:9,countdownEndsAt:late.clock.now-1,players:[{clientId:'a',name:'Alpha',chosen:true,online:true}],me:{name:'Late',value:null,ready:false,eligible:false}}));
+  assert.equal(late.$('roundInfo').textContent,'round 2/7');
   assert.equal(late.$('targetDisplay').textContent,9);
   assert.ok(late.$('playerHint').textContent.includes('joined after'));
   assert.ok(late.$('playerPlayers').innerHTML.includes('Alpha'));
@@ -62,4 +62,22 @@ test('leChat copyright is visible in the persistent header',async()=>{
   const html=await fs.readFile(new URL('../index.html',import.meta.url),'utf8');
   assert.match(html,/<header><div class="brandline">.*<span class="copyright">© leChat<\/span>/);
   assert.match(html,/\.copyright\{font-size:/);
+});
+
+test('Host participant layout prioritizes play and result areas',async()=>{
+  const e=client({host:true}),socket=e.sockets[0];socket.open();
+  socket.receive(e.state({round:5,targetRound:2}));
+  assert.equal(e.$('hostPanel').classList.contains('host-participating'),true);
+  assert.equal(e.$('hostRoundInfo').textContent,'2/5');
+  const html=await fs.readFile(new URL('../index.html',import.meta.url),'utf8');
+  assert.match(html,/#hostPanel\.host-participating:not\(\.has-result\) \.hostLayout\{grid-template-columns:minmax\(220px,\.65fr\) minmax\(300px,1\.35fr\)\}/);
+  assert.match(html,/@media\(max-width:699px\).*#hostPanel\.host-participating:not\(\.has-result\) \.hostLayout\{grid-template-columns:1fr;grid-template-rows:auto minmax\(0,1fr\)\}/s);
+  assert.match(html,/#hostPanel\.host-participating\.has-result\{grid-template-rows:auto auto minmax\(0,1fr\)\}/);
+});
+
+test('Results open participant numbers and show target/total round numbering',()=>{
+  const e=client(),socket=e.sockets[0];socket.open();
+  socket.receive(e.state({phase:'reveal',round:8,targetRound:3,result:{round:8,targetRound:3,hasTarget:true,target:5,sum:4,success:false,players:[{name:'A',value:4}]}}));
+  assert.ok(e.$('playerResult').innerHTML.includes('Round 3/8'));
+  assert.ok(e.$('playerResult').innerHTML.includes('<details open>'));
 });

@@ -54,6 +54,7 @@ Verified scenarios include:
 - Every round displays `3 → 2 → 1 → START`; after START each participant gets one locked choice.
 - The server computes the sum.
 - On reveal everyone sees the sum and individual participant values.
+- Rounds are numbered as `n/m`: `n` is the consecutive round number for the current target, and `m` is the room's total round number.
 - The target is always revealed on a successful match; on a failed round it follows the current Show target setting.
 - The host can also participate as a normal player.
 
@@ -90,6 +91,7 @@ Countdown is the only game mode:
 - after START, the first accepted choice is locked;
 - when all round participants have chosen, the Durable Object waits two seconds;
 - the result is then revealed automatically;
+- the current `n/m` numbering is included in active-round and result views and survives reconnection;
 - automatic reveal does not depend on the host browser remaining active.
 
 ## Single-screen UI
@@ -102,7 +104,9 @@ For both host and participant:
 - secondary lists may scroll internally;
 - the participant's main visual priorities are target, number choice, current participant state and result;
 - participant lists are expanded by default and use an internal scrollbar when needed;
+- participant-number details in the result are expanded by default;
 - host-only controls have a purple theme, while the host's optional player area has a teal theme;
+- when the host joins as a player, the play area receives the larger desktop column and the remaining mobile height; after reveal, the result receives the remaining height instead of the settings panel;
 - the same layout rules apply when embedded inside Zoom.
 
 ## Multilingual UI
@@ -447,8 +451,17 @@ Build identifier: `2026-09-17-countdown-ui-v1`.
 - host-only controls and the host's optional player area use different color themes;
 - the countdown animation interval remains unchanged at 80 ms.
 
-The regression suite now contains 37 passing scenarios. The interface checks cover the temporary copy notification, localization-key parity, the Russian success message, expanded/scrollable rosters, waiting/late participant information, the distinct host color themes and the persistent `© leChat` notice. Real-device layout and Zoom smoke tests remain a separate manual verification step.
+The regression suite now contains 40 passing scenarios. The interface checks cover the temporary copy notification, localization-key parity, the Russian success message, expanded/scrollable rosters and result values, waiting/late participant information, target/total round numbering, host-player layout priority, the distinct host color themes and the persistent `© leChat` notice. Real-device layout and Zoom smoke tests remain a separate manual verification step.
 
 ### Copyright patch — 2026-09-17
 
 Build identifier: `2026-09-17-copyright-v1`. A compact `© leChat` notice is displayed next to the game title in the persistent header, without adding a page footer or changing the one-screen layout.
+
+### Host-player layout and round numbering — 2026-09-17
+
+Build identifier: `2026-09-17-round-layout-v1`.
+
+- when the host participates, the responsive layout prioritizes the play area during a round and the result area after reveal;
+- participant numbers in a result are open by default and remain internally scrollable;
+- the server persists `n/m` round numbering, where `n` counts consecutive rounds played with the current target and resets to `1` when the target changes, while `m` counts every round in the room;
+- both counters are sent in authoritative state and result snapshots, so reconnecting and late clients see the same numbering.

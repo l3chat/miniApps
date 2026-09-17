@@ -27,6 +27,16 @@ test('Countdown is mandatory and host participation still works',async()=>{
  g.clock.now+=3001;await g.command(r,p,{type:'select',value:3});await g.command(r,p,{type:'select',value:4});assert.equal(r.room.players.p.value,3);
  await g.command(r,h,{type:'select',value:2});g.clock.now+=2000;await r.alarm();assert.equal(r.room.result.success,true);assert.equal(r.room.result.sum,5);
 });
+test('Round numbering tracks the current target and the total round',async()=>{
+ const {g,r,h}=await setup();
+ await g.start(r,h,4);assert.equal(r.room.targetRound,1);assert.equal(r.room.round,1);
+ await g.start(r,h,4);assert.equal(r.room.targetRound,2);assert.equal(r.room.round,2);
+ await g.start(r,h,7);assert.equal(r.room.targetRound,1);assert.equal(r.room.round,3);
+ const state=r.publicStateFor(h.deserializeAttachment());assert.equal(state.targetRound,1);assert.equal(state.round,3);
+ r.room.result=r.makeResult(r.getRoundPlayers());assert.equal(r.room.result.targetRound,1);assert.equal(r.room.result.round,3);
+ delete r.room.targetRound;delete r.room.roundTarget;r.room.phase='reveal';r.room.result={target:7};
+ await g.start(r,h,7);assert.equal(r.room.targetRound,2);assert.equal(r.room.round,4);
+});
 test('ROUND-1 fixed countdown roster, reconnect, single choice, 2 second alarm',async()=>{
  const {g,r,h,p}=await setup();const b=await g.player(r,'b');await g.start(r,h,5,true);
  await g.command(r,p,{type:'select',value:2});assert.equal(r.room.players.p.value,null);
