@@ -106,7 +106,7 @@ For both host and participant:
 - participant lists are expanded by default and use an internal scrollbar when needed;
 - participant-number details in the result are expanded by default;
 - host-only controls have a purple theme, while the host's optional player area has a teal theme;
-- when the host joins as a player, the play area receives the larger desktop column and the remaining mobile height; after reveal, the result receives the remaining height instead of the settings panel;
+- when the host joins as a player, controls remain in the left/top area while the larger right/bottom game area changes in place from `My turn` to the result;
 - the same layout rules apply when embedded inside Zoom.
 
 ## Multilingual UI
@@ -465,3 +465,9 @@ Build identifier: `2026-09-17-round-layout-v1`.
 - participant numbers in a result are open by default and remain internally scrollable;
 - the server persists `n/m` round numbering, where `n` counts consecutive rounds played with the current target and resets to `1` when the target changes, while `m` counts every round in the room;
 - both counters are sent in authoritative state and result snapshots, so reconnecting and late clients see the same numbering.
+
+### Consistent host stages — 2026-09-17
+
+Build identifier: `2026-09-17-consistent-host-layout-v1`.
+
+The host screen now keeps one stable responsive grid throughout the round. On wider screens, settings and the participant roster stay in the left column, while `My turn` and the result occupy the same larger right column. On narrow screens, the same areas remain in the same top/bottom order. The result uses the game-area color theme, so reveal no longer causes controls, roster and result to jump into unrelated full-width rows.

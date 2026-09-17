@@ -54,7 +54,7 @@ test('Waiting and late participants see current round data and roster',()=>{
 test('Host-only controls and host play area have distinct color themes',async()=>{
   const html=await fs.readFile(new URL('../index.html',import.meta.url),'utf8');
   assert.match(html,/\.hostControls>\.card.*#7c3aed/);
-  assert.match(html,/\.hostPlay\{background:color-mix\(in srgb,#0f766e/);
+  assert.match(html,/\.hostPlay,\.hostResult\{background:color-mix\(in srgb,#0f766e/);
   assert.match(html,/\.hostControls>details \.players\{max-height:22dvh;overflow:auto\}/);
 });
 
@@ -70,9 +70,11 @@ test('Host participant layout prioritizes play and result areas',async()=>{
   assert.equal(e.$('hostPanel').classList.contains('host-participating'),true);
   assert.equal(e.$('hostRoundInfo').textContent,'2/5');
   const html=await fs.readFile(new URL('../index.html',import.meta.url),'utf8');
-  assert.match(html,/#hostPanel\.host-participating:not\(\.has-result\) \.hostLayout\{grid-template-columns:minmax\(220px,\.65fr\) minmax\(300px,1\.35fr\)\}/);
-  assert.match(html,/@media\(max-width:699px\).*#hostPanel\.host-participating:not\(\.has-result\) \.hostLayout\{grid-template-columns:1fr;grid-template-rows:auto minmax\(0,1fr\)\}/s);
-  assert.match(html,/#hostPanel\.host-participating\.has-result\{grid-template-rows:auto auto minmax\(0,1fr\)\}/);
+  assert.match(html,/#hostPanel\.host-participating \.hostLayout\{grid-template-columns:minmax\(220px,\.65fr\) minmax\(300px,1\.35fr\)\}/);
+  assert.match(html,/@media\(max-width:699px\).*#hostPanel\.host-participating \.hostLayout,#hostPanel\.has-result \.hostLayout\{grid-template-columns:1fr;grid-template-rows:auto minmax\(0,1fr\)\}/s);
+  const layoutStart=html.indexOf('<div class="hostLayout">'),result=html.indexOf('<div id="hostResult"'),layoutEnd=html.indexOf('</div></section>',result);
+  assert.ok(layoutStart>=0&&result>layoutStart&&layoutEnd>result);
+  assert.match(html,/#hostPanel\.has-result \.hostPlay\{display:none\}/);
 });
 
 test('Results open participant numbers and show target/total round numbering',()=>{
