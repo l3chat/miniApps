@@ -27,7 +27,7 @@ Zoom OAuth redirect / callback:
 
 `https://miniapps.lechat-reg.workers.dev/zoom-sum-game/oauth/callback`
 
-## Current status — 2026-09-09
+## Current status — 2026-09-17
 
 The project is now a working multiplayer Zoom game rather than only a prototype.
 
@@ -51,8 +51,7 @@ Verified scenarios include:
 - The host enters an integer target value.
 - The host can show or hide the target immediately using `Show target`.
 - Every participant chooses one number from `0` to `5`.
-- In normal mode the participant confirms with Ready and may unready before reveal.
-- In countdown mode the application displays `3 → 2 → 1 → START`; after START each participant gets one locked choice.
+- Every round displays `3 → 2 → 1 → START`; after START each participant gets one locked choice.
 - The server computes the sum.
 - On reveal everyone sees the sum and individual participant values.
 - The target is always revealed on a successful match; on a failed round it follows the current Show target setting.
@@ -81,22 +80,13 @@ The same rule applies to:
 
 A successful finished round always reveals its target.
 
-## Normal mode
+## Round flow
 
-- participant selects `0–5`;
-- participant presses Ready;
-- participant may unready and change the number before reveal;
-- host sees readiness state;
-- host reveals when all active participants are ready;
-- server computes the result.
-
-## Countdown mode
-
-When countdown mode is enabled:
+Countdown is the only game mode:
 
 - all clients show `3 → 2 → 1 → START`;
 - participants that were present when the round started are fixed as the round participant set;
-- users joining after the countdown starts wait for the next round;
+- users joining after the countdown starts see the current round number, target according to its visibility setting, and the current participant roster, but wait for the next round before choosing;
 - after START, the first accepted choice is locked;
 - when all round participants have chosen, the Durable Object waits two seconds;
 - the result is then revealed automatically;
@@ -110,8 +100,9 @@ For both host and participant:
 - the page itself should not require vertical scrolling;
 - controls scale with viewport size;
 - secondary lists may scroll internally;
-- the participant's main visual priorities are target, number choice, Ready state and result;
-- the host participant list is collapsed by default;
+- the participant's main visual priorities are target, number choice, current participant state and result;
+- participant lists are expanded by default and use an internal scrollbar when needed;
+- host-only controls have a purple theme, while the host's optional player area has a teal theme;
 - the same layout rules apply when embedded inside Zoom.
 
 ## Multilingual UI
@@ -122,6 +113,8 @@ Currently supported languages:
 
 - English;
 - Deutsch;
+- Français;
+- Ελληνικά;
 - Русский;
 - Українська.
 
@@ -151,7 +144,7 @@ It supports:
 - local participant identity through `localStorage`;
 - reconnect support;
 - host participation;
-- normal and countdown modes;
+- countdown rounds;
 - live target visibility;
 - multilingual UI.
 
@@ -288,7 +281,7 @@ Relevant OAuth commit:
 - room creation;
 - WebSocket routing;
 - base `GameRoom` Durable Object;
-- normal and countdown game mechanics.
+- countdown game mechanics.
 
 `worker-src/ui.js`
 
@@ -343,15 +336,15 @@ Important WebSocket commands:
 Participant/shared:
 
 - `join`;
-- `select`;
-- `setReady`.
+- `select`.
 
 Host:
 
 - `startRound`;
-- `reveal`;
 - `setTargetVisible`;
 - `setTarget`.
+
+`setReady` and manual `reveal` remain server-side only for compatibility with a room that was already running an older normal-mode round during deployment. Every newly started round is forced into countdown mode by the server, including requests from an older open client.
 
 Zoom meeting-room helper endpoint:
 
@@ -433,10 +426,25 @@ SDK behavior follows the current [Zoom Apps SDK reference](https://appssdk.zoom.
 
 ### Validation and deployment
 
-All 17 audit groups are covered by the changes above. The original audit had 21 executable scenarios, not 21 independent bug groups. The regression suite now checks 30 scenarios, including accepted/lost selections, stale commands, normal and countdown rounds, participant authentication, capacity/retention, meeting replacement races, context recovery and OAuth state.
+All 17 audit groups are covered by the changes above. The original audit had 21 executable scenarios, not 21 independent bug groups. The regression suite checks accepted/lost selections, stale commands, countdown rounds, participant authentication, capacity/retention, meeting replacement races, context recovery and OAuth state.
 
 UI-1 was checked by inspecting the responsive rules: short screens no longer force a two-column minimum width of 465 px. The countdown interval remains 80 ms, and pings remain at a 20-second cadence. The host result hides inactive participation controls to reserve space for the result and next-round settings; the page itself does not scroll. Participant lists and constrained settings may scroll internally.
 
 Real-device/Zoom smoke testing was not available in the implementation environment. Remaining verification on actual devices: 320/360/390 px portrait, landscape, host result and open keyboard; Zoom Share App on Android/desktop; first-time Marketplace authorization. The automated adapters do not claim to verify visual layout, native Zoom permissions, or real OAuth consent.
 
-Release build identifier: `2026-09-14-reliability-v2`. Existing main-branch Cloudflare Workers Builds publishes the release. No changes are required to the configured OAuth callback, scope, client secrets, Wrangler bindings, or other miniApps.
+Reliability release build identifier: `2026-09-14-reliability-v2`. Existing main-branch Cloudflare Workers Builds publishes releases. No changes are required to the configured OAuth callback, scope, client secrets, Wrangler bindings, or other miniApps.
+
+## Interface update — 2026-09-17
+
+Build identifier: `2026-09-17-countdown-ui-v1`.
+
+- copied-link confirmation now closes automatically after 2.5 seconds;
+- French and Greek were added, bringing the interface to six languages;
+- participant lists are open by default for both host and participants and scroll internally when long;
+- the participant roster, round number and permitted target information remain visible while waiting and to users who joined during an active round;
+- successful results use a shorter, more emotional localized message (`Есть!` in Russian);
+- normal mode was removed from the interface and all new rounds are server-enforced countdown rounds;
+- host-only controls and the host's optional player area use different color themes;
+- the countdown animation interval remains unchanged at 80 ms.
+
+The regression suite now contains 36 passing scenarios. The six new checks cover the temporary copy notification, localization-key parity, the Russian success message, expanded/scrollable rosters, waiting/late participant information, and the distinct host color themes. Real-device layout and Zoom smoke tests remain a separate manual verification step.
