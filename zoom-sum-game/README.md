@@ -447,4 +447,8 @@ Build identifier: `2026-09-17-countdown-ui-v1`.
 - host-only controls and the host's optional player area use different color themes;
 - the countdown animation interval remains unchanged at 80 ms.
 
-The regression suite now contains 36 passing scenarios. The six new checks cover the temporary copy notification, localization-key parity, the Russian success message, expanded/scrollable rosters, waiting/late participant information, and the distinct host color themes. Real-device layout and Zoom smoke tests remain a separate manual verification step.
+The regression suite now contains 37 passing scenarios. The interface checks cover the temporary copy notification, localization-key parity, the Russian success message, expanded/scrollable rosters, waiting/late participant information, the distinct host color themes and the persistent `© leChat` notice. Real-device layout and Zoom smoke tests remain a separate manual verification step.
+
+### Copyright patch — 2026-09-17
+
+Build identifier: `2026-09-17-copyright-v1`. A compact `© leChat` notice is displayed next to the game title in the persistent header, without adding a page footer or changing the one-screen layout.

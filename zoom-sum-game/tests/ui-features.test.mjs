@@ -57,3 +57,9 @@ test('Host-only controls and host play area have distinct color themes',async()=
   assert.match(html,/\.hostPlay\{background:color-mix\(in srgb,#0f766e/);
   assert.match(html,/\.hostControls>details \.players\{max-height:22dvh;overflow:auto\}/);
 });
+
+test('leChat copyright is visible in the persistent header',async()=>{
+  const html=await fs.readFile(new URL('../index.html',import.meta.url),'utf8');
+  assert.match(html,/<header><div class="brandline">.*<span class="copyright">© leChat<\/span>/);
+  assert.match(html,/\.copyright\{font-size:/);
+});

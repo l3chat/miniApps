@@ -1,6 +1,6 @@
 import baseWorker, { GameRoom as BaseGameRoom, parseMessage } from './index.js';
 
-const BUILD = '2026-09-17-countdown-ui-v1';
+const BUILD = '2026-09-17-copyright-v1';
 const OAUTH_COOKIE = 'zoom_sum_oauth_state';
 const OAUTH_MAX_AGE = 10 * 60;
 const MEETING_LINK_TTL_MS = 12 * 60 * 60 * 1000;
