@@ -133,7 +133,7 @@ export class GameRoom extends DurableObject {
       const now = Date.now();
       this.room = {
         code: roomCode, hostSecret, phase: 'setup', round: 0, target: null, targetVisible: false,
-        countdownMode: false, countdownEndsAt: null, autoRevealAt: null, roundPlayerIds: null,
+        countdownMode: true, countdownEndsAt: null, autoRevealAt: null, roundPlayerIds: null,
         result: null, players: {}, createdAt: now, lastActivity: now,
       };
       await this.persist();
@@ -282,8 +282,8 @@ export class GameRoom extends DurableObject {
     if (isHost && data.type === 'startRound') {
       const target = data.target;
       if (!isSafeTarget(target)) return this.sendError(ws, 'Target must be an integer between -1000000000 and 1000000000');
-      if (typeof data.countdownMode !== 'boolean' || (data.targetVisible !== undefined && typeof data.targetVisible !== 'boolean')) return this.sendError(ws, 'Invalid message');
-      const countdownMode = data.countdownMode;
+      if ((data.countdownMode !== undefined && typeof data.countdownMode !== 'boolean') || (data.targetVisible !== undefined && typeof data.targetVisible !== 'boolean')) return this.sendError(ws, 'Invalid message');
+      const countdownMode = true;
       const activePlayers = this.getActivePlayers();
       if (countdownMode && activePlayers.length === 0) return this.sendError(ws, 'At least one player must be connected for countdown mode');
       const now = Date.now();

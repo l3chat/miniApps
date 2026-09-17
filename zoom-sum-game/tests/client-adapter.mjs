@@ -32,7 +32,7 @@ function runtime(html,href,stored={}){
  const location={url:new URL(href),get href(){return this.url.href;},set href(v){this.url=new URL(v,this.url);},get origin(){return this.url.origin;},get protocol(){return this.url.protocol;},reload(){this.reloaded=true;}};
  const document=documentFor(html);
  class AuditDate extends Date {constructor(...a){super(...(a.length?a:[clock.now]));}static now(){return clock.now;}}
- const context={document,location,localStorage,AbortController,Promise,navigator:{languages:['en'],language:'en'},URL,Date:AuditDate,crypto:{randomUUID:()=> 'local-audit-client'},console:{info(){},warn(){},error(){}},history:{replaceState(_s,_t,u){location.href=u;}},setTimeout:(f,t=0)=>schedule(f,t,0),clearTimeout:id=>timers.delete(id),setInterval:(f,t)=>schedule(f,t,t),clearInterval:id=>timers.delete(id),addEventListener(k,f){(events[k]??=[]).push(f);}};
+ const context={document,location,localStorage,AbortController,Promise,navigator:{languages:['en'],language:'en',clipboard:{async writeText(value){context.copiedText=String(value)}}},URL,Date:AuditDate,crypto:{randomUUID:()=> 'local-audit-client'},console:{info(){},warn(){},error(){}},history:{replaceState(_s,_t,u){location.href=u;}},setTimeout:(f,t=0)=>schedule(f,t,0),clearTimeout:id=>timers.delete(id),setInterval:(f,t)=>schedule(f,t,t),clearInterval:id=>timers.delete(id),addEventListener(k,f){(events[k]??=[]).push(f);}};
  context.window=context;
  async function tick(ms){const end=clock.now+ms;let runs=0;for(;;){const next=[...timers].sort((a,b)=>a[1].at-b[1].at)[0];if(!next||next[1].at>end)break;const[id,t]=next;clock.now=t.at;t.repeat?t.at+=t.repeat:timers.delete(id);await t.fn();if(++runs>10000)throw Error('too many timers');}clock.now=end;await Promise.resolve();}
  return {context,clock,timers,storage,document,location,localStorage,tick,events};
@@ -45,9 +45,9 @@ export function client({host=false,stored={}}={}){
  const sockets=[];
  class Socket {static OPEN=1;static CONNECTING=0;constructor(url){this.url=String(url);this.readyState=0;this.messages=[];sockets.push(this);}open(){this.readyState=1;this.onopen?.();}send(s){this.messages.push(JSON.parse(s));}receive(d){this.onmessage?.({data:JSON.stringify(d)});}close(){this.readyState=3;this.onclose?.();}}
  e.context.WebSocket=Socket;e.context.fetch=async()=>{throw Error('unexpected fetch');};
- vm.runInNewContext(script(clientHtml),e.context,{filename:'zoom-sum-game/index.html'});
+ vm.runInNewContext(script(clientHtml).replace('function detectLang()','window.__I18N=I18N;function detectLang()'),e.context,{filename:'zoom-sum-game/index.html'});
  e.sockets=sockets;e.$=id=>e.document.getElementById(id);
- e.state=(extra={})=>({type:'state',room:'ABC234',serverNow:e.clock.now,phase:'choosing',round:1,hasTarget:true,targetVisible:false,liveTarget:null,target:null,countdownMode:false,countdownEndsAt:null,autoRevealAt:null,players:[{clientId:'local-audit-client',name:'Tester',ready:false,chosen:false}],allReady:false,me:{name:'Tester',value:null,ready:false,eligible:true},result:null,...extra});
+ e.state=(extra={})=>({type:'state',room:'ABC234',serverNow:e.clock.now,phase:'choosing',round:1,hasTarget:true,targetVisible:false,liveTarget:null,target:null,countdownMode:true,countdownEndsAt:e.clock.now-1,autoRevealAt:null,players:[{clientId:'local-audit-client',name:'Tester',ready:false,chosen:false}],allReady:false,me:{name:'Tester',value:null,ready:false,eligible:true},result:null,...extra});
  return e;
 }
 export async function wrapper({lookup=null,uuidFails=false,stored={},bindStatus=204}={}){
@@ -62,4 +62,3 @@ export async function wrapper({lookup=null,uuidFails=false,stored={},bindStatus=
  await e.tick(0);
  return {...e,calls,frame,get enterClicks(){return enterClicks;},setLookup(v){currentLookup=v;},setUuidFailure(v){uuidFails=v},async changeMeeting(uuid){currentUuid=uuid;sdkEvents.running?.();for(let i=0;i<80;i++)await Promise.resolve();await e.tick(0)},childName};
 }
-

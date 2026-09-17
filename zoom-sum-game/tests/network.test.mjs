@@ -27,9 +27,8 @@ test('NET-3 blackholed OPEN socket reconnects; active pongs keep it alive',async
  const e=client(),s=e.sockets[0];s.open();s.receive(e.state());await e.tick(35000);assert.equal(e.sockets.length,2);
  const a=client(),as=a.sockets[0];as.open();as.receive(a.state());for(let i=0;i<12;i++){await a.tick(5000);as.receive({type:'pong'});}assert.equal(a.sockets.length,1);
 });
-test('UI-2 countdown mode restores without overwriting next-round edits',()=>{
- const e=client({host:true}),s=e.sockets[0];s.open();s.receive(e.state({countdownMode:true,liveTarget:5}));assert.equal(e.$('countdownMode').checked,true);
- e.$('countdownMode').checked=false;e.$('countdownMode').onchange();s.receive(e.state({countdownMode:true,liveTarget:5}));assert.equal(e.$('countdownMode').checked,false);
- e.$('startRound').click();assert.equal(s.messages.at(-1).countdownMode,false);
+test('Countdown is the only mode offered by the client',()=>{
+ const e=client({host:true}),s=e.sockets[0];s.open();s.receive(e.state({countdownMode:true,liveTarget:5}));
+ assert.equal(e.$('countdownMode'),undefined);e.$('targetInput').value='5';e.$('startRound').click();assert.equal(s.messages.at(-1).countdownMode,true);
 });
 test('UI-3 connection status follows selected language',()=>{const e=client(),s=e.sockets[0];s.open();s.receive(e.state());e.$('langSelect').onchange({target:{value:'ru'}});assert.equal(e.$('conn').textContent,'в сети');});

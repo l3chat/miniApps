@@ -17,27 +17,27 @@ test('SEC-2 legacy sockets and persisted identities require explicit renewal',as
  await g.command(r,fresh,{type:'join',name:'Stolen'});assert.equal(r.room.players.old.name,'Old');
 });
 for(const target of [1,17])for(const visible of [false,true])test(`SEC-1 result target=${target} visible=${visible}`,async()=>{
- const {g,r,h,p}=await setup();await g.start(r,h,target);await g.command(r,p,{type:'select',value:1});await g.command(r,p,{type:'setReady',ready:true});await g.command(r,h,{type:'reveal'});
+ const {g,r,h,p}=await setup();await g.start(r,h,target);g.clock.now+=3001;await g.command(r,p,{type:'select',value:1});g.clock.now+=2000;await r.alarm();
  await g.command(r,h,{type:'setTargetVisible',visible});const state=r.publicStateFor({clientId:'p',role:'player'});
  assert.equal(state.target,target===1||visible?target:null);assert.equal(state.result.target,state.target);
  assert.equal(state.liveTarget,visible?target:null);
 });
-test('Normal mode ready/unready and host participation still work',async()=>{
- const {g,r,h,p}=await setup();await g.command(r,h,{type:'join',name:'Host'});await g.start(r,h,5);
- await g.command(r,p,{type:'select',value:2});await g.command(r,p,{type:'setReady',ready:true});await g.command(r,p,{type:'select',value:4});assert.equal(r.room.players.p.value,2);
- await g.command(r,p,{type:'setReady',ready:false});await g.command(r,p,{type:'select',value:3});await g.command(r,p,{type:'setReady',ready:true});await g.command(r,h,{type:'select',value:2});await g.command(r,h,{type:'setReady',ready:true});await g.command(r,h,{type:'reveal'});assert.equal(r.room.result.success,true);
+test('Countdown is mandatory and host participation still works',async()=>{
+ const {g,r,h,p}=await setup();await g.command(r,h,{type:'join',name:'Host'});await g.start(r,h,5,false);assert.equal(r.room.countdownMode,true);assert.ok(r.room.countdownEndsAt);
+ g.clock.now+=3001;await g.command(r,p,{type:'select',value:3});await g.command(r,p,{type:'select',value:4});assert.equal(r.room.players.p.value,3);
+ await g.command(r,h,{type:'select',value:2});g.clock.now+=2000;await r.alarm();assert.equal(r.room.result.success,true);assert.equal(r.room.result.sum,5);
 });
 test('ROUND-1 fixed countdown roster, reconnect, single choice, 2 second alarm',async()=>{
  const {g,r,h,p}=await setup();const b=await g.player(r,'b');await g.start(r,h,5,true);
  await g.command(r,p,{type:'select',value:2});assert.equal(r.room.players.p.value,null);
- const late=await g.player(r,'late');g.clock.now+=3001;await g.command(r,late,{type:'select',value:5});assert.equal(r.room.players.late.value,null);
+ const late=await g.player(r,'late');const lateState=r.publicStateFor(late.deserializeAttachment());assert.equal(lateState.phase,'choosing');assert.equal(lateState.round,1);assert.equal(lateState.countdownMode,true);assert.ok(lateState.countdownEndsAt);assert.equal(lateState.me.eligible,false);assert.equal(lateState.players.length,2);assert.equal(lateState.hasTarget,true);assert.equal(lateState.target,null);g.clock.now+=3001;await g.command(r,late,{type:'select',value:5});assert.equal(r.room.players.late.value,null);
  b.close();await r.webSocketClose(b,1000,'test');const state=r.publicStateFor(h.deserializeAttachment());assert.equal(state.players.find(x=>x.clientId==='b').online,false);assert.equal(state.players.length,2);
  await g.command(r,p,{type:'select',value:2});await g.command(r,p,{type:'select',value:4});assert.equal(r.room.players.p.value,2);assert.equal(r.room.autoRevealAt,null);
  const again=await g.connect(r,'b','player',g.secret,b.deserializeAttachment().resumeToken);await g.command(r,again,{type:'select',value:3});assert.equal(r.ctx.storage.alarm-g.clock.now,2000);
  h.close();g.clock.now+=2000;await r.alarm();assert.equal(r.room.result.sum,5);assert.equal(r.room.result.success,true);
 });
 test('TARGET-1 absent target produces neutral result and dash',async()=>{
- const {g,r,h,p}=await setup();await g.start(r,h,5);await g.command(r,h,{type:'setTarget',target:null});await g.command(r,p,{type:'select',value:0});await g.command(r,p,{type:'setReady',ready:true});await g.command(r,h,{type:'reveal'});
+ const {g,r,h,p}=await setup();await g.start(r,h,5);await g.command(r,h,{type:'setTarget',target:null});g.clock.now+=3001;await g.command(r,p,{type:'select',value:0});g.clock.now+=2000;await r.alarm();
  assert.equal(r.room.result.success,null);assert.equal(r.room.result.hasTarget,false);
  const e=client(),s=e.sockets[0];s.open();s.receive(e.state({phase:'reveal',hasTarget:false,result:r.room.result}));assert.ok(e.$('playerResult').innerHTML.includes('No target set'));assert.ok(e.$('playerResult').innerHTML.includes('>—</div>'));
 });
