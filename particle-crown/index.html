@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Rotating Particle Crown — Three.js</title>
+<style>
+  html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000}
+  canvas{display:block;width:100%;height:100%;touch-action:none}
+</style>
+</head>
+<body>
+<script type="module">
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x000000);
+
+const camera = new THREE.PerspectiveCamera(32, innerWidth / innerHeight, 0.1, 100);
+const renderer = new THREE.WebGLRenderer({
+  antialias: true,
+  powerPreference: 'high-performance'
+});
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+document.body.appendChild(renderer.domElement);
+
+const crown = new THREE.Group();
+scene.add(crown);
+
+const DPR = () => Math.min(devicePixelRatio, 2);
+
+let seed = 0x2f6e2b1;
+function rnd(){
+  seed ^= seed << 13;
+  seed ^= seed >>> 17;
+  seed ^= seed << 5;
+  return ((seed >>> 0) / 4294967296);
+}
+function signed(){ return rnd() * 2 - 1; }
+
+function makeGeometry(points, sizes){
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(points, 3));
+  g.setAttribute('aSize', new THREE.Float32BufferAttribute(sizes, 1));
+  return g;
+}
+
+function makeParticleMaterial(color, opacity = 1.0){
+  return new THREE.ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    depthTest: true,
+    blending: THREE.AdditiveBlending,
+    uniforms: {
+      uColor: { value: new THREE.Color(color) },
+      uOpacity: { value: opacity },
+      uPixelRatio: { value: DPR() }
+    },
+    vertexShader: \`
+      uniform float uPixelRatio;
+      attribute float aSize;
+      varying float vFade;
+
+      void main(){
+        vec4 mv = modelViewMatrix * vec4(position, 1.0);
+        gl_Position = projectionMatrix * mv;
+
+        float perspectiveScale = 22.0 / max(1.0, -mv.z);
+        gl_PointSize = aSize * uPixelRatio * perspectiveScale;
+        vFade = clamp(1.15 - (-mv.z) / 22.0, 0.55, 1.0);
+      }
+    \`,
+    fragmentShader: \`
+      uniform vec3 uColor;
+      uniform float uOpacity;
+      varying float vFade;
+
+      void main(){
+        vec2 p = gl_PointCoord - vec2(0.5);
+        float d = length(p);
+        if (d > 0.5) discard;
+
+        float core = smoothstep(0.46, 0.05, d);
+        float halo = smoothstep(0.50, 0.22, d);
+        float alpha = (0.72 * core + 0.28 * halo) * uOpacity * vFade;
+
+        vec3 c = uColor * (0.82 + 0.45 * core);
+        gl_FragColor = vec4(c, alpha);
+      }
+    \`
+  });
+}
+
+const goldPos = [];
+const goldSize = [];
+const TORUS_R = 2.10;
+const TORUS_r = 0.43;
+const GOLD_COUNT = innerWidth < 700 ? 1250 : 1850;
+
+for(let i = 0; i < GOLD_COUNT; i++){
+  const a = rnd() * Math.PI * 2;
+  const b = rnd() * Math.PI * 2;
+  const rr = TORUS_r * (0.80 + 0.28 * rnd());
+  const R = TORUS_R + rr * Math.cos(b);
+
+  goldPos.push(
+    R * Math.cos(a) + signed() * 0.025,
+    rr * Math.sin(b) - 0.05 + signed() * 0.025,
+    R * Math.sin(a) + signed() * 0.025
+  );
+  goldSize.push(1.05 + rnd() * 0.70);
+}
+
+const gold = new THREE.Points(
+  makeGeometry(goldPos, goldSize),
+  makeParticleMaterial(0xffd84a, 0.96)
+);
+crown.add(gold);
+
+const redPos = [], redSize = [];
+const bluePos = [], blueSize = [];
+const whitePos = [], whiteSize = [];
+
+const STRANDS = 8;
+const STREAM_POINTS = innerWidth < 700 ? 250 : 360;
+const STREAM_HEIGHT = 6.25;
+const STREAM_RADIUS = 1.86;
+
+function streamFrame(k, t){
+  const base = k * Math.PI * 2 / STRANDS + 0.12;
+  const phase = k * 1.618;
+  const bend =
+    0.075 * Math.sin(t * Math.PI * 2 * 1.18 + phase) +
+    0.025 * Math.sin(t * Math.PI * 2 * 2.7 + phase * 0.7);
+  const theta = base + bend;
+  const radius =
+    STREAM_RADIUS +
+    0.065 * Math.sin(t * Math.PI * 2 * 0.9 + phase * 0.83);
+
+  return {
+    x: radius * Math.cos(theta),
+    y: 0.05 + t * STREAM_HEIGHT,
+    z: radius * Math.sin(theta)
+  };
+}
+
+for(let k = 0; k < STRANDS; k++){
+  const dstPos = (k % 2 === 0) ? bluePos : redPos;
+  const dstSize = (k % 2 === 0) ? blueSize : redSize;
+
+  for(let i = 0; i < STREAM_POINTS; i++){
+    const t = rnd();
+    const p = streamFrame(k, t);
+
+    const radialJitter = signed() * 0.075;
+    const tangentialJitter = signed() * 0.045;
+    const base = k * Math.PI * 2 / STRANDS + 0.12;
+    const cs = Math.cos(base), sn = Math.sin(base);
+
+    dstPos.push(
+      p.x + cs * radialJitter - sn * tangentialJitter,
+      p.y + signed() * 0.045,
+      p.z + sn * radialJitter + cs * tangentialJitter
+    );
+    dstSize.push(0.95 + rnd() * 0.75);
+  }
+
+  for(let i = 0; i < 34; i++){
+    const t = 0.965 + rnd() * 0.035;
+    const p = streamFrame(k, t);
+    whitePos.push(
+      p.x + signed() * 0.065,
+      p.y + signed() * 0.045,
+      p.z + signed() * 0.065
+    );
+    whiteSize.push(1.15 + rnd() * 0.90);
+  }
+
+  if(k % 2 === 0 || k === 3){
+    const markerT = 0.38 + ((k * 0.173) % 0.40);
+    for(let i = 0; i < 22; i++){
+      const t = markerT + signed() * 0.018;
+      const p = streamFrame(k, t);
+      whitePos.push(
+        p.x + signed() * 0.060,
+        p.y + signed() * 0.040,
+        p.z + signed() * 0.060
+      );
+      whiteSize.push(1.10 + rnd() * 0.85);
+    }
+  }
+}
+
+const red = new THREE.Points(
+  makeGeometry(redPos, redSize),
+  makeParticleMaterial(0xff2048, 0.95)
+);
+const blue = new THREE.Points(
+  makeGeometry(bluePos, blueSize),
+  makeParticleMaterial(0x2359ff, 0.95)
+);
+const white = new THREE.Points(
+  makeGeometry(whitePos, whiteSize),
+  makeParticleMaterial(0xfff5d6, 1.0)
+);
+
+crown.add(red, blue, white);
+crown.rotation.z = 0.015;
+
+const ROTATION_SPEED = 0.42;
+const clock = new THREE.Clock();
+
+function animate(){
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.05);
+  crown.rotation.y += ROTATION_SPEED * dt;
+  renderer.render(scene, camera);
+}
+animate();
+
+function fit(){
+  const aspect = innerWidth / innerHeight;
+
+  camera.aspect = aspect;
+  camera.fov = aspect < 0.72 ? 34 : 31;
+
+  if(aspect < 0.72){
+    camera.position.set(0, 4.45, 13.6);
+  }else{
+    camera.position.set(0, 4.25, 12.1);
+  }
+  camera.lookAt(0, 2.35, 0);
+  camera.updateProjectionMatrix();
+
+  renderer.setPixelRatio(DPR());
+  renderer.setSize(innerWidth, innerHeight);
+
+  const dpr = DPR();
+  [gold, red, blue, white].forEach(obj => {
+    obj.material.uniforms.uPixelRatio.value = dpr;
+  });
+}
+
+addEventListener('resize', fit);
+fit();
+</script>
+</body>
+</html>
