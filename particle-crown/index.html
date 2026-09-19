@@ -16,7 +16,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.m
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x000000);
 
-const camera = new THREE.PerspectiveCamera(32, innerWidth / innerHeight, 0.1, 100);
+const camera = new THREE.OrthographicCamera(-1,1,1,-1,0.1,100);
 const renderer = new THREE.WebGLRenderer({
   antialias: true,
   powerPreference: 'high-performance'
@@ -54,47 +54,43 @@ function makeParticleMaterial(color, opacity = 1.0){
     uniforms: {
       uColor: { value: new THREE.Color(color) },
       uOpacity: { value: opacity },
-      uPixelRatio: { value: DPR() }
+      uPixelRatio: { value: DPR() },
+      uPointScale: { value: 3.3 }
     },
-    vertexShader: \`
+    vertexShader: `
       uniform float uPixelRatio;
+      uniform float uPointScale;
       attribute float aSize;
-      varying float vFade;
-
+      varying float vAlpha;
       void main(){
         vec4 mv = modelViewMatrix * vec4(position, 1.0);
         gl_Position = projectionMatrix * mv;
-
-        float perspectiveScale = 22.0 / max(1.0, -mv.z);
-        gl_PointSize = aSize * uPixelRatio * perspectiveScale;
-        vFade = clamp(1.15 - (-mv.z) / 22.0, 0.55, 1.0);
+        gl_PointSize = aSize * uPixelRatio * uPointScale;
+        vAlpha = 1.0;
       }
-    \`,
-    fragmentShader: \`
+    `,
+    fragmentShader: `
       uniform vec3 uColor;
       uniform float uOpacity;
-      varying float vFade;
-
+      varying float vAlpha;
       void main(){
         vec2 p = gl_PointCoord - vec2(0.5);
         float d = length(p);
-        if (d > 0.5) discard;
-
-        float core = smoothstep(0.46, 0.05, d);
-        float halo = smoothstep(0.50, 0.22, d);
-        float alpha = (0.72 * core + 0.28 * halo) * uOpacity * vFade;
-
-        vec3 c = uColor * (0.82 + 0.45 * core);
+        if(d > 0.5) discard;
+        float core = smoothstep(0.48, 0.05, d);
+        float halo = smoothstep(0.50, 0.20, d);
+        float alpha = (0.70 * core + 0.30 * halo) * uOpacity * vAlpha;
+        vec3 c = uColor * (0.82 + 0.40 * core);
         gl_FragColor = vec4(c, alpha);
       }
-    \`
+    `
   });
 }
 
 const goldPos = [];
 const goldSize = [];
-const TORUS_R = 2.10;
-const TORUS_r = 0.43;
+const TORUS_R = 2.15;
+const TORUS_r = 0.42;
 const GOLD_COUNT = innerWidth < 700 ? 1250 : 1850;
 
 for(let i = 0; i < GOLD_COUNT; i++){
@@ -117,94 +113,120 @@ const gold = new THREE.Points(
 );
 crown.add(gold);
 
-const redPos = [], redSize = [];
-const bluePos = [], blueSize = [];
-const whitePos = [], whiteSize = [];
+const teethRoot = new THREE.Group();
+const symbolRoot = new THREE.Group();
+crown.add(teethRoot, symbolRoot);
 
-const STRANDS = 8;
-const STREAM_POINTS = innerWidth < 700 ? 250 : 360;
-const STREAM_HEIGHT = 6.25;
-const STREAM_RADIUS = 1.86;
+const TOOTH_COUNT = 8;
+const toothColors = [0xff365f, 0x356cff];
+const symbolChars = ['✦','✧','✶','✹','✦','✧','✶','✹'];
 
-function streamFrame(k, t){
-  const base = k * Math.PI * 2 / STRANDS + 0.12;
-  const phase = k * 1.618;
-  const bend =
-    0.075 * Math.sin(t * Math.PI * 2 * 1.18 + phase) +
-    0.025 * Math.sin(t * Math.PI * 2 * 2.7 + phase * 0.7);
-  const theta = base + bend;
-  const radius =
-    STREAM_RADIUS +
-    0.065 * Math.sin(t * Math.PI * 2 * 0.9 + phase * 0.83);
-
-  return {
-    x: radius * Math.cos(theta),
-    y: 0.05 + t * STREAM_HEIGHT,
-    z: radius * Math.sin(theta)
-  };
+function makeTextTexture(char, color){
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0,0,256,256);
+  const grad = ctx.createRadialGradient(128,128,6,128,128,118);
+  grad.addColorStop(0,'rgba(255,255,255,0.92)');
+  grad.addColorStop(0.22,'rgba(255,245,210,0.75)');
+  grad.addColorStop(0.58,'rgba(255,245,210,0.18)');
+  grad.addColorStop(1,'rgba(255,245,210,0.00)');
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.arc(128,128,118,0,Math.PI*2);
+  ctx.fill();
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = '700 118px "Segoe UI Symbol", "Noto Sans Symbols", sans-serif';
+  ctx.fillStyle = color;
+  ctx.shadowColor = 'rgba(255,255,255,0.50)';
+  ctx.shadowBlur = 22;
+  ctx.fillText(char,128,128);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
 }
 
-for(let k = 0; k < STRANDS; k++){
-  const dstPos = (k % 2 === 0) ? bluePos : redPos;
-  const dstSize = (k % 2 === 0) ? blueSize : redSize;
+function addTooth(index){
+  const theta = index * Math.PI * 2 / TOOTH_COUNT + 0.15;
+  const radial = new THREE.Vector3(Math.cos(theta), 0, Math.sin(theta));
+  const tangent = new THREE.Vector3(-Math.sin(theta), 0, Math.cos(theta));
+  const up = new THREE.Vector3(0,1,0);
 
-  for(let i = 0; i < STREAM_POINTS; i++){
-    const t = rnd();
-    const p = streamFrame(k, t);
+  const baseRadius = 1.92;
+  const baseY = 0.38;
+  const apexRadius = 2.05;
+  const apexY = 5.72;
+  const baseHalfWidth = 0.38;
 
-    const radialJitter = signed() * 0.075;
-    const tangentialJitter = signed() * 0.045;
-    const base = k * Math.PI * 2 / STRANDS + 0.12;
-    const cs = Math.cos(base), sn = Math.sin(base);
+  const left = radial.clone().multiplyScalar(baseRadius).addScaledVector(tangent, -baseHalfWidth).setY(baseY);
+  const right = radial.clone().multiplyScalar(baseRadius).addScaledVector(tangent, baseHalfWidth).setY(baseY);
+  const apex = radial.clone().multiplyScalar(apexRadius).setY(apexY);
 
-    dstPos.push(
-      p.x + cs * radialJitter - sn * tangentialJitter,
-      p.y + signed() * 0.045,
-      p.z + sn * radialJitter + cs * tangentialJitter
+  const pts = [];
+  const sizes = [];
+  const count = 320;
+  for(let i=0;i<count;i++){
+    let u = rnd(), v = rnd();
+    if(u + v > 1){ u = 1 - u; v = 1 - v; }
+    const w = 1 - u - v;
+    const p = new THREE.Vector3(
+      left.x * w + right.x * u + apex.x * v,
+      left.y * w + right.y * u + apex.y * v,
+      left.z * w + right.z * u + apex.z * v
     );
-    dstSize.push(0.95 + rnd() * 0.75);
+    p.addScaledVector(radial, signed() * 0.004);
+    pts.push(p.x, p.y, p.z);
+    sizes.push(0.68 + rnd() * 0.70);
   }
 
-  for(let i = 0; i < 34; i++){
-    const t = 0.965 + rnd() * 0.035;
-    const p = streamFrame(k, t);
-    whitePos.push(
-      p.x + signed() * 0.065,
-      p.y + signed() * 0.045,
-      p.z + signed() * 0.065
-    );
-    whiteSize.push(1.15 + rnd() * 0.90);
-  }
-
-  if(k % 2 === 0 || k === 3){
-    const markerT = 0.38 + ((k * 0.173) % 0.40);
-    for(let i = 0; i < 22; i++){
-      const t = markerT + signed() * 0.018;
-      const p = streamFrame(k, t);
-      whitePos.push(
-        p.x + signed() * 0.060,
-        p.y + signed() * 0.040,
-        p.z + signed() * 0.060
-      );
-      whiteSize.push(1.10 + rnd() * 0.85);
+  const edges = [[left,right],[right,apex],[apex,left]];
+  for(const [a,b] of edges){
+    for(let i=0;i<70;i++){
+      const t = i / 69;
+      const p = new THREE.Vector3().lerpVectors(a,b,t);
+      p.addScaledVector(radial, signed() * 0.004);
+      pts.push(p.x, p.y, p.z);
+      sizes.push(0.92 + rnd() * 0.78);
     }
   }
+
+  const tooth = new THREE.Points(
+    makeGeometry(pts, sizes),
+    makeParticleMaterial(toothColors[index % 2], 0.98)
+  );
+  teethRoot.add(tooth);
+
+  const tex = makeTextTexture(symbolChars[index % symbolChars.length], '#fff3c9');
+  const mat = new THREE.MeshBasicMaterial({
+    map: tex,
+    transparent: true,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+    opacity: 0.98
+  });
+  const plane = new THREE.Mesh(new THREE.PlaneGeometry(0.82, 0.82), mat);
+  plane.position.copy(apex).addScaledVector(up, 0.42).addScaledVector(radial, 0.03);
+  plane.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(tangent, up, radial));
+  symbolRoot.add(plane);
 }
 
-const red = new THREE.Points(
-  makeGeometry(redPos, redSize),
-  makeParticleMaterial(0xff2048, 0.95)
-);
-const blue = new THREE.Points(
-  makeGeometry(bluePos, blueSize),
-  makeParticleMaterial(0x2359ff, 0.95)
-);
-const white = new THREE.Points(
-  makeGeometry(whitePos, whiteSize),
-  makeParticleMaterial(0xfff5d6, 1.0)
-);
+for(let i=0;i<TOOTH_COUNT;i++) addTooth(i);
 
-crown.add(red, blue, white);
+const sparklePos = [];
+const sparkleSize = [];
+for(let i=0;i<140;i++){
+  const a = rnd() * Math.PI * 2;
+  const r = 1.8 + rnd() * 0.9;
+  sparklePos.push(Math.cos(a)*r, 4.5 + rnd()*1.7, Math.sin(a)*r);
+  sparkleSize.push(0.72 + rnd() * 0.8);
+}
+const sparkles = new THREE.Points(
+  makeGeometry(sparklePos, sparkleSize),
+  makeParticleMaterial(0xfff5d6, 0.86)
+);
+crown.add(sparkles);
 crown.rotation.z = 0.015;
 
 const ROTATION_SPEED = 0.42;
@@ -220,24 +242,23 @@ animate();
 
 function fit(){
   const aspect = innerWidth / innerHeight;
-
-  camera.aspect = aspect;
-  camera.fov = aspect < 0.72 ? 34 : 31;
-
-  if(aspect < 0.72){
-    camera.position.set(0, 4.45, 13.6);
-  }else{
-    camera.position.set(0, 4.25, 12.1);
-  }
-  camera.lookAt(0, 2.35, 0);
+  const frustumH = aspect < 0.72 ? 10.9 : 9.8;
+  const frustumW = frustumH * aspect;
+  camera.left = -frustumW / 2;
+  camera.right = frustumW / 2;
+  camera.top = frustumH / 2;
+  camera.bottom = -frustumH / 2;
+  camera.position.set(0, 3.65, 12.5);
+  camera.lookAt(0, 2.45, 0);
   camera.updateProjectionMatrix();
 
   renderer.setPixelRatio(DPR());
   renderer.setSize(innerWidth, innerHeight);
 
-  const dpr = DPR();
-  [gold, red, blue, white].forEach(obj => {
-    obj.material.uniforms.uPixelRatio.value = dpr;
+  const pointScale = aspect < 0.72 ? 3.5 : 3.1;
+  [gold, sparkles, ...teethRoot.children].forEach(obj => {
+    obj.material.uniforms.uPixelRatio.value = DPR();
+    obj.material.uniforms.uPointScale.value = pointScale;
   });
 }
 
