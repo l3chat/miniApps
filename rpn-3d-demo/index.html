@@ -110,7 +110,7 @@ function boxToken(text,color=0xffd166){
   const body=new THREE.Mesh(new THREE.BoxGeometry(1.2,.72,.42),new THREE.MeshStandardMaterial({color,roughness:.35,metalness:.08}));
   body.castShadow=true;g.add(body);
   const lab=labelSprite(String(text),{bg:'#fff9e8',fg:'#15231d',scale:[.95,.48]});lab.position.z=.225;g.add(lab);
-  g.userData.text=String(text);return g;
+  g.userData.text=String(text);g.userData.isToken=true;return g;
 }
 function roundedPlatform(w,d,color){
   const m=new THREE.Mesh(new THREE.BoxGeometry(w,.18,d),new THREE.MeshStandardMaterial({color,roughness:.65,metalness:.05}));
@@ -246,26 +246,41 @@ const calc=makeCalculator();calc.position.set(7.0,0,0);scene.add(calc);
 const stackTokens=[];
 function stackPos(index){return new THREE.Vector3(3.0,.85+index,0.55)}
 function worldOf(obj){const v=new THREE.Vector3();obj.getWorldPosition(v);return v}
+function faceViewer(obj){
+  if(!obj?.userData?.isToken)return;
+  const parent=obj.parent;
+  if(!parent){obj.quaternion.copy(camera.quaternion);return}
+  const invParent=new THREE.Quaternion();
+  parent.getWorldQuaternion(invParent).invert();
+  obj.quaternion.copy(invParent.multiply(camera.quaternion.clone()));
+}
 
 const title=document.getElementById('title'),text=document.getElementById('text'),rb=document.getElementById('robotBubble'),cb=document.getElementById('calcBubble');
 function lesson(t,d){title.textContent=t;text.textContent=d}
-function bubble(el,msg,world){
-  rb.style.display=el===rb?'block':rb.style.display;
-  cb.style.display=el===cb?'block':cb.style.display;
-  if(el===rb){cb.style.display='none';cb.style.opacity='1'}
-  if(el===cb){rb.style.display='none';rb.style.opacity='1'}
-  el.textContent=msg;el.style.display='block';el.style.opacity='1';
+let activeBubble=null;
+function positionBubble(el,world){
   const p=world.clone().project(camera);
   el.style.left=((p.x*.5+.5)*innerWidth)+'px';
   el.style.top=((-p.y*.5+.5)*innerHeight-70)+'px';
 }
-function hideBubbles(){rb.style.display=cb.style.display='none';rb.style.opacity=cb.style.opacity='1'}
-async function beforeAction(){
-  const visible=[rb,cb].filter(el=>el.style.display==='block');
-  if(!visible.length)return;
-  visible.forEach(el=>el.style.opacity='0');
-  await wait(500);
-  visible.forEach(el=>{el.style.display='none';el.style.opacity='1'});
+async function bubble(el,msg,world){
+  if(!msg)return;
+  if(activeBubble&&activeBubble.style.display==='block'){
+    activeBubble.style.opacity='0';
+    await wait(500);
+    activeBubble.style.display='none';
+    activeBubble.style.opacity='1';
+  }
+  activeBubble=el;
+  el.textContent=msg;
+  el.style.display='block';
+  el.style.opacity='1';
+  positionBubble(el,world);
+}
+function hideBubbles(){
+  rb.style.display=cb.style.display='none';
+  rb.style.opacity=cb.style.opacity='1';
+  activeBubble=null;
 }
 
 let speed=1,playing=false,paused=false,stepResolve=null,currentIndex=0;
@@ -278,7 +293,6 @@ function tween(obj,to,ms=850){
   });
 }
 async function runRobot(to,ms=900){
-  await beforeAction();
   robot.userData.walking=true;
   const dx=to.x-robot.position.x;
   robot.rotation.y=dx>=0?Math.PI/2:-Math.PI/2;
@@ -290,17 +304,15 @@ async function runRobot(to,ms=900){
 }
 function gripWorld(){return worldOf(robot.userData.grip)}
 async function grabToken(token){
-  await beforeAction();
   detachKeepWorld(token,scene);
   robot.userData.armL.rotation.z=.72;
   robot.userData.armR.rotation.z=-.72;
   await tween(token,gripWorld(),420);
   robot.attach(token);
   token.position.copy(robot.userData.grip.position);
-  token.rotation.set(0,0,0);
+  faceViewer(token);
 }
 async function releaseTokenTo(token,target,ms=650){
-  await beforeAction();
   detachKeepWorld(token,scene);
   robot.userData.armL.rotation.z=.25;
   robot.userData.armR.rotation.z=-.25;
@@ -323,10 +335,10 @@ async function goHome(){
   await runRobot(target,700+Math.abs(robot.position.x-target.x)*75);
 }
 async function robotSay(msg){
-  bubble(rb,msg,worldOf(robot).add(new THREE.Vector3(0,4.1,0)));
+  await bubble(rb,msg,worldOf(robot).add(new THREE.Vector3(0,4.1,0)));
 }
 async function calcSay(msg){
-  bubble(cb,msg,worldOf(calc).add(new THREE.Vector3(-.5,3.7,0)));
+  await bubble(cb,msg,worldOf(calc).add(new THREE.Vector3(-.5,3.7,0)));
 }
 async function checkpoint(){
   if(!paused)return;
@@ -373,14 +385,12 @@ async function processOp(source,op){
   const x=stackTokens.pop();
   const y=stackTokens.pop();
   lesson('POP X, затем POP Y','Верхний элемент X снимается первым. Следующий Y — вторым. Для − и ÷ порядок критически важен.');
-  await beforeAction();
   await tween(x,worldOf(calc).add(new THREE.Vector3(.55,3.0,.8)),700);
   await tween(y,worldOf(calc).add(new THREE.Vector3(-.55,3.0,.8)),700);
 
   const a=Number(y.userData.text),b=Number(x.userData.text);
   const sym=op==='×'?'*':op==='÷'?'/':op;
   const result=sym==='+'?a+b:sym==='-'?a-b:sym==='*'?a*b:a/b;
-  await beforeAction();
   setScreen(`${a} ${op} ${b} = ${result}`);
   lesson('Вычисление',`Калькулятор выполняет ${a} ${op} ${b} и получает ${result}.`);
   await calcSay(`${a} ${op} ${b} = ${result}! 🎉`);
@@ -418,7 +428,6 @@ async function run(){
     await runToken(currentIndex);
   }
   if(currentIndex>=sourceTokens.length){
-    await beforeAction();
     lesson('Готово!','В стеке остался один результат: 35. Так выражение 3 4 + 5 × означает (3 + 4) × 5.');
     setScreen('35');
   }
@@ -455,7 +464,8 @@ function animate(){
     robot.userData.legs.forEach(leg=>leg.rotation.x=0);
   }
   calc.position.y=Math.sin(t*1.5+.8)*.025;
-  sourceTokens.forEach((o,i)=>{if(o.parent===conveyor)o.rotation.y=Math.sin(t*1.5+i)*.05});
+  [...sourceTokens,...stackTokens].forEach(faceViewer);
+  scene.traverse(o=>{if(o.userData?.isToken)faceViewer(o)});
   renderer.render(scene,camera);
 }
 animate();
