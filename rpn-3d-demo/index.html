@@ -117,7 +117,7 @@ function roundedPlatform(w,d,color){
   m.receiveShadow=true;m.castShadow=true;return m;
 }
 
-const conveyor=new THREE.Group();conveyor.position.set(4.4,0,2.6);scene.add(conveyor);
+const conveyor=new THREE.Group();conveyor.position.set(-5.2,0,2.6);scene.add(conveyor);
 const belt=roundedPlatform(8.2,2.0,0xb7cdd2);belt.position.y=.18;conveyor.add(belt);
 for(let i=0;i<9;i++){const r=new THREE.Mesh(new THREE.CylinderGeometry(.11,.11,1.75,18),new THREE.MeshStandardMaterial({color:0x789aa2,metalness:.35,roughness:.45}));r.rotation.z=Math.PI/2;r.position.set(-3.6+i*.9,.32,0);conveyor.add(r)}
 const sourceTokens=['3','4','+','5','×'].map((t,i)=>{const tok=boxToken(t,['+','×'].includes(t)?0xff8f70:0xffd166);tok.position.set(-3.1+i*1.35,.85,0);conveyor.add(tok);return tok;});
@@ -183,7 +183,7 @@ function makeRobot(){
   g.userData.walking=false;
   return g;
 }
-const ROBOT_HOME=new THREE.Vector3(.3,0,.15);
+const ROBOT_HOME=new THREE.Vector3(-8.9,0,.15);
 const robot=makeRobot();robot.position.copy(ROBOT_HOME);scene.add(robot);
 
 const stackGroup=new THREE.Group();stackGroup.position.set(2.4,0,-2.1);scene.add(stackGroup);
@@ -514,16 +514,16 @@ function resize(){
   const portrait=innerHeight>innerWidth;
   if(portrait){
     camera.fov=61;
-    camera.position.set(4.2,12.3,27.8);
-    camera.lookAt(4.2,2.15,.15);
+    camera.position.set(-.6,12.3,27.8);
+    camera.lookAt(-.6,2.15,.15);
   }else if(innerWidth<900){
     camera.fov=44;
-    camera.position.set(4.2,9.15,20.6);
-    camera.lookAt(4.2,2.15,.15);
+    camera.position.set(-.6,9.15,20.6);
+    camera.lookAt(-.6,2.15,.15);
   }else{
     camera.fov=37;
-    camera.position.set(4.2,8.15,17.9);
-    camera.lookAt(4.2,2.2,.10);
+    camera.position.set(-.6,8.15,17.9);
+    camera.lookAt(-.6,2.2,.10);
   }
   camera.updateProjectionMatrix();
   renderer.setSize(innerWidth,innerHeight);
