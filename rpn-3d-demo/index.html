@@ -117,7 +117,7 @@ function roundedPlatform(w,d,color){
   m.receiveShadow=true;m.castShadow=true;return m;
 }
 
-const conveyor=new THREE.Group();conveyor.position.set(-6,0,-.4);scene.add(conveyor);
+const conveyor=new THREE.Group();conveyor.position.set(-5.2,0,2.6);scene.add(conveyor);
 const belt=roundedPlatform(8.2,2.0,0xb7cdd2);belt.position.y=.18;conveyor.add(belt);
 for(let i=0;i<9;i++){const r=new THREE.Mesh(new THREE.CylinderGeometry(.11,.11,1.75,18),new THREE.MeshStandardMaterial({color:0x789aa2,metalness:.35,roughness:.45}));r.rotation.z=Math.PI/2;r.position.set(-3.6+i*.9,.32,0);conveyor.add(r)}
 const sourceTokens=['3','4','+','5','×'].map((t,i)=>{const tok=boxToken(t,['+','×'].includes(t)?0xff8f70:0xffd166);tok.position.set(-3.1+i*1.35,.85,0);conveyor.add(tok);return tok;});
@@ -183,10 +183,10 @@ function makeRobot(){
   g.userData.walking=false;
   return g;
 }
-const ROBOT_HOME=new THREE.Vector3(-9.7,0,-2.05);
+const ROBOT_HOME=new THREE.Vector3(-8.9,0,.15);
 const robot=makeRobot();robot.position.copy(ROBOT_HOME);scene.add(robot);
 
-const stackGroup=new THREE.Group();stackGroup.position.set(3.0,0,0);scene.add(stackGroup);
+const stackGroup=new THREE.Group();stackGroup.position.set(2.4,0,-2.1);scene.add(stackGroup);
 const stackBase=roundedPlatform(3.4,2.5,0x9fc9bb);stackBase.position.y=.15;stackGroup.add(stackBase);
 const stackTitle=labelSprite('СТЕК',{bg:'#dff4eb',fg:'#246c58',scale:[2.5,.62]});stackTitle.position.set(0,6.15,.2);stackGroup.add(stackTitle);
 const slots=[];
@@ -246,10 +246,10 @@ function makeCalculator(){
   knob.rotation.x=Math.PI/2;knob.position.set(0,3.22,.55);g.add(knob);
   return g;
 }
-const calc=makeCalculator();calc.position.set(7.0,0,0);scene.add(calc);
+const calc=makeCalculator();calc.position.set(6.4,0,-2.25);scene.add(calc);
 
 const stackTokens=[];
-function stackPos(index){return new THREE.Vector3(3.0,.85+index,0.55)}
+function stackPos(index){return new THREE.Vector3(2.4,.85+index,-1.55)}
 function worldOf(obj){const v=new THREE.Vector3();obj.getWorldPosition(v);return v}
 function setSpriteText(sprite,value){
   if(sprite.material.map)sprite.material.map.dispose();
@@ -359,7 +359,7 @@ function nextWaitingPoint(){
     .map(t=>({t,p:worldOf(t)}))
     .sort((a,b)=>a.p.x-b.p.x);
   if(!waiting.length)return ROBOT_HOME.clone();
-  return new THREE.Vector3(waiting[0].p.x,0,-2.05);
+  return new THREE.Vector3(waiting[0].p.x,0,.15);
 }
 async function goHome(){
   const target=nextWaitingPoint();
@@ -371,7 +371,7 @@ async function robotSay(msg){
   await bubble(rb,msg,worldOf(robot).add(new THREE.Vector3(0,4.1,0)),robot);
 }
 async function calcSay(msg){
-  await bubble(cb,msg,worldOf(calc).add(new THREE.Vector3(-.5,3.7,0)),calc);
+  await bubble(cb,msg,worldOf(calc).add(new THREE.Vector3(-1.15,3.65,.15)),calc);
 }
 async function checkpoint(){
   if(!stepMode)return;
@@ -386,7 +386,7 @@ function setScreen(s){calc.userData.screen.material.map.dispose();calc.userData.
 
 async function approachAndInspect(source,t){
   const p=worldOf(source);
-  const behind=new THREE.Vector3(p.x,0,-2.05);
+  const behind=new THREE.Vector3(p.x,0,.15);
   lesson('Робот идёт за следующим элементом',`Следующий токен: ${t}. Сначала робот должен взять его в руки.`);
   await runRobot(behind,700+Math.abs(robot.position.x-behind.x)*90);
   await grabToken(source);
@@ -396,7 +396,7 @@ async function approachAndInspect(source,t){
 }
 async function processNumber(source,value){
   lesson('Это число','Число нужно положить на вершину стека. Робот несёт его сам.');
-  await runRobot(new THREE.Vector3(1.15,0,-2.0),1000);
+  await runRobot(new THREE.Vector3(.9,0,.1),1000);
   const target=stackPos(stackTokens.length);
   await releaseTokenTo(source,target,650);
   stackTokens.push(source);
@@ -409,7 +409,7 @@ async function processNumber(source,value){
 }
 async function processOp(source,op){
   lesson('Это операция','Операцию робот относит калькулятору. Сам робот ничего не вычисляет.');
-  await runRobot(new THREE.Vector3(5.05,0,-2.0),1050);
+  await runRobot(new THREE.Vector3(4.8,0,.05),1050);
   await robotSay('Команда для тебя! 📮');
   const intake=worldOf(calc).add(new THREE.Vector3(-1.2,1.75,.85));
   await releaseTokenTo(source,intake,520);
@@ -451,13 +451,13 @@ async function processOp(source,op){
   scene.add(res);
 
   lesson('Забрать результат','Теперь робот должен забрать результат у калькулятора.');
-  await runRobot(new THREE.Vector3(5.35,0,-2.0),320);
+  await runRobot(new THREE.Vector3(5.0,0,.05),320);
   await grabToken(res);
   await robotSay('Есть! Несу обратно на стек.');
   await checkpoint();
 
   lesson('PUSH результата','Робот относит новый результат на вершину стека.');
-  await runRobot(new THREE.Vector3(1.15,0,-2.0),900);
+  await runRobot(new THREE.Vector3(.9,0,.1),900);
   await releaseTokenTo(res,stackPos(stackTokens.length),650);
   stackTokens.push(res);
   updateStackLabels();
@@ -513,17 +513,17 @@ function resize(){
   camera.aspect=innerWidth/innerHeight;
   const portrait=innerHeight>innerWidth;
   if(portrait){
-    camera.fov=64;
-    camera.position.set(-1.0,11.7,27.2);
-    camera.lookAt(-1.0,2.0,0);
+    camera.fov=61;
+    camera.position.set(-.6,12.3,27.8);
+    camera.lookAt(-.6,2.15,.15);
   }else if(innerWidth<900){
-    camera.fov=46;
-    camera.position.set(-1.0,8.9,21.2);
-    camera.lookAt(-1.0,2.05,0);
+    camera.fov=44;
+    camera.position.set(-.6,9.15,20.6);
+    camera.lookAt(-.6,2.15,.15);
   }else{
-    camera.fov=39;
-    camera.position.set(-1.0,7.9,18.7);
-    camera.lookAt(-1.0,2.1,0);
+    camera.fov=37;
+    camera.position.set(-.6,8.15,17.9);
+    camera.lookAt(-.6,2.2,.10);
   }
   camera.updateProjectionMatrix();
   renderer.setSize(innerWidth,innerHeight);
@@ -548,7 +548,7 @@ function animate(){
   if(activeBubble&&activeBubbleAnchor){
     const anchor=activeBubbleAnchor===robot
       ? worldOf(robot).add(new THREE.Vector3(0,4.1,0))
-      : worldOf(calc).add(new THREE.Vector3(-.5,3.7,0));
+      : worldOf(calc).add(new THREE.Vector3(-1.15,3.65,.15));
     positionBubble(activeBubble,anchor);
   }
 
