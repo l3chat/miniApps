@@ -124,20 +124,62 @@ const sourceTokens=['3','4','+','5','×'].map((t,i)=>{const tok=boxToken(t,['+',
 
 function makeRobot(){
   const g=new THREE.Group();
-  const blue=new THREE.MeshStandardMaterial({color:0x54b7d4,roughness:.35,metalness:.22});
-  const dark=new THREE.MeshStandardMaterial({color:0x16353f,roughness:.4,metalness:.3});
-  const body=new THREE.Mesh(new THREE.BoxGeometry(1.4,1.6,.9),blue);body.position.y=1.4;body.castShadow=true;g.add(body);
-  const head=new THREE.Mesh(new THREE.BoxGeometry(1.25,.85,.85),blue);head.position.y=2.65;head.castShadow=true;g.add(head);
-  const face=new THREE.Mesh(new THREE.PlaneGeometry(.9,.45),dark);face.position.set(0,2.66,.431);g.add(face);
-  for(const x of[-.25,.25]){const e=new THREE.Mesh(new THREE.SphereGeometry(.07,16,16),new THREE.MeshBasicMaterial({color:0x8dffcf}));e.position.set(x,2.7,.45);g.add(e)}
-  const antenna=new THREE.Mesh(new THREE.CylinderGeometry(.035,.035,.45,12),dark);antenna.position.y=3.3;g.add(antenna);
-  const ball=new THREE.Mesh(new THREE.SphereGeometry(.09,16,16),new THREE.MeshBasicMaterial({color:0xffd166}));ball.position.y=3.56;g.add(ball);
+  const blue=new THREE.MeshStandardMaterial({color:0x4fb6d4,roughness:.28,metalness:.26});
+  const blue2=new THREE.MeshStandardMaterial({color:0x79d8eb,roughness:.22,metalness:.18});
+  const dark=new THREE.MeshStandardMaterial({color:0x132f38,roughness:.35,metalness:.35});
+  const silver=new THREE.MeshStandardMaterial({color:0xa9c4cc,roughness:.25,metalness:.55});
+  const glow=new THREE.MeshStandardMaterial({color:0x8dffcf,emissive:0x39c991,emissiveIntensity:2.4,roughness:.2});
+
+  const torso=new THREE.Mesh(new THREE.CapsuleGeometry(.72,.82,8,18),blue);
+  torso.scale.set(1.05,1.05,.72);torso.position.y=1.55;torso.castShadow=true;g.add(torso);
+
+  const chest=new THREE.Mesh(new THREE.BoxGeometry(.72,.52,.12),dark);
+  chest.position.set(0,1.58,.63);chest.castShadow=true;g.add(chest);
+  const chestLight=new THREE.Mesh(new THREE.RingGeometry(.11,.18,24),new THREE.MeshBasicMaterial({color:0xffd166,side:THREE.DoubleSide}));
+  chestLight.position.set(0,1.62,.702);g.add(chestLight);
+
+  const neck=new THREE.Mesh(new THREE.CylinderGeometry(.18,.18,.22,18),silver);
+  neck.position.y=2.34;g.add(neck);
+
+  const head=new THREE.Mesh(new THREE.SphereGeometry(.72,28,20),blue2);
+  head.scale.set(1.0,.82,.82);head.position.y=2.82;head.castShadow=true;g.add(head);
+  const face=new THREE.Mesh(new THREE.BoxGeometry(1.02,.43,.09),dark);
+  face.position.set(0,2.80,.61);g.add(face);
+
+  for(const x of[-.25,.25]){
+    const eye=new THREE.Mesh(new THREE.SphereGeometry(.105,18,18),glow);
+    eye.position.set(x,2.82,.68);g.add(eye);
+  }
+  const mouth=new THREE.Mesh(new THREE.BoxGeometry(.28,.035,.035),silver);
+  mouth.position.set(0,2.62,.675);g.add(mouth);
+
+  const antenna=new THREE.Mesh(new THREE.CylinderGeometry(.035,.045,.44,12),silver);
+  antenna.position.set(0,3.47,0);g.add(antenna);
+  const antennaBall=new THREE.Mesh(new THREE.SphereGeometry(.11,18,18),new THREE.MeshStandardMaterial({color:0xffd166,emissive:0x8a5d00,emissiveIntensity:1.2}));
+  antennaBall.position.set(0,3.72,0);g.add(antennaBall);
+
+  const backpack=new THREE.Mesh(new THREE.BoxGeometry(.82,.95,.34),dark);
+  backpack.position.set(0,1.62,-.68);backpack.castShadow=true;g.add(backpack);
+
   g.userData.armL=new THREE.Group();g.userData.armR=new THREE.Group();
-  for(const [arm,x] of [[g.userData.armL,-.9],[g.userData.armR,.9]]){arm.position.set(x,2.0,0);const upper=new THREE.Mesh(new THREE.BoxGeometry(.25,.85,.25),blue);upper.position.y=-.4;arm.add(upper);g.add(arm)}
-  for(const x of[-.45,.45]){const leg=new THREE.Mesh(new THREE.BoxGeometry(.35,.75,.35),dark);leg.position.set(x,.38,0);g.add(leg)}
-  const grip=new THREE.Object3D();grip.position.set(0,1.72,.92);g.add(grip);g.userData.grip=grip;
+  for(const [arm,x] of [[g.userData.armL,-.88],[g.userData.armR,.88]]){
+    arm.position.set(x,2.05,0);
+    const joint=new THREE.Mesh(new THREE.SphereGeometry(.18,16,16),silver);arm.add(joint);
+    const upper=new THREE.Mesh(new THREE.CapsuleGeometry(.13,.52,6,12),blue2);upper.position.y=-.38;arm.add(upper);
+    const hand=new THREE.Mesh(new THREE.SphereGeometry(.18,16,16),silver);hand.scale.set(1,.7,.65);hand.position.y=-.82;arm.add(hand);
+    g.add(arm);
+  }
+
   g.userData.legs=[];
-  g.children.forEach(o=>{ if(o.isMesh && o.geometry?.type==='BoxGeometry' && o.position.y===.38) g.userData.legs.push(o); });
+  for(const x of[-.38,.38]){
+    const leg=new THREE.Group();leg.position.set(x,.72,0);
+    const hip=new THREE.Mesh(new THREE.SphereGeometry(.16,14,14),silver);leg.add(hip);
+    const shin=new THREE.Mesh(new THREE.CapsuleGeometry(.15,.48,6,12),dark);shin.position.y=-.38;leg.add(shin);
+    const foot=new THREE.Mesh(new THREE.BoxGeometry(.42,.20,.62),blue2);foot.position.set(0,-.78,.12);leg.add(foot);
+    g.add(leg);g.userData.legs.push(leg);
+  }
+
+  const grip=new THREE.Object3D();grip.position.set(0,1.62,.92);g.add(grip);g.userData.grip=grip;
   g.userData.walking=false;
   return g;
 }
@@ -156,11 +198,47 @@ for(let i=0;i<5;i++){
 
 function makeCalculator(){
   const g=new THREE.Group();
-  const mat=new THREE.MeshStandardMaterial({color:0xf07f61,roughness:.35,metalness:.12});
-  const body=new THREE.Mesh(new THREE.BoxGeometry(2.1,2.4,1.25),mat);body.position.y=1.55;body.castShadow=true;g.add(body);
-  const screen=new THREE.Mesh(new THREE.PlaneGeometry(1.55,.72),new THREE.MeshBasicMaterial({color:0x10252d}));screen.position.set(0,1.9,.631);g.add(screen);
-  const screenLabel=labelSprite('готов',{bg:'#10252d',fg:'#a8ffd9',scale:[1.35,.48]});screenLabel.position.set(0,1.9,.65);g.add(screenLabel);g.userData.screen=screenLabel;
-  for(const x of[-.55,0,.55])for(const y of[1.05,.65]){const b=new THREE.Mesh(new THREE.SphereGeometry(.11,16,16),new THREE.MeshStandardMaterial({color:0xffd166}));b.position.set(x,y,.67);g.add(b)}
+  const coral=new THREE.MeshStandardMaterial({color:0xf07f61,roughness:.28,metalness:.14});
+  const coral2=new THREE.MeshStandardMaterial({color:0xffa07f,roughness:.25,metalness:.10});
+  const dark=new THREE.MeshStandardMaterial({color:0x152c34,roughness:.30,metalness:.38});
+  const silver=new THREE.MeshStandardMaterial({color:0xb8c8cc,roughness:.22,metalness:.62});
+
+  const body=new THREE.Mesh(new THREE.BoxGeometry(2.35,2.65,1.45),coral);
+  body.position.y=1.62;body.castShadow=true;g.add(body);
+  const top=new THREE.Mesh(new THREE.BoxGeometry(1.8,.30,1.10),coral2);
+  top.position.set(0,3.06,0);top.castShadow=true;g.add(top);
+
+  const screenFrame=new THREE.Mesh(new THREE.BoxGeometry(1.78,.92,.12),dark);
+  screenFrame.position.set(0,2.12,.755);g.add(screenFrame);
+  const screenLabel=labelSprite('готов',{bg:'#10252d',fg:'#a8ffd9',scale:[1.48,.58]});
+  screenLabel.position.set(0,2.12,.83);g.add(screenLabel);g.userData.screen=screenLabel;
+
+  const slot=new THREE.Mesh(new THREE.BoxGeometry(1.18,.18,.16),dark);
+  slot.position.set(-.42,1.43,.79);g.add(slot);
+  const slotLamp=new THREE.Mesh(new THREE.SphereGeometry(.07,14,14),new THREE.MeshStandardMaterial({color:0x8dffcf,emissive:0x36cc8e,emissiveIntensity:2}));
+  slotLamp.position.set(.78,1.43,.85);g.add(slotLamp);
+
+  const keyColors=[0xffd166,0x8dffcf,0x8eb8ff,0xffa07f];
+  let k=0;
+  for(const y of[1.02,.67]){
+    for(const x of[-.62,-.20,.22,.64]){
+      const b=new THREE.Mesh(new THREE.CylinderGeometry(.12,.12,.10,18),new THREE.MeshStandardMaterial({color:keyColors[k++%keyColors.length],roughness:.25,metalness:.15}));
+      b.rotation.x=Math.PI/2;b.position.set(x,y,.80);g.add(b);
+    }
+  }
+
+  for(const x of[-.82,.82]){
+    const side=new THREE.Mesh(new THREE.CylinderGeometry(.15,.15,1.05,16),silver);
+    side.position.set(x,1.6,0);side.rotation.z=.10*x;g.add(side);
+  }
+  for(const x of[-.72,.72]){
+    const foot=new THREE.Mesh(new THREE.BoxGeometry(.55,.24,.72),dark);
+    foot.position.set(x,.18,.08);g.add(foot);
+  }
+
+  const topLight=new THREE.PointLight(0xff8f70,5,4);topLight.position.set(0,3.45,.3);g.add(topLight);
+  const knob=new THREE.Mesh(new THREE.CylinderGeometry(.15,.15,.18,18),silver);
+  knob.rotation.x=Math.PI/2;knob.position.set(0,3.22,.55);g.add(knob);
   return g;
 }
 const calc=makeCalculator();calc.position.set(7.0,0,0);scene.add(calc);
@@ -211,12 +289,30 @@ async function releaseTokenTo(token,target,ms=650){
   robot.userData.armL.rotation.z=0;
   robot.userData.armR.rotation.z=0;
 }
-async function goHome(){
-  lesson('Робот возвращается','После каждого поручения робот снова бежит к началу входного потока за следующим элементом.');
-  await runRobot(ROBOT_HOME.clone(),900);
+function nextWaitingPoint(){
+  const waiting=sourceTokens
+    .filter(t=>t.parent===conveyor&&t.visible)
+    .map(t=>({t,p:worldOf(t)}))
+    .sort((a,b)=>a.p.x-b.p.x);
+  if(!waiting.length)return ROBOT_HOME.clone();
+  return new THREE.Vector3(waiting[0].p.x,0,-2.05);
 }
-async function robotSay(msg){bubble(rb,msg,worldOf(robot).add(new THREE.Vector3(0,4.1,0)));await wait(650);hideBubbles()}
-async function calcSay(msg){bubble(cb,msg,worldOf(calc).add(new THREE.Vector3(-.5,3.5,0)));await wait(650);hideBubbles()}
+async function goHome(){
+  const target=nextWaitingPoint();
+  const hasNext=sourceTokens.some(t=>t.parent===conveyor&&t.visible);
+  lesson('Робот готов к следующему токену',hasNext?'Он возвращается не в начало ленты, а прямо к первому оставшемуся элементу слева.':'Во входном потоке больше ничего не осталось.');
+  await runRobot(target,700+Math.abs(robot.position.x-target.x)*75);
+}
+async function robotSay(msg){
+  bubble(rb,msg,worldOf(robot).add(new THREE.Vector3(0,4.1,0)));
+  await wait(1500);
+  hideBubbles();
+}
+async function calcSay(msg){
+  bubble(cb,msg,worldOf(calc).add(new THREE.Vector3(-.5,3.7,0)));
+  await wait(1700);
+  hideBubbles();
+}
 async function checkpoint(){
   if(!paused)return;
   await new Promise(r=>stepResolve=r);stepResolve=null;
