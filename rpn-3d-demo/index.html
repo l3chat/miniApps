@@ -309,13 +309,13 @@ function hideBubbles(){
   activeBubbleAnchor=null;
 }
 
-let speed=1,playing=false,paused=false,stepResolve=null,currentIndex=0;
+let speed=1,playing=false,paused=false,stepMode=false,stepResolve=null,currentIndex=0;
 document.getElementById('speed').oninput=e=>speed=Number(e.target.value);
 const wait=ms=>new Promise(r=>setTimeout(r,ms/Math.max(.1,speed)));
 async function waitAfterBubble(){
   if(!lastBubbleShownAt)return;
   const elapsed=performance.now()-lastBubbleShownAt;
-  const target=1000/Math.max(.1,speed);
+  const target=2000/Math.max(.1,speed);
   if(elapsed<target)await new Promise(r=>setTimeout(r,target-elapsed));
 }
 
@@ -374,8 +374,12 @@ async function calcSay(msg){
   await bubble(cb,msg,worldOf(calc).add(new THREE.Vector3(-.5,3.7,0)),calc);
 }
 async function checkpoint(){
-  if(!paused)return;
-  await new Promise(r=>stepResolve=r);stepResolve=null;
+  if(!stepMode)return;
+  await new Promise(r=>stepResolve=r);
+  stepResolve=null;
+}
+function releaseStep(){
+  if(stepResolve){const r=stepResolve;stepResolve=null;r()}
 }
 function detachKeepWorld(obj,newParent){obj.updateMatrixWorld();const p=new THREE.Vector3(),q=new THREE.Quaternion(),s=new THREE.Vector3();obj.matrixWorld.decompose(p,q,s);newParent.add(obj);obj.position.copy(newParent.worldToLocal(p.clone()));obj.quaternion.copy(q);obj.scale.copy(s)}
 function setScreen(s){calc.userData.screen.material.map.dispose();calc.userData.screen.material.map=canvasTexture(String(s),'#10252d','#a8ffd9',512,256,105);calc.userData.screen.material.needsUpdate=true}
@@ -388,6 +392,7 @@ async function approachAndInspect(source,t){
   await grabToken(source);
   lesson('Анализ токена',`Робот держит «${t}» и решает: число это или операция?`);
   await robotSay(['+','−','-','×','*','÷','/'].includes(t)?'Хм… операция! 🧠':'Ага, число! 🧠');
+  await checkpoint();
 }
 async function processNumber(source,value){
   lesson('Это число','Число нужно положить на вершину стека. Робот несёт его сам.');
@@ -398,7 +403,9 @@ async function processNumber(source,value){
   updateStackLabels();
   lesson('PUSH','Число '+value+' лежит на вершине стека.');
   await wait(650);
+  await checkpoint();
   await goHome();
+  await checkpoint();
 }
 async function processOp(source,op){
   lesson('Это операция','Операцию робот относит калькулятору. Сам робот ничего не вычисляет.');
@@ -407,11 +414,14 @@ async function processOp(source,op){
   const intake=worldOf(calc).add(new THREE.Vector3(-1.2,1.75,.85));
   await releaseTokenTo(source,intake,520);
   source.visible=false;
+  await checkpoint();
 
   if(stackTokens.length<2){
     lesson('Ошибка','На стеке не хватает двух чисел.');
     await calcSay('Мне нужны два числа!');
+    await checkpoint();
     await goHome();
+    await checkpoint();
     return;
   }
 
@@ -422,6 +432,7 @@ async function processOp(source,op){
   lesson('POP X, затем POP Y','Верхний элемент X снимается первым. Следующий Y — вторым. Для − и ÷ порядок критически важен.');
   await tween(x,worldOf(calc).add(new THREE.Vector3(.55,3.0,.8)),700);
   await tween(y,worldOf(calc).add(new THREE.Vector3(-.55,3.0,.8)),700);
+  await checkpoint();
 
   const a=Number(y.userData.text),b=Number(x.userData.text);
   const sym=op==='×'?'*':op==='÷'?'/':op;
@@ -430,6 +441,7 @@ async function processOp(source,op){
   lesson('Вычисление',`Калькулятор выполняет ${a} ${op} ${b} и получает ${result}.`);
   await calcSay(`${a} ${op} ${b} = ${result}! 🎉`);
   x.visible=false;y.visible=false;
+  await checkpoint();
 
   const res=boxToken(String(result),0x7de0b3);
   res.position.copy(worldOf(calc).add(new THREE.Vector3(0,1.0,1.0)));
@@ -439,6 +451,7 @@ async function processOp(source,op){
   await runRobot(new THREE.Vector3(5.35,0,-2.0),320);
   await grabToken(res);
   await robotSay('Есть! Несу обратно на стек.');
+  await checkpoint();
 
   lesson('PUSH результата','Робот относит новый результат на вершину стека.');
   await runRobot(new THREE.Vector3(1.15,0,-2.0),900);
@@ -446,7 +459,9 @@ async function processOp(source,op){
   stackTokens.push(res);
   updateStackLabels();
   await wait(350);
+  await checkpoint();
   await goHome();
+  await checkpoint();
 }
 async function runToken(i){
   const src=sourceTokens[i],t=src.userData.text;
@@ -460,22 +475,34 @@ async function run(){
   document.getElementById('play').textContent='❚❚ Pause';
   for(;currentIndex<sourceTokens.length;currentIndex++){
     if(!playing)break;
-    while(paused)await wait(80);
     await runToken(currentIndex);
   }
   if(currentIndex>=sourceTokens.length){
     lesson('Готово!','В стеке остался один результат: 35. Так выражение 3 4 + 5 × означает (3 + 4) × 5.');
     setScreen('35');
   }
-  playing=false;document.getElementById('play').textContent='▶ Play';
+  playing=false;paused=false;stepMode=false;document.getElementById('play').textContent='▶ Play';
 }
 document.getElementById('play').onclick=()=>{
-  if(playing){paused=!paused;document.getElementById('play').textContent=paused?'▶ Continue':'❚❚ Pause';return}
-  paused=false;run();
+  if(playing){
+    paused=!paused;
+    if(!paused){stepMode=false;releaseStep()}
+    document.getElementById('play').textContent=paused?'▶ Continue':'❚❚ Pause';
+    return;
+  }
+  paused=false;
+  stepMode=false;
+  releaseStep();
+  run();
 };
 document.getElementById('step').onclick=async()=>{
-  if(!playing){paused=true;run();await wait(20)}
-  if(stepResolve)stepResolve();else{paused=false;await wait(20);paused=true}
+  stepMode=true;
+  paused=true;
+  if(!playing){
+    run();
+    await wait(20);
+  }
+  releaseStep();
 };
 document.getElementById('reset').onclick=()=>location.reload();
 
