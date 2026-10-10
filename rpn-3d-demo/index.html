@@ -419,6 +419,7 @@ async function processOp(source,op){
   if(stackTokens.length<2){
     lesson('Ошибка','На стеке не хватает двух чисел.');
     await calcSay('Мне нужны два числа!');
+    await waitAfterBubble();
     await checkpoint();
     await goHome();
     await checkpoint();
@@ -426,6 +427,7 @@ async function processOp(source,op){
   }
 
   await calcSay('Принято! Сначала X, потом Y.');
+  await waitAfterBubble();
   const x=stackTokens.pop();
   const y=stackTokens.pop();
   updateStackLabels();
@@ -440,6 +442,7 @@ async function processOp(source,op){
   setScreen(`${a} ${op} ${b} = ${result}`);
   lesson('Вычисление',`Калькулятор выполняет ${a} ${op} ${b} и получает ${result}.`);
   await calcSay(`${a} ${op} ${b} = ${result}! 🎉`);
+  await waitAfterBubble();
   x.visible=false;y.visible=false;
   await checkpoint();
 
@@ -510,17 +513,17 @@ function resize(){
   camera.aspect=innerWidth/innerHeight;
   const portrait=innerHeight>innerWidth;
   if(portrait){
-    camera.fov=58;
-    camera.position.set(-1.0,13.8,32.5);
+    camera.fov=64;
+    camera.position.set(-1.0,11.7,27.2);
     camera.lookAt(-1.0,2.0,0);
   }else if(innerWidth<900){
-    camera.fov=48;
-    camera.position.set(-1.1,10.2,25.5);
-    camera.lookAt(-1.1,2.1,0);
+    camera.fov=46;
+    camera.position.set(-1.0,8.9,21.2);
+    camera.lookAt(-1.0,2.05,0);
   }else{
-    camera.fov=42;
-    camera.position.set(-1.1,9.2,22.5);
-    camera.lookAt(-1.1,2.2,0);
+    camera.fov=39;
+    camera.position.set(-1.0,7.9,18.7);
+    camera.lookAt(-1.0,2.1,0);
   }
   camera.updateProjectionMatrix();
   renderer.setSize(innerWidth,innerHeight);
