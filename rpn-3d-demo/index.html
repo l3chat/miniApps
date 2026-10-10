@@ -190,10 +190,15 @@ const stackGroup=new THREE.Group();stackGroup.position.set(3.0,0,0);scene.add(st
 const stackBase=roundedPlatform(3.4,2.5,0x9fc9bb);stackBase.position.y=.15;stackGroup.add(stackBase);
 const stackTitle=labelSprite('СТЕК',{bg:'#dff4eb',fg:'#246c58',scale:[2.5,.62]});stackTitle.position.set(0,6.15,.2);stackGroup.add(stackTitle);
 const slots=[];
+const stackSlotLabels=[];
 for(let i=0;i<5;i++){
   const frame=new THREE.Mesh(new THREE.BoxGeometry(2.5,.88,.95),new THREE.MeshStandardMaterial({color:0x8fc6b7,transparent:true,opacity:.34,roughness:.5}));
   frame.position.set(0,.85+i,0);stackGroup.add(frame);slots.push(frame);
-  const l=labelSprite(i===4?'верх':'',{bg:'#e8f5f0',fg:'#4c766a',scale:[1.1,.34]});l.position.set(-1.8,.85+i,.2);stackGroup.add(l);
+
+  const slotLabel=labelSprite('',{bg:'#e8f5f0',fg:'#246c58',scale:[.72,.34]});
+  slotLabel.position.set(-.88,.85+i,.50);
+  stackGroup.add(slotLabel);
+  stackSlotLabels.push(slotLabel);
 }
 
 function makeCalculator(){
@@ -246,6 +251,19 @@ const calc=makeCalculator();calc.position.set(7.0,0,0);scene.add(calc);
 const stackTokens=[];
 function stackPos(index){return new THREE.Vector3(3.0,.85+index,0.55)}
 function worldOf(obj){const v=new THREE.Vector3();obj.getWorldPosition(v);return v}
+function setSpriteText(sprite,value){
+  if(sprite.material.map)sprite.material.map.dispose();
+  sprite.material.map=canvasTexture(value,'#e8f5f0','#246c58',512,256,120);
+  sprite.material.needsUpdate=true;
+}
+function updateStackLabels(){
+  const names=['X','Y','Z','T','U'];
+  const count=stackTokens.length;
+  for(let i=0;i<stackSlotLabels.length;i++){
+    const stackIndex=count-1-i;
+    setSpriteText(stackSlotLabels[i],stackIndex>=0?names[i]:'');
+  }
+}
 function faceViewer(obj){
   if(!obj?.userData?.isToken)return;
   const parent=obj.parent;
@@ -258,12 +276,13 @@ function faceViewer(obj){
 const title=document.getElementById('title'),text=document.getElementById('text'),rb=document.getElementById('robotBubble'),cb=document.getElementById('calcBubble');
 function lesson(t,d){title.textContent=t;text.textContent=d}
 let activeBubble=null;
+let activeBubbleAnchor=null;
 function positionBubble(el,world){
   const p=world.clone().project(camera);
   el.style.left=((p.x*.5+.5)*innerWidth)+'px';
   el.style.top=((-p.y*.5+.5)*innerHeight-70)+'px';
 }
-async function bubble(el,msg,world){
+async function bubble(el,msg,world,anchor=null){
   if(!msg)return;
   if(activeBubble&&activeBubble.style.display==='block'){
     activeBubble.style.opacity='0';
@@ -272,6 +291,7 @@ async function bubble(el,msg,world){
     activeBubble.style.opacity='1';
   }
   activeBubble=el;
+  activeBubbleAnchor=anchor;
   el.textContent=msg;
   el.style.display='block';
   el.style.opacity='1';
@@ -281,6 +301,7 @@ function hideBubbles(){
   rb.style.display=cb.style.display='none';
   rb.style.opacity=cb.style.opacity='1';
   activeBubble=null;
+  activeBubbleAnchor=null;
 }
 
 let speed=1,playing=false,paused=false,stepResolve=null,currentIndex=0;
@@ -335,10 +356,10 @@ async function goHome(){
   await runRobot(target,700+Math.abs(robot.position.x-target.x)*75);
 }
 async function robotSay(msg){
-  await bubble(rb,msg,worldOf(robot).add(new THREE.Vector3(0,4.1,0)));
+  await bubble(rb,msg,worldOf(robot).add(new THREE.Vector3(0,4.1,0)),robot);
 }
 async function calcSay(msg){
-  await bubble(cb,msg,worldOf(calc).add(new THREE.Vector3(-.5,3.7,0)));
+  await bubble(cb,msg,worldOf(calc).add(new THREE.Vector3(-.5,3.7,0)),calc);
 }
 async function checkpoint(){
   if(!paused)return;
@@ -362,6 +383,7 @@ async function processNumber(source,value){
   const target=stackPos(stackTokens.length);
   await releaseTokenTo(source,target,650);
   stackTokens.push(source);
+  updateStackLabels();
   lesson('PUSH','Число '+value+' лежит на вершине стека.');
   await wait(650);
   await goHome();
@@ -384,6 +406,7 @@ async function processOp(source,op){
   await calcSay('Принято! Сначала X, потом Y.');
   const x=stackTokens.pop();
   const y=stackTokens.pop();
+  updateStackLabels();
   lesson('POP X, затем POP Y','Верхний элемент X снимается первым. Следующий Y — вторым. Для − и ÷ порядок критически важен.');
   await tween(x,worldOf(calc).add(new THREE.Vector3(.55,3.0,.8)),700);
   await tween(y,worldOf(calc).add(new THREE.Vector3(-.55,3.0,.8)),700);
@@ -409,6 +432,7 @@ async function processOp(source,op){
   await runRobot(new THREE.Vector3(1.15,0,-2.0),900);
   await releaseTokenTo(res,stackPos(stackTokens.length),650);
   stackTokens.push(res);
+  updateStackLabels();
   await wait(350);
   await goHome();
 }
@@ -445,8 +469,22 @@ document.getElementById('reset').onclick=()=>location.reload();
 
 function resize(){
   camera.aspect=innerWidth/innerHeight;
-  if(innerWidth<700){camera.position.set(-1.2,11.8,27);camera.lookAt(-1.2,2.2,0)}else{camera.position.set(-1.1,9.2,22.5);camera.lookAt(-1.1,2.2,0)}
-  camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);
+  const portrait=innerHeight>innerWidth;
+  if(portrait){
+    camera.fov=58;
+    camera.position.set(-1.0,13.8,32.5);
+    camera.lookAt(-1.0,2.0,0);
+  }else if(innerWidth<900){
+    camera.fov=48;
+    camera.position.set(-1.1,10.2,25.5);
+    camera.lookAt(-1.1,2.1,0);
+  }else{
+    camera.fov=42;
+    camera.position.set(-1.1,9.2,22.5);
+    camera.lookAt(-1.1,2.2,0);
+  }
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth,innerHeight);
 }
 addEventListener('resize',resize);resize();
 
@@ -464,10 +502,19 @@ function animate(){
     robot.userData.legs.forEach(leg=>leg.rotation.x=0);
   }
   calc.position.y=Math.sin(t*1.5+.8)*.025;
+
+  if(activeBubble&&activeBubbleAnchor){
+    const anchor=activeBubbleAnchor===robot
+      ? worldOf(robot).add(new THREE.Vector3(0,4.1,0))
+      : worldOf(calc).add(new THREE.Vector3(-.5,3.7,0));
+    positionBubble(activeBubble,anchor);
+  }
+
   [...sourceTokens,...stackTokens].forEach(faceViewer);
   scene.traverse(o=>{if(o.userData?.isToken)faceViewer(o)});
   renderer.render(scene,camera);
 }
+updateStackLabels();
 animate();
 </script>
 </body>
