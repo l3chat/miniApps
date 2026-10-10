@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Markdown → Rich Message — Telegram Markdown & Media Converter</title>
+<meta name="description" content="Turn Markdown, long text, tables, formulas, images, audio and video into polished Telegram Rich Messages.">
+<meta property="og:title" content="Markdown → Rich Message">
+<meta property="og:description" content="Write Markdown. Get a polished Telegram Rich Message.">
+<meta property="og:type" content="website">
+<meta name="theme-color" content="#229ED9">
+<style>
+:root{--bg:#f4f7fa;--ink:#17212b;--muted:#667788;--line:#dbe3ea;--blue:#229ed9;--blue2:#168ac3;--card:#fff;--soft:#eaf6fc}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:linear-gradient(145deg,#eef8fd 0,#f7f8fa 42%,#f5f2ff 100%);color:var(--ink);font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;line-height:1.5}
+a{color:inherit}.wrap{width:min(1120px,calc(100% - 32px));margin:auto}.nav{display:flex;justify-content:space-between;align-items:center;padding:20px 0}.brand{font-weight:900;letter-spacing:-.02em}.langs{display:flex;gap:6px;flex-wrap:wrap}.langs button{border:1px solid var(--line);background:#fff;border-radius:999px;padding:5px 9px;cursor:pointer;color:var(--muted)}.langs button.active{background:var(--ink);color:#fff}
+.hero{display:grid;grid-template-columns:1.05fr .95fr;gap:44px;align-items:center;padding:54px 0 46px}.kicker{display:inline-block;background:var(--soft);color:#087bad;border-radius:999px;padding:7px 11px;font-size:.82rem;font-weight:850}.hero h1{font-size:clamp(2.5rem,7vw,5.3rem);letter-spacing:-.065em;line-height:.92;margin:18px 0}.hero p{color:var(--muted);font-size:clamp(1.05rem,2vw,1.28rem);max-width:650px}.actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:28px}.btn{display:inline-flex;align-items:center;justify-content:center;padding:13px 18px;border-radius:12px;text-decoration:none;font-weight:850;border:1px solid var(--line);background:#fff}.btn.primary{background:var(--blue);color:white;border-color:var(--blue);box-shadow:0 10px 28px rgba(34,158,217,.24)}.btn.primary:hover{background:var(--blue2)}
+.demo{background:rgba(255,255,255,.8);border:1px solid var(--line);border-radius:24px;padding:14px;box-shadow:0 24px 60px rgba(30,55,75,.14)}.demo img{display:block;width:100%;height:auto;border-radius:16px}
+.features{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;padding:26px 0 58px}.card{background:rgba(255,255,255,.82);border:1px solid var(--line);border-radius:16px;padding:20px}.card b{display:block;margin-bottom:5px}.card span{color:var(--muted)}
+.how{background:#15202b;color:white;padding:58px 0}.how h2,.source h2{font-size:clamp(2rem,4vw,3rem);letter-spacing:-.04em;margin:0 0 26px}.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}.step{border:1px solid #344454;border-radius:16px;padding:20px}.num{font-size:.8rem;color:#7fd0f6;font-weight:900}.step p{color:#c5d0da}
+.source{padding:58px 0}.source-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}.code,.result{background:#fff;border:1px solid var(--line);border-radius:16px;padding:18px;overflow:auto}.code pre{margin:0;font:14px/1.55 ui-monospace,SFMono-Regular,Consolas,monospace}.result h3{margin:0 0 8px}.result table{border-collapse:collapse}.result td,.result th{border:1px solid #ccd6df;padding:4px 7px;text-align:left}
+footer{padding:28px 0 44px;color:var(--muted);font-size:.92rem}.tiny{font-size:.85rem;color:var(--muted);margin-top:12px}
+@media(max-width:820px){.hero{grid-template-columns:1fr;padding-top:30px}.features,.steps,.source-grid{grid-template-columns:1fr}.hero h1{font-size:clamp(3rem,14vw,4.8rem)}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<nav class="nav"><div class="brand">Markdown → Rich Message</div><div class="langs" aria-label="Language"><button data-lang="en">EN</button><button data-lang="ru">RU</button><button data-lang="de">DE</button><button data-lang="fr">FR</button><button data-lang="uk">UK</button></div></nav>
+<section class="hero">
+<div>
+<span class="kicker" data-t="kicker">Telegram Markdown & Media Converter</span>
+<h1 data-t="title">Write Markdown.<br>Get a Rich Message.</h1>
+<p data-t="lead">Long text, tables, formulas, images, audio and video — formatted for Telegram without manually rebuilding your document.</p>
+<div class="actions">
+<a class="btn primary" href="https://t.me/tgMdFormatter_bot" data-t="open">Open bot in Telegram</a>
+<a class="btn" href="https://github.com/l3chat/telegram-md-bot" data-t="github">View source on GitHub</a>
+<a class="btn" href="https://github.com/l3chat/telegram-md-bot/blob/main/docs/tutorial/test-page.en.md" id="tutorial" data-t="tutorial">Markdown tutorial</a>
+</div>
+<div class="tiny" data-t="hint">Try /test inside the bot for a live Rich Message demo.</div>
+</div>
+<div class="demo"><img src="demo.svg" alt="Animated Markdown to Telegram Rich Message demonstration"></div>
+</section>
+<section class="features">
+<div class="card"><b data-t="f1h">Markdown → Telegram</b><span data-t="f1">Headings, lists, quotes, tables, code, links and formulas.</span></div>
+<div class="card"><b data-t="f2h">Media in the document</b><span data-t="f2">Photos, audio, voice, video and files are linked automatically.</span></div>
+<div class="card"><b data-t="f3h">Long documents</b><span data-t="f3">Long text is split safely into multiple Rich Messages when needed.</span></div>
+<div class="card"><b data-t="f4h">Five languages</b><span data-t="f4">English, Russian, German, French and Ukrainian UI.</span></div>
+<div class="card"><b data-t="f5h">Tutorial included</b><span data-t="f5">Compare the live /test result with its original Markdown source.</span></div>
+<div class="card"><b data-t="f6h">Open source</b><span data-t="f6">Cloudflare Worker + Durable Objects. Public code on GitHub.</span></div>
+</section>
+</div>
+<section class="how"><div class="wrap">
+<h2 data-t="how">Three steps</h2><div class="steps">
+<div class="step"><div class="num">01</div><h3 data-t="s1h">Send media</h3><p data-t="s1">Optional: send photos, audio or video first.</p></div>
+<div class="step"><div class="num">02</div><h3 data-t="s2h">Send Markdown</h3><p data-t="s2">Paste text or upload a .md, .markdown or .txt file.</p></div>
+<div class="step"><div class="num">03</div><h3 data-t="s3h">Get Rich Message</h3><p data-t="s3">The bot builds a polished Telegram message and inserts media automatically.</p></div>
+</div></div></section>
+<section class="source"><div class="wrap">
+<h2 data-t="example">One input. One polished result.</h2>
+<div class="source-grid">
+<div class="code"><pre># Athens
+
+**Flight:** confirmed
+
+|Day|Plan|
+|---|---|
+|1|Acropolis|
+|2|Plaka|
+
+$$
+\int_{-\infty}^{\infty}
+\frac{e^{-x^2/2}}{\sqrt{2\pi}}\,dx=1
+$$</pre></div>
+<div class="result"><h3>Athens</h3><p><b>Flight:</b> confirmed</p><table><tr><th>Day</th><th>Plan</th></tr><tr><td>1</td><td>Acropolis</td></tr><tr><td>2</td><td>Plaka</td></tr></table><p>∫₋∞^∞ e<sup>−x²/2</sup>/√(2π) dx = 1</p></div>
+</div>
+</div></section>
+<footer><div class="wrap"><b>@tgMdFormatter_bot</b> · <a href="https://github.com/l3chat/telegram-md-bot">GitHub</a> · <span>Built with GPT-6.1</span></div></footer>
+<script>
+const T={
+en:{kicker:"Telegram Markdown & Media Converter",title:"Write Markdown.<br>Get a Rich Message.",lead:"Long text, tables, formulas, images, audio and video — formatted for Telegram without manually rebuilding your document.",open:"Open bot in Telegram",github:"View source on GitHub",tutorial:"Markdown tutorial",hint:"Try /test inside the bot for a live Rich Message demo.",f1h:"Markdown → Telegram",f1:"Headings, lists, quotes, tables, code, links and formulas.",f2h:"Media in the document",f2:"Photos, audio, voice, video and files are linked automatically.",f3h:"Long documents",f3:"Long text is split safely into multiple Rich Messages when needed.",f4h:"Five languages",f4:"English, Russian, German, French and Ukrainian UI.",f5h:"Tutorial included",f5:"Compare the live /test result with its original Markdown source.",f6h:"Open source",f6:"Cloudflare Worker + Durable Objects. Public code on GitHub.",how:"Three steps",s1h:"Send media",s1:"Optional: send photos, audio or video first.",s2h:"Send Markdown",s2:"Paste text or upload a .md, .markdown or .txt file.",s3h:"Get Rich Message",s3:"The bot builds a polished Telegram message and inserts media automatically.",example:"One input. One polished result."},
+ru:{kicker:"Конвертер Markdown и медиа для Telegram",title:"Пишите Markdown.<br>Получайте Rich Message.",lead:"Длинный текст, таблицы, формулы, картинки, аудио и видео — красиво оформленные в Telegram без ручной переделки документа.",open:"Открыть бота в Telegram",github:"Исходный код на GitHub",tutorial:"Учебный Markdown",hint:"Введите /test в боте, чтобы увидеть живую демонстрацию Rich Message.",f1h:"Markdown → Telegram",f1:"Заголовки, списки, цитаты, таблицы, код, ссылки и формулы.",f2h:"Медиа внутри текста",f2:"Фото, аудио, голос, видео и файлы связываются автоматически.",f3h:"Длинные документы",f3:"При необходимости длинный текст безопасно делится на несколько Rich Messages.",f4h:"Пять языков",f4:"Интерфейс на английском, русском, немецком, французском и украинском.",f5h:"Встроенный tutorial",f5:"Сравнивайте результат /test с оригинальным Markdown.",f6h:"Open source",f6:"Cloudflare Worker + Durable Objects. Код открыт на GitHub.",how:"Три шага",s1h:"Пришлите медиа",s1:"Необязательно: сначала отправьте фото, аудио или видео.",s2h:"Пришлите Markdown",s2:"Вставьте текст или отправьте файл .md, .markdown или .txt.",s3h:"Получите Rich Message",s3:"Бот оформит сообщение и автоматически вставит медиа.",example:"Один исходник. Один аккуратный результат."},
+de:{kicker:"Telegram Markdown & Media Converter",title:"Markdown schreiben.<br>Rich Message erhalten.",lead:"Lange Texte, Tabellen, Formeln, Bilder, Audio und Video — sauber für Telegram formatiert.",open:"Bot in Telegram öffnen",github:"Quellcode auf GitHub",tutorial:"Markdown-Tutorial",hint:"Mit /test im Bot eine Live-Demo anzeigen.",f1h:"Markdown → Telegram",f1:"Überschriften, Listen, Zitate, Tabellen, Code, Links und Formeln.",f2h:"Medien im Dokument",f2:"Fotos, Audio, Sprache, Video und Dateien werden automatisch verknüpft.",f3h:"Lange Dokumente",f3:"Lange Texte werden bei Bedarf sicher auf mehrere Rich Messages verteilt.",f4h:"Fünf Sprachen",f4:"Englisch, Russisch, Deutsch, Französisch und Ukrainisch.",f5h:"Tutorial inklusive",f5:"Das /test-Ergebnis mit dem ursprünglichen Markdown vergleichen.",f6h:"Open Source",f6:"Cloudflare Worker + Durable Objects. Öffentlicher GitHub-Code.",how:"Drei Schritte",s1h:"Medien senden",s1:"Optional zuerst Fotos, Audio oder Video senden.",s2h:"Markdown senden",s2:"Text einfügen oder .md/.markdown/.txt hochladen.",s3h:"Rich Message erhalten",s3:"Der Bot formatiert die Nachricht und fügt Medien automatisch ein.",example:"Eine Eingabe. Ein sauberes Ergebnis."},
+fr:{kicker:"Convertisseur Markdown & médias pour Telegram",title:"Écrivez en Markdown.<br>Obtenez un Rich Message.",lead:"Long texte, tableaux, formules, images, audio et vidéo — mis en forme pour Telegram automatiquement.",open:"Ouvrir le bot dans Telegram",github:"Voir le code sur GitHub",tutorial:"Tutoriel Markdown",hint:"Utilisez /test dans le bot pour une démo Rich Message.",f1h:"Markdown → Telegram",f1:"Titres, listes, citations, tableaux, code, liens et formules.",f2h:"Médias dans le document",f2:"Photos, audio, voix, vidéo et fichiers sont liés automatiquement.",f3h:"Longs documents",f3:"Le texte long est découpé proprement en plusieurs Rich Messages si nécessaire.",f4h:"Cinq langues",f4:"Anglais, russe, allemand, français et ukrainien.",f5h:"Tutoriel inclus",f5:"Comparez le résultat de /test avec le Markdown original.",f6h:"Open source",f6:"Cloudflare Worker + Durable Objects. Code public sur GitHub.",how:"Trois étapes",s1h:"Envoyer les médias",s1:"Optionnel : envoyez d’abord photos, audio ou vidéo.",s2h:"Envoyer le Markdown",s2:"Collez le texte ou chargez un fichier .md/.markdown/.txt.",s3h:"Recevoir le Rich Message",s3:"Le bot met en forme le message et insère les médias automatiquement.",example:"Une entrée. Un résultat soigné."},
+uk:{kicker:"Конвертер Markdown і медіа для Telegram",title:"Пишіть Markdown.<br>Отримуйте Rich Message.",lead:"Довгий текст, таблиці, формули, зображення, аудіо й відео — автоматично оформлені для Telegram.",open:"Відкрити бота в Telegram",github:"Код на GitHub",tutorial:"Markdown tutorial",hint:"Введіть /test у боті, щоб побачити живу демонстрацію.",f1h:"Markdown → Telegram",f1:"Заголовки, списки, цитати, таблиці, код, посилання й формули.",f2h:"Медіа в документі",f2:"Фото, аудіо, голос, відео та файли зв’язуються автоматично.",f3h:"Довгі документи",f3:"За потреби довгий текст безпечно ділиться на кілька Rich Messages.",f4h:"П’ять мов",f4:"Англійська, російська, німецька, французька та українська.",f5h:"Tutorial включено",f5:"Порівнюйте результат /test з оригінальним Markdown.",f6h:"Open source",f6:"Cloudflare Worker + Durable Objects. Код відкритий на GitHub.",how:"Три кроки",s1h:"Надішліть медіа",s1:"Необов’язково: спочатку фото, аудіо або відео.",s2h:"Надішліть Markdown",s2:"Вставте текст або файл .md/.markdown/.txt.",s3h:"Отримайте Rich Message",s3:"Бот оформить повідомлення й автоматично вставить медіа.",example:"Один вхід. Один охайний результат."}
+};
+function setLang(lang){lang=T[lang]?lang:"en";document.documentElement.lang=lang;document.querySelectorAll("[data-t]").forEach(el=>{const v=T[lang][el.dataset.t];if(v!=null)el.innerHTML=v});document.querySelectorAll(".langs button").forEach(b=>b.classList.toggle("active",b.dataset.lang===lang));document.getElementById("tutorial").href="https://github.com/l3chat/telegram-md-bot/blob/main/docs/tutorial/test-page."+lang+".md";localStorage.setItem("mrm-lang",lang)}
+document.querySelectorAll(".langs button").forEach(b=>b.addEventListener("click",()=>setLang(b.dataset.lang)));
+setLang(localStorage.getItem("mrm-lang")||((navigator.language||"en").slice(0,2)));
+</script>
+</body>
+</html>
