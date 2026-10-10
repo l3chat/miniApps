@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>RPN 3D Demo</title>
+<style>
+  :root{
+    --bg:#07131b;--panel:rgba(9,25,34,.84);--ink:#eff8f4;--muted:#9bb2aa;
+    --accent:#56d7ae;--accent2:#ffd166;--danger:#ff7b7b;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif}
+  canvas{display:block;width:100%;height:100%;touch-action:none}
+  .hud{position:fixed;inset:0;pointer-events:none;color:var(--ink)}
+  .top{
+    position:absolute;top:max(8px,env(safe-area-inset-top));left:50%;transform:translateX(-50%);
+    display:flex;gap:7px;align-items:center;padding:6px;border-radius:14px;background:var(--panel);
+    backdrop-filter:blur(8px);pointer-events:auto;box-shadow:0 8px 30px rgba(0,0,0,.25)
+  }
+  button{
+    border:0;border-radius:9px;padding:9px 13px;background:#183540;color:var(--ink);
+    font:800 14px/1 system-ui;cursor:pointer;touch-action:manipulation
+  }
+  button.primary{background:#197b65}
+  button:disabled{opacity:.45}
+  .speed{display:flex;align-items:center;gap:6px;padding:0 5px;color:var(--muted);font-size:12px;font-weight:800}
+  .speed input{width:90px;accent-color:var(--accent)}
+  .lesson{
+    position:absolute;left:50%;bottom:max(10px,env(safe-area-inset-bottom));transform:translateX(-50%);
+    width:min(92vw,760px);padding:11px 16px;border-radius:14px;background:var(--panel);
+    backdrop-filter:blur(8px);text-align:center;box-shadow:0 8px 30px rgba(0,0,0,.25)
+  }
+  .lesson strong{display:block;color:var(--accent2);font-size:clamp(16px,3.5vw,22px);margin-bottom:3px}
+  .lesson span{display:block;color:var(--ink);font-size:clamp(13px,2.8vw,17px);line-height:1.25}
+  .legend{
+    position:absolute;left:max(8px,env(safe-area-inset-left));top:64px;padding:9px 11px;border-radius:12px;
+    background:rgba(9,25,34,.68);font-size:12px;line-height:1.45;color:var(--muted)
+  }
+  .legend b{color:var(--ink)}
+  .bubble{
+    position:absolute;display:none;max-width:230px;padding:8px 11px;border-radius:14px;
+    background:#fff;color:#17211c;font-weight:850;font-size:13px;line-height:1.2;
+    box-shadow:0 8px 22px rgba(0,0,0,.24)
+  }
+  .bubble::after{
+    content:"";position:absolute;left:28px;bottom:-9px;border:10px solid transparent;border-top-color:#fff;border-bottom:0
+  }
+  .bubble.calc::after{left:auto;right:28px}
+  @media(max-width:620px){
+    .top{top:max(5px,env(safe-area-inset-top));gap:4px;padding:4px}
+    button{padding:8px 9px;font-size:12px}
+    .speed{display:none}
+    .legend{top:52px;font-size:10px;padding:6px 8px}
+  }
+</style>
+</head>
+<body>
+<div class="hud">
+  <div class="top">
+    <button id="play" class="primary">▶ Play</button>
+    <button id="step">Step</button>
+    <button id="reset">↺ Reset</button>
+    <div class="speed"><span>Speed</span><input id="speed" type="range" min="0.45" max="2.2" step="0.05" value="1"></div>
+  </div>
+  <div class="legend"><b>Поток:</b> 3 · 4 · + · 5 · ×<br><b>Правило:</b> число → стек, операция → калькулятор</div>
+  <div id="robotBubble" class="bubble"></div>
+  <div id="calcBubble" class="bubble calc"></div>
+  <div class="lesson"><strong id="title">Обратная польская запись как маленький спектакль</strong><span id="text">Нажмите Play или Step. Робот будет читать поток слева направо.</span></div>
+</div>
+
+<script type="module">
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
+
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x07131b);
+scene.fog=new THREE.Fog(0x07131b,18,42);
+
+const camera=new THREE.PerspectiveCamera(42,innerWidth/innerHeight,.1,100);
+camera.position.set(0,8.4,18);
+camera.lookAt(0,2.3,0);
+
+const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.setSize(innerWidth,innerHeight);
+renderer.outputColorSpace=THREE.SRGBColorSpace;
+renderer.shadowMap.enabled=true;
+renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+document.body.prepend(renderer.domElement);
+
+scene.add(new THREE.HemisphereLight(0xbfe8ff,0x17231e,2.2));
+const key=new THREE.DirectionalLight(0xffffff,2.6); key.position.set(-6,12,8); key.castShadow=true; scene.add(key);
+const rim=new THREE.PointLight(0x56d7ae,28,22); rim.position.set(4,5,-3); scene.add(rim);
+
+const floor=new THREE.Mesh(new THREE.PlaneGeometry(32,18),new THREE.MeshStandardMaterial({color:0x0d2029,roughness:.9,metalness:.05}));
+floor.rotation.x=-Math.PI/2; floor.receiveShadow=true; scene.add(floor);
+
+function canvasTexture(text,bg='#ffffff',fg='#17211c',w=512,h=256,font=150){
+  const c=document.createElement('canvas');c.width=w;c.height=h;const x=c.getContext('2d');
+  x.fillStyle=bg;x.fillRect(0,0,w,h);x.fillStyle=fg;x.font=`900 ${font}px system-ui`;
+  x.textAlign='center';x.textBaseline='middle';x.fillText(text,w/2,h/2+4);
+  const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;return t;
+}
+function labelSprite(text,{bg='#ffffff',fg='#17211c',scale=[2.4,1.2]}={}){
+  const m=new THREE.SpriteMaterial({map:canvasTexture(text,bg,fg),transparent:true,depthTest:false});
+  const s=new THREE.Sprite(m);s.scale.set(scale[0],scale[1],1);return s;
+}
+function boxToken(text,color=0xffd166){
+  const g=new THREE.Group();
+  const body=new THREE.Mesh(new THREE.BoxGeometry(1.2,.72,.42),new THREE.MeshStandardMaterial({color,roughness:.35,metalness:.08}));
+  body.castShadow=true;g.add(body);
+  const lab=labelSprite(String(text),{bg:'#fff9e8',fg:'#15231d',scale:[.95,.48]});lab.position.z=.225;g.add(lab);
+  g.userData.text=String(text);return g;
+}
+function roundedPlatform(w,d,color){
+  const m=new THREE.Mesh(new THREE.BoxGeometry(w,.18,d),new THREE.MeshStandardMaterial({color,roughness:.65,metalness:.05}));
+  m.receiveShadow=true;m.castShadow=true;return m;
+}
+
+const conveyor=new THREE.Group();conveyor.position.set(-6,0,-.4);scene.add(conveyor);
+const belt=roundedPlatform(8.2,2.0,0x18313a);belt.position.y=.18;conveyor.add(belt);
+for(let i=0;i<9;i++){const r=new THREE.Mesh(new THREE.CylinderGeometry(.11,.11,1.75,18),new THREE.MeshStandardMaterial({color:0x294b54,metalness:.5,roughness:.4}));r.rotation.z=Math.PI/2;r.position.set(-3.6+i*.9,.32,0);conveyor.add(r)}
+const flowTitle=labelSprite('ВХОДНОЙ ПОТОК',{bg:'#14303a',fg:'#d8fff1',scale:[3.5,.65]});flowTitle.position.set(-.2,1.45,.2);conveyor.add(flowTitle);
+
+const sourceTokens=['3','4','+','5','×'].map((t,i)=>{const tok=boxToken(t,['+','×'].includes(t)?0xff8f70:0xffd166);tok.position.set(-3.1+i*1.35,.85,0);conveyor.add(tok);return tok;});
+
+function makeRobot(){
+  const g=new THREE.Group();
+  const blue=new THREE.MeshStandardMaterial({color:0x54b7d4,roughness:.35,metalness:.22});
+  const dark=new THREE.MeshStandardMaterial({color:0x16353f,roughness:.4,metalness:.3});
+  const body=new THREE.Mesh(new THREE.BoxGeometry(1.4,1.6,.9),blue);body.position.y=1.4;body.castShadow=true;g.add(body);
+  const head=new THREE.Mesh(new THREE.BoxGeometry(1.25,.85,.85),blue);head.position.y=2.65;head.castShadow=true;g.add(head);
+  const face=new THREE.Mesh(new THREE.PlaneGeometry(.9,.45),dark);face.position.set(0,2.66,.431);g.add(face);
+  for(const x of[-.25,.25]){const e=new THREE.Mesh(new THREE.SphereGeometry(.07,16,16),new THREE.MeshBasicMaterial({color:0x8dffcf}));e.position.set(x,2.7,.45);g.add(e)}
+  const antenna=new THREE.Mesh(new THREE.CylinderGeometry(.035,.035,.45,12),dark);antenna.position.y=3.3;g.add(antenna);
+  const ball=new THREE.Mesh(new THREE.SphereGeometry(.09,16,16),new THREE.MeshBasicMaterial({color:0xffd166}));ball.position.y=3.56;g.add(ball);
+  g.userData.armL=new THREE.Group();g.userData.armR=new THREE.Group();
+  for(const [arm,x] of [[g.userData.armL,-.9],[g.userData.armR,.9]]){arm.position.set(x,2.0,0);const upper=new THREE.Mesh(new THREE.BoxGeometry(.25,.85,.25),blue);upper.position.y=-.4;arm.add(upper);g.add(arm)}
+  for(const x of[-.45,.45]){const leg=new THREE.Mesh(new THREE.BoxGeometry(.35,.75,.35),dark);leg.position.set(x,.38,0);g.add(leg)}
+  const name=labelSprite('РОБОТ',{bg:'#122a33',fg:'#8dffcf',scale:[2.2,.55]});name.position.set(0,4.15,0);g.add(name);
+  return g;
+}
+const robot=makeRobot();robot.position.set(-1.7,0,0);scene.add(robot);
+
+const stackGroup=new THREE.Group();stackGroup.position.set(3.0,0,0);scene.add(stackGroup);
+const stackBase=roundedPlatform(3.4,2.5,0x17343a);stackBase.position.y=.15;stackGroup.add(stackBase);
+const stackTitle=labelSprite('СТЕК',{bg:'#16383a',fg:'#9dffd9',scale:[2.5,.62]});stackTitle.position.set(0,6.15,.2);stackGroup.add(stackTitle);
+const slots=[];
+for(let i=0;i<5;i++){
+  const frame=new THREE.Mesh(new THREE.BoxGeometry(2.5,.88,.95),new THREE.MeshStandardMaterial({color:0x1d4b4f,transparent:true,opacity:.28,roughness:.5}));
+  frame.position.set(0,.85+i,0);stackGroup.add(frame);slots.push(frame);
+  const l=labelSprite(i===4?'верх':'',{bg:'#173237',fg:'#86b9aa',scale:[1.1,.34]});l.position.set(-1.8,.85+i,.2);stackGroup.add(l);
+}
+
+function makeCalculator(){
+  const g=new THREE.Group();
+  const mat=new THREE.MeshStandardMaterial({color:0xf07f61,roughness:.35,metalness:.12});
+  const body=new THREE.Mesh(new THREE.BoxGeometry(2.1,2.4,1.25),mat);body.position.y=1.55;body.castShadow=true;g.add(body);
+  const screen=new THREE.Mesh(new THREE.PlaneGeometry(1.55,.72),new THREE.MeshBasicMaterial({color:0x10252d}));screen.position.set(0,1.9,.631);g.add(screen);
+  const screenLabel=labelSprite('готов',{bg:'#10252d',fg:'#a8ffd9',scale:[1.35,.48]});screenLabel.position.set(0,1.9,.65);g.add(screenLabel);g.userData.screen=screenLabel;
+  for(const x of[-.55,0,.55])for(const y of[1.05,.65]){const b=new THREE.Mesh(new THREE.SphereGeometry(.11,16,16),new THREE.MeshStandardMaterial({color:0xffd166}));b.position.set(x,y,.67);g.add(b)}
+  const name=labelSprite('КАЛЬКУЛЯТОР',{bg:'#3b2420',fg:'#ffd8ce',scale:[3.3,.58]});name.position.set(0,3.5,0);g.add(name);
+  return g;
+}
+const calc=makeCalculator();calc.position.set(7.0,0,0);scene.add(calc);
+
+const stackTokens=[];
+function stackPos(index){return new THREE.Vector3(3.0,.85+index,0.55)}
+function worldOf(obj){const v=new THREE.Vector3();obj.getWorldPosition(v);return v}
+
+const title=document.getElementById('title'),text=document.getElementById('text'),rb=document.getElementById('robotBubble'),cb=document.getElementById('calcBubble');
+function lesson(t,d){title.textContent=t;text.textContent=d}
+function bubble(el,msg,world){el.textContent=msg;el.style.display='block';const p=world.clone().project(camera);el.style.left=((p.x*.5+.5)*innerWidth)+'px';el.style.top=((-p.y*.5+.5)*innerHeight-70)+'px';}
+function hideBubbles(){rb.style.display=cb.style.display='none'}
+
+let speed=1,playing=false,paused=false,stepResolve=null,currentIndex=0;
+document.getElementById('speed').oninput=e=>speed=Number(e.target.value);
+const wait=ms=>new Promise(r=>setTimeout(r,ms/Math.max(.1,speed)));
+
+function tween(obj,to,ms=850){
+  const from=obj.position.clone();const start=performance.now();return new Promise(resolve=>{
+    function f(now){const u=Math.min(1,(now-start)/(ms/Math.max(.1,speed))),e=u<.5?2*u*u:1-Math.pow(-2*u+2,2)/2;obj.position.lerpVectors(from,to,e);if(u<1)requestAnimationFrame(f);else resolve()}requestAnimationFrame(f);
+  });
+}
+async function robotSay(msg){bubble(rb,msg,worldOf(robot).add(new THREE.Vector3(0,4.1,0)));await wait(650);hideBubbles()}
+async function calcSay(msg){bubble(cb,msg,worldOf(calc).add(new THREE.Vector3(-.5,3.5,0)));await wait(650);hideBubbles()}
+async function checkpoint(){
+  if(!paused)return;
+  await new Promise(r=>stepResolve=r);stepResolve=null;
+}
+function detachKeepWorld(obj,newParent){obj.updateMatrixWorld();const p=new THREE.Vector3(),q=new THREE.Quaternion(),s=new THREE.Vector3();obj.matrixWorld.decompose(p,q,s);newParent.add(obj);obj.position.copy(newParent.worldToLocal(p.clone()));obj.quaternion.copy(q);obj.scale.copy(s)}
+function setScreen(s){calc.userData.screen.material.map.dispose();calc.userData.screen.material.map=canvasTexture(String(s),'#10252d','#a8ffd9',512,256,105);calc.userData.screen.material.needsUpdate=true}
+
+async function processNumber(source,value){
+  lesson('Это число','Робот узнаёт число и несёт его прямо на вершину стека.');
+  await robotSay('Число! Это ко мне 🤖');
+  detachKeepWorld(source,scene);
+  await tween(source,worldOf(robot).add(new THREE.Vector3(0,2.1,1.0)),650);
+  robot.userData.armR.rotation.z=-.65;await wait(220);
+  const target=stackPos(stackTokens.length);
+  await tween(source,target,900);
+  robot.userData.armR.rotation.z=0;
+  stackTokens.push(source);
+  lesson('PUSH','Число '+value+' положено на стек. Верхушка стека теперь — '+value+'.');
+  await wait(550);
+}
+async function processOp(source,op){
+  lesson('Это операция','Робот не вычисляет сам: он передаёт команду калькулятору.');
+  await robotSay('Операция! Эй, калькулятор! 📮');
+  detachKeepWorld(source,scene);
+  await tween(source,worldOf(robot).add(new THREE.Vector3(.2,2.1,1)),500);
+  await tween(source,worldOf(calc).add(new THREE.Vector3(-1.5,2.0,.8)),850);
+  await calcSay('Мне нужны два числа сверху!');
+  if(stackTokens.length<2){lesson('Ошибка','На стеке не хватает двух чисел.');return}
+  const x=stackTokens.pop(),y=stackTokens.pop();
+  lesson('POP, POP','Калькулятор снимает два верхних элемента. Для − и ÷ порядок особенно важен.');
+  await Promise.all([
+    tween(x,worldOf(calc).add(new THREE.Vector3(-.55,3.0,.8)),850),
+    tween(y,worldOf(calc).add(new THREE.Vector3(.55,3.0,.8)),850)
+  ]);
+  const a=Number(y.userData.text),b=Number(x.userData.text);
+  const sym=op==='×'?'*':op;
+  const result=sym==='+'?a+b:sym==='-'?a-b:sym==='*'?a*b:a/b;
+  setScreen(`${a} ${op} ${b} = ${result}`);
+  await calcSay(`${a} ${op} ${b} = ${result}!`);
+  x.visible=false;y.visible=false;source.visible=false;
+  const res=boxToken(String(result),0x7de0b3);res.position.copy(worldOf(calc).add(new THREE.Vector3(0,1.0,1)));scene.add(res);
+  lesson('Результат возвращается','Калькулятор создаёт новый элемент '+result+' и кладёт его обратно на стек.');
+  await tween(res,stackPos(stackTokens.length),950);
+  stackTokens.push(res);
+  await wait(450);
+}
+async function runToken(i){
+  const src=sourceTokens[i],t=src.userData.text;
+  lesson('Читаем следующий элемент',`Следующий токен: ${t}`);
+  await checkpoint();
+  if(['+','−','-','×','*','÷','/'].includes(t))await processOp(src,t);else await processNumber(src,t);
+}
+
+async function run(){
+  if(playing)return;playing=true;
+  document.getElementById('play').textContent='❚❚ Pause';
+  for(;currentIndex<sourceTokens.length;currentIndex++){
+    if(!playing)break;
+    while(paused)await wait(80);
+    await runToken(currentIndex);
+  }
+  if(currentIndex>=sourceTokens.length){
+    lesson('Готово!','В стеке остался один результат: 35. Так выражение 3 4 + 5 × означает (3 + 4) × 5.');
+    setScreen('35');
+  }
+  playing=false;document.getElementById('play').textContent='▶ Play';
+}
+document.getElementById('play').onclick=()=>{
+  if(playing){paused=!paused;document.getElementById('play').textContent=paused?'▶ Continue':'❚❚ Pause';return}
+  paused=false;run();
+};
+document.getElementById('step').onclick=async()=>{
+  if(!playing){paused=true;run();await wait(20)}
+  if(stepResolve)stepResolve();else{paused=false;await wait(20);paused=true}
+};
+document.getElementById('reset').onclick=()=>location.reload();
+
+function resize(){
+  camera.aspect=innerWidth/innerHeight;
+  if(innerWidth<700){camera.position.set(.5,10.5,22);camera.lookAt(.5,2.3,0)}else{camera.position.set(.5,8.4,18);camera.lookAt(.5,2.3,0)}
+  camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);
+}
+addEventListener('resize',resize);resize();
+
+const clock=new THREE.Clock();
+function animate(){
+  requestAnimationFrame(animate);
+  const t=clock.getElapsedTime();
+  robot.position.y=Math.sin(t*2.2)*.035;
+  calc.position.y=Math.sin(t*1.5+.8)*.025;
+  sourceTokens.forEach((o,i)=>{if(o.parent===conveyor)o.rotation.y=Math.sin(t*1.5+i)*.05});
+  renderer.render(scene,camera);
+}
+animate();
+</script>
+</body>
+</html>
