@@ -7,3 +7,6 @@ Open [index.html](index.html) to see the app list.
 ## Apps
 
 - [Schulte Table](schulte/index.html): responsive Schulte table timer with `1-25` and `1-24 + dot` variants.
+
+
+- [Markdown → Rich Message](markdown-rich-message/index.html): landing page for the Telegram Markdown & Media Converter bot.
