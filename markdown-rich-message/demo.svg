@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 540" role="img" aria-label="Markdown to Telegram Rich Message animation">
+<style>
+text{font-family:Inter,system-ui,sans-serif}.mono{font-family:ui-monospace,SFMono-Regular,Consolas,monospace}
+.arrow{animation:pulse 1.5s infinite}.rich{opacity:0;animation:show 4s infinite}.typing{animation:type 4s steps(1) infinite}
+@keyframes pulse{50%{transform:translateX(9px)}}@keyframes show{0%,32%{opacity:0}42%,90%{opacity:1}100%{opacity:0}}@keyframes type{0%,15%{opacity:.25}30%,100%{opacity:1}}
+</style>
+<rect width="960" height="540" rx="30" fill="#f4f7fa"/>
+<text x="44" y="58" font-size="34" font-weight="800" fill="#17212b">Markdown → Rich Message</text>
+<rect x="42" y="100" width="380" height="390" rx="22" fill="white" stroke="#dbe3ea" stroke-width="2"/>
+<rect x="538" y="100" width="380" height="390" rx="22" fill="white" stroke="#dbe3ea" stroke-width="2"/>
+<text x="66" y="140" font-size="22" font-weight="800" fill="#17212b">Markdown</text>
+<text x="562" y="140" font-size="22" font-weight="800" fill="#17212b">Telegram</text>
+<g class="typing" fill="#334455" font-size="18">
+<text class="mono" x="66" y="190"># Trip notes</text><text class="mono" x="66" y="225">## Athens</text>
+<text class="mono" x="66" y="260">- flight booked</text><text class="mono" x="66" y="295">- hotel confirmed</text>
+<text class="mono" x="66" y="345">|Day|Plan|</text><text class="mono" x="66" y="380">|1|Acropolis|</text><text class="mono" x="66" y="415">|2|Plaka|</text>
+</g>
+<g class="arrow" stroke="#229ed9" fill="#229ed9"><path d="M451 295h52" stroke-width="8"/><path d="M503 295l-17-14v28z"/></g>
+<g class="rich">
+<rect x="562" y="170" width="330" height="278" rx="20" fill="#eaf6fc"/>
+<text x="586" y="210" font-size="27" font-weight="800" fill="#17344d">Trip notes</text>
+<text x="586" y="252" font-size="21" font-weight="700" fill="#17344d">Athens</text>
+<text x="586" y="290" font-size="18" fill="#334455">• flight booked</text><text x="586" y="322" font-size="18" fill="#334455">• hotel confirmed</text>
+<rect x="586" y="350" width="230" height="72" fill="white" stroke="#9bb3c5"/><path d="M586 374h230M642 350v72" stroke="#9bb3c5"/>
+<text x="596" y="368" font-size="14">Day</text><text x="655" y="368" font-size="14">Plan</text><text x="602" y="397" font-size="14">1</text><text x="655" y="397" font-size="14">Acropolis</text>
+</g>
+<text x="365" y="518" font-size="17" font-weight="700" fill="#229ed9">@tgMdFormatter_bot</text>
+</svg>
