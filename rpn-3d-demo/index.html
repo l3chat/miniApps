@@ -120,8 +120,6 @@ function roundedPlatform(w,d,color){
 const conveyor=new THREE.Group();conveyor.position.set(-6,0,-.4);scene.add(conveyor);
 const belt=roundedPlatform(8.2,2.0,0x18313a);belt.position.y=.18;conveyor.add(belt);
 for(let i=0;i<9;i++){const r=new THREE.Mesh(new THREE.CylinderGeometry(.11,.11,1.75,18),new THREE.MeshStandardMaterial({color:0x294b54,metalness:.5,roughness:.4}));r.rotation.z=Math.PI/2;r.position.set(-3.6+i*.9,.32,0);conveyor.add(r)}
-const flowTitle=labelSprite('ВХОДНОЙ ПОТОК',{bg:'#14303a',fg:'#d8fff1',scale:[3.5,.65]});flowTitle.position.set(-.2,1.45,.2);conveyor.add(flowTitle);
-
 const sourceTokens=['3','4','+','5','×'].map((t,i)=>{const tok=boxToken(t,['+','×'].includes(t)?0xff8f70:0xffd166);tok.position.set(-3.1+i*1.35,.85,0);conveyor.add(tok);return tok;});
 
 function makeRobot(){
@@ -137,10 +135,14 @@ function makeRobot(){
   g.userData.armL=new THREE.Group();g.userData.armR=new THREE.Group();
   for(const [arm,x] of [[g.userData.armL,-.9],[g.userData.armR,.9]]){arm.position.set(x,2.0,0);const upper=new THREE.Mesh(new THREE.BoxGeometry(.25,.85,.25),blue);upper.position.y=-.4;arm.add(upper);g.add(arm)}
   for(const x of[-.45,.45]){const leg=new THREE.Mesh(new THREE.BoxGeometry(.35,.75,.35),dark);leg.position.set(x,.38,0);g.add(leg)}
-  const name=labelSprite('РОБОТ',{bg:'#122a33',fg:'#8dffcf',scale:[2.2,.55]});name.position.set(0,4.15,0);g.add(name);
+  const grip=new THREE.Object3D();grip.position.set(0,1.72,.92);g.add(grip);g.userData.grip=grip;
+  g.userData.legs=[];
+  g.children.forEach(o=>{ if(o.isMesh && o.geometry?.type==='BoxGeometry' && o.position.y===.38) g.userData.legs.push(o); });
+  g.userData.walking=false;
   return g;
 }
-const robot=makeRobot();robot.position.set(-1.7,0,0);scene.add(robot);
+const ROBOT_HOME=new THREE.Vector3(-9.7,0,-2.05);
+const robot=makeRobot();robot.position.copy(ROBOT_HOME);scene.add(robot);
 
 const stackGroup=new THREE.Group();stackGroup.position.set(3.0,0,0);scene.add(stackGroup);
 const stackBase=roundedPlatform(3.4,2.5,0x17343a);stackBase.position.y=.15;stackGroup.add(stackBase);
@@ -159,7 +161,6 @@ function makeCalculator(){
   const screen=new THREE.Mesh(new THREE.PlaneGeometry(1.55,.72),new THREE.MeshBasicMaterial({color:0x10252d}));screen.position.set(0,1.9,.631);g.add(screen);
   const screenLabel=labelSprite('готов',{bg:'#10252d',fg:'#a8ffd9',scale:[1.35,.48]});screenLabel.position.set(0,1.9,.65);g.add(screenLabel);g.userData.screen=screenLabel;
   for(const x of[-.55,0,.55])for(const y of[1.05,.65]){const b=new THREE.Mesh(new THREE.SphereGeometry(.11,16,16),new THREE.MeshStandardMaterial({color:0xffd166}));b.position.set(x,y,.67);g.add(b)}
-  const name=labelSprite('КАЛЬКУЛЯТОР',{bg:'#3b2420',fg:'#ffd8ce',scale:[3.3,.58]});name.position.set(0,3.5,0);g.add(name);
   return g;
 }
 const calc=makeCalculator();calc.position.set(7.0,0,0);scene.add(calc);
@@ -182,6 +183,38 @@ function tween(obj,to,ms=850){
     function f(now){const u=Math.min(1,(now-start)/(ms/Math.max(.1,speed))),e=u<.5?2*u*u:1-Math.pow(-2*u+2,2)/2;obj.position.lerpVectors(from,to,e);if(u<1)requestAnimationFrame(f);else resolve()}requestAnimationFrame(f);
   });
 }
+async function runRobot(to,ms=900){
+  robot.userData.walking=true;
+  const dx=to.x-robot.position.x;
+  robot.rotation.y=dx>=0?Math.PI/2:-Math.PI/2;
+  await tween(robot,to,ms);
+  robot.userData.walking=false;
+  robot.rotation.y=0;
+  robot.userData.armL.rotation.z=0;
+  robot.userData.armR.rotation.z=0;
+}
+function gripWorld(){return worldOf(robot.userData.grip)}
+async function grabToken(token){
+  detachKeepWorld(token,scene);
+  robot.userData.armL.rotation.z=.72;
+  robot.userData.armR.rotation.z=-.72;
+  await tween(token,gripWorld(),420);
+  robot.attach(token);
+  token.position.copy(robot.userData.grip.position);
+  token.rotation.set(0,0,0);
+}
+async function releaseTokenTo(token,target,ms=650){
+  detachKeepWorld(token,scene);
+  robot.userData.armL.rotation.z=.25;
+  robot.userData.armR.rotation.z=-.25;
+  await tween(token,target,ms);
+  robot.userData.armL.rotation.z=0;
+  robot.userData.armR.rotation.z=0;
+}
+async function goHome(){
+  lesson('Робот возвращается','После каждого поручения робот снова бежит к началу входного потока за следующим элементом.');
+  await runRobot(ROBOT_HOME.clone(),900);
+}
 async function robotSay(msg){bubble(rb,msg,worldOf(robot).add(new THREE.Vector3(0,4.1,0)));await wait(650);hideBubbles()}
 async function calcSay(msg){bubble(cb,msg,worldOf(calc).add(new THREE.Vector3(-.5,3.5,0)));await wait(650);hideBubbles()}
 async function checkpoint(){
@@ -191,49 +224,76 @@ async function checkpoint(){
 function detachKeepWorld(obj,newParent){obj.updateMatrixWorld();const p=new THREE.Vector3(),q=new THREE.Quaternion(),s=new THREE.Vector3();obj.matrixWorld.decompose(p,q,s);newParent.add(obj);obj.position.copy(newParent.worldToLocal(p.clone()));obj.quaternion.copy(q);obj.scale.copy(s)}
 function setScreen(s){calc.userData.screen.material.map.dispose();calc.userData.screen.material.map=canvasTexture(String(s),'#10252d','#a8ffd9',512,256,105);calc.userData.screen.material.needsUpdate=true}
 
+async function approachAndInspect(source,t){
+  const p=worldOf(source);
+  const behind=new THREE.Vector3(p.x,0,-2.05);
+  lesson('Робот идёт за следующим элементом',`Следующий токен: ${t}. Сначала робот должен взять его в руки.`);
+  await runRobot(behind,700+Math.abs(robot.position.x-behind.x)*90);
+  await grabToken(source);
+  lesson('Анализ токена',`Робот держит «${t}» и решает: число это или операция?`);
+  await robotSay(['+','−','-','×','*','÷','/'].includes(t)?'Хм… операция! 🧠':'Ага, число! 🧠');
+}
 async function processNumber(source,value){
-  lesson('Это число','Робот узнаёт число и несёт его прямо на вершину стека.');
-  await robotSay('Число! Это ко мне 🤖');
-  detachKeepWorld(source,scene);
-  await tween(source,worldOf(robot).add(new THREE.Vector3(0,2.1,1.0)),650);
-  robot.userData.armR.rotation.z=-.65;await wait(220);
+  lesson('Это число','Число нужно положить на вершину стека. Робот несёт его сам.');
+  await runRobot(new THREE.Vector3(1.15,0,-2.0),1000);
   const target=stackPos(stackTokens.length);
-  await tween(source,target,900);
-  robot.userData.armR.rotation.z=0;
+  await releaseTokenTo(source,target,650);
   stackTokens.push(source);
-  lesson('PUSH','Число '+value+' положено на стек. Верхушка стека теперь — '+value+'.');
-  await wait(550);
+  lesson('PUSH','Число '+value+' лежит на вершине стека.');
+  await wait(420);
+  await goHome();
 }
 async function processOp(source,op){
-  lesson('Это операция','Робот не вычисляет сам: он передаёт команду калькулятору.');
-  await robotSay('Операция! Эй, калькулятор! 📮');
-  detachKeepWorld(source,scene);
-  await tween(source,worldOf(robot).add(new THREE.Vector3(.2,2.1,1)),500);
-  await tween(source,worldOf(calc).add(new THREE.Vector3(-1.5,2.0,.8)),850);
-  await calcSay('Мне нужны два числа сверху!');
-  if(stackTokens.length<2){lesson('Ошибка','На стеке не хватает двух чисел.');return}
+  lesson('Это операция','Операцию робот относит калькулятору. Сам робот ничего не вычисляет.');
+  await runRobot(new THREE.Vector3(5.05,0,-2.0),1050);
+  await robotSay('Команда для тебя! 📮');
+  const intake=worldOf(calc).add(new THREE.Vector3(-1.2,1.75,.85));
+  await releaseTokenTo(source,intake,520);
+  source.visible=false;
+
+  if(stackTokens.length<2){
+    lesson('Ошибка','На стеке не хватает двух чисел.');
+    await calcSay('Мне нужны два числа!');
+    await goHome();
+    return;
+  }
+
+  await calcSay('Принято! Беру два числа сверху.');
   const x=stackTokens.pop(),y=stackTokens.pop();
-  lesson('POP, POP','Калькулятор снимает два верхних элемента. Для − и ÷ порядок особенно важен.');
+  lesson('POP, POP','Калькулятор сам снимает два верхних элемента стека.');
   await Promise.all([
-    tween(x,worldOf(calc).add(new THREE.Vector3(-.55,3.0,.8)),850),
-    tween(y,worldOf(calc).add(new THREE.Vector3(.55,3.0,.8)),850)
+    tween(x,worldOf(calc).add(new THREE.Vector3(-.55,3.0,.8)),800),
+    tween(y,worldOf(calc).add(new THREE.Vector3(.55,3.0,.8)),800)
   ]);
+
   const a=Number(y.userData.text),b=Number(x.userData.text);
-  const sym=op==='×'?'*':op;
+  const sym=op==='×'?'*':op==='÷'?'/':op;
   const result=sym==='+'?a+b:sym==='-'?a-b:sym==='*'?a*b:a/b;
   setScreen(`${a} ${op} ${b} = ${result}`);
-  await calcSay(`${a} ${op} ${b} = ${result}!`);
-  x.visible=false;y.visible=false;source.visible=false;
-  const res=boxToken(String(result),0x7de0b3);res.position.copy(worldOf(calc).add(new THREE.Vector3(0,1.0,1)));scene.add(res);
-  lesson('Результат возвращается','Калькулятор создаёт новый элемент '+result+' и кладёт его обратно на стек.');
-  await tween(res,stackPos(stackTokens.length),950);
+  lesson('Вычисление',`Калькулятор выполняет ${a} ${op} ${b} и получает ${result}.`);
+  await calcSay(`${a} ${op} ${b} = ${result}! 🎉`);
+  x.visible=false;y.visible=false;
+
+  const res=boxToken(String(result),0x7de0b3);
+  res.position.copy(worldOf(calc).add(new THREE.Vector3(0,1.0,1.0)));
+  scene.add(res);
+
+  lesson('Забрать результат','Теперь робот должен забрать результат у калькулятора.');
+  await runRobot(new THREE.Vector3(5.35,0,-2.0),320);
+  await grabToken(res);
+  await robotSay('Есть! Несу обратно на стек.');
+
+  lesson('PUSH результата','Робот относит новый результат на вершину стека.');
+  await runRobot(new THREE.Vector3(1.15,0,-2.0),900);
+  await releaseTokenTo(res,stackPos(stackTokens.length),650);
   stackTokens.push(res);
-  await wait(450);
+  await wait(350);
+  await goHome();
 }
 async function runToken(i){
   const src=sourceTokens[i],t=src.userData.text;
-  lesson('Читаем следующий элемент',`Следующий токен: ${t}`);
   await checkpoint();
+  await approachAndInspect(src,t);
   if(['+','−','-','×','*','÷','/'].includes(t))await processOp(src,t);else await processNumber(src,t);
 }
 
@@ -263,7 +323,7 @@ document.getElementById('reset').onclick=()=>location.reload();
 
 function resize(){
   camera.aspect=innerWidth/innerHeight;
-  if(innerWidth<700){camera.position.set(.5,10.5,22);camera.lookAt(.5,2.3,0)}else{camera.position.set(.5,8.4,18);camera.lookAt(.5,2.3,0)}
+  if(innerWidth<700){camera.position.set(-1.2,11.8,27);camera.lookAt(-1.2,2.2,0)}else{camera.position.set(-1.1,9.2,22.5);camera.lookAt(-1.1,2.2,0)}
   camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);
 }
 addEventListener('resize',resize);resize();
@@ -272,7 +332,15 @@ const clock=new THREE.Clock();
 function animate(){
   requestAnimationFrame(animate);
   const t=clock.getElapsedTime();
-  robot.position.y=Math.sin(t*2.2)*.035;
+  if(robot.userData.walking){
+    const swing=Math.sin(t*10)*.55;
+    robot.userData.armL.rotation.x=swing;
+    robot.userData.armR.rotation.x=-swing;
+    robot.userData.legs.forEach((leg,i)=>leg.rotation.x=(i%2?1:-1)*swing*.55);
+  }else{
+    robot.userData.armL.rotation.x=robot.userData.armR.rotation.x=0;
+    robot.userData.legs.forEach(leg=>leg.rotation.x=0);
+  }
   calc.position.y=Math.sin(t*1.5+.8)*.025;
   sourceTokens.forEach((o,i)=>{if(o.parent===conveyor)o.rotation.y=Math.sin(t*1.5+i)*.05});
   renderer.render(scene,camera);
