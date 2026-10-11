@@ -154,7 +154,7 @@ const EXAMPLES=[
   {alg:'(8 - 2) / (1 + 2)',rpn:'8 2 - 1 2 + /'}
 ];
 function tokenizeAlg(text){
-  const s=text.replace(/*/g,'*').replace(/÷/g,'/').replace(/−/g,'-').replace(/\s+/g,'');
+  const s=text.replace(/×/g,'*').replace(/÷/g,'/').replace(/−/g,'-').replace(/\s+/g,'');
   const tokens=s.match(/\d+(?:\.\d+)?|[()+\-*/]/g);
   return tokens&&tokens.join('')===s?tokens:null;
 }
