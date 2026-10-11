@@ -21,7 +21,7 @@
 <button class="fn" data-u="reciprocal">1/x</button><button class="fn" data-u="square">x²</button><button class="fn" data-u="cube">x³</button><button class="clear" data-a="clear">AC</button>
 <button class="fn" data-a="sign">±</button><button class="fn" data-u="sqrt">√x</button><button class="fn" data-u="cbrt">∛x</button><button class="fn" data-a="back">⌫</button>
 <button data-d="7">7</button><button data-d="8">8</button><button data-d="9">9</button><button class="op" data-b="/">÷</button>
-<button data-d="4">4</button><button data-d="5">5</button><button data-d="6">6</button><button class="op" data-b="*">×</button>
+<button data-d="4">4</button><button data-d="5">5</button><button data-d="6">6</button><button class="op" data-b="*">*</button>
 <button data-d="1">1</button><button data-d="2">2</button><button data-d="3">3</button><button class="op" data-b="-">−</button>
 <button data-d="0">0</button><button data-a="decimal">.</button><button class="fn" data-a="drop">DROP</button><button class="op" data-b="+">+</button>
 <button class="enter-btn" data-a="enter">ENTER</button><button class="fn" data-a="swap">X↔Y</button><button class="fn" data-a="roll">R↓</button>
@@ -69,7 +69,7 @@ async function roll(){if(typing&&!(await commit()))return;if(S.length<2){await s
 async function clearAll(){E='';typing=false;if(S.length)await transition(()=>S=[]);else render()}
 async function run(fn){if(busy)return;setBusy(true);try{await fn()}finally{setBusy(false)}}
 
-const DISPLAY={'+':'+','-':'−','*':'×','/':'÷'},rnd=(a,b)=>Math.floor(Math.random()*(b-a+1))+a;
+const DISPLAY={'+':'+','-':'−','*':'*','/':'÷'},rnd=(a,b)=>Math.floor(Math.random()*(b-a+1))+a;
 function buildTree(leaves,cfg){if(leaves===1)return{n:rnd(2,cfg.max)};const leftLeaves=rnd(1,leaves-1),op=cfg.ops[rnd(0,cfg.ops.length-1)];return{op,left:buildTree(leftLeaves,cfg),right:buildTree(leaves-leftLeaves,cfg)}}
 function evalTree(t){if(t.n!==undefined)return t.n;const a=evalTree(t.left),b=evalTree(t.right);if(a===null||b===null||(t.op==='/'&&Math.abs(b)<1e-12))return null;const v=t.op==='+'?a+b:t.op==='-'?a-b:t.op==='*'?a*b:a/b;return Number.isFinite(v)&&Math.abs(v)<100000?v:null}
 function algTree(t,root=false){if(t.n!==undefined)return String(t.n);const s=`${algTree(t.left)} ${DISPLAY[t.op]} ${algTree(t.right)}`;return root?s:`(${s})`}
