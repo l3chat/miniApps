@@ -47,6 +47,26 @@
     content:"";position:absolute;left:28px;bottom:-9px;border:10px solid transparent;border-top-color:#fff;border-bottom:0
   }
   .bubble.calc::after{left:auto;right:28px}
+  .examples{
+    position:absolute;left:max(8px,env(safe-area-inset-left));right:max(8px,env(safe-area-inset-right));top:64px;
+    display:grid;grid-template-columns:minmax(0,1fr) minmax(260px,420px);gap:8px;align-items:start;pointer-events:auto
+  }
+  .example-list,.custom-box{background:rgba(255,255,255,.86);backdrop-filter:blur(8px);border-radius:12px;padding:8px;box-shadow:0 8px 24px rgba(55,92,103,.14)}
+  .example-list{display:flex;gap:6px;flex-wrap:wrap}
+  .example-btn{display:grid;grid-template-columns:auto 1fr;gap:2px 7px;align-items:center;padding:7px 9px;background:#edf5f6;color:#17323a;border:1px solid #ccdfe2}
+  .example-btn.active{background:#d8efe8;border-color:#78b8a5}
+  .example-btn b{font-size:11px;color:#6b7f85}.example-btn span{font:800 12px/1.15 Consolas,monospace}
+  .custom-box{display:grid;grid-template-columns:34px 1fr auto;gap:6px;align-items:center}
+  .custom-box label{font-size:12px;font-weight:900;color:#47626a}
+  .custom-box input{min-width:0;border:1px solid #bfd3d7;border-radius:8px;padding:7px 9px;font:800 13px/1 Consolas,monospace;color:#17323a;background:#fff}
+  .custom-rpn{grid-column:2 / 4;font:800 12px/1.2 Consolas,monospace;color:#2f6f60;min-height:15px}
+  .legend{top:156px}
+  @media(max-width:760px){
+    .examples{grid-template-columns:1fr;top:52px}
+    .legend{top:186px}
+    .example-list{gap:4px}
+    .example-btn{padding:6px 7px}
+  }
   @media(max-width:620px){
     .top{top:max(5px,env(safe-area-inset-top));gap:4px;padding:4px}
     button{padding:8px 9px;font-size:12px}
@@ -63,10 +83,19 @@
     <button id="reset">↺ Reset</button>
     <div class="speed"><span>Speed</span><input id="speed" type="range" min="0.45" max="2.2" step="0.05" value="1"></div>
   </div>
-  <div class="legend"><b>Поток:</b> 3 · 4 · + · 5 · ×<br><b>Правило:</b> число → стек, операция → калькулятор</div>
+  <div class="examples">
+    <div id="exampleList" class="example-list"></div>
+    <div class="custom-box">
+      <label for="algInput">Alg</label>
+      <input id="algInput" value="(3 + 4) * 5" autocomplete="off" spellcheck="false">
+      <button id="showCustom">Show</button>
+      <div id="customRpn" class="custom-rpn">RPN: 3 4 + 5 *</div>
+    </div>
+  </div>
+  <div class="legend"><b>Правило:</b> число → стек, операция → калькулятор</div>
   <div id="robotBubble" class="bubble"></div>
   <div id="calcBubble" class="bubble calc"></div>
-  <div class="lesson"><strong id="title">Обратная польская запись как маленький спектакль</strong><span id="text">Нажмите Play или Step. Робот будет читать поток слева направо.</span></div>
+  <div class="lesson"><strong id="title">Обратная польская запись как маленький спектакль</strong><span id="text">Выберите пример или введите своё выражение, затем нажмите Play или Step.</span></div>
 </div>
 
 <script type="module">
@@ -117,10 +146,58 @@ function roundedPlatform(w,d,color){
   m.receiveShadow=true;m.castShadow=true;return m;
 }
 
+const EXAMPLES=[
+  {alg:'3 + 4',rpn:'3 4 +'},
+  {alg:'8 - 2',rpn:'8 2 -'},
+  {alg:'3 + 4 * 5',rpn:'3 4 5 * +'},
+  {alg:'(3 + 4) * 5',rpn:'3 4 + 5 *'},
+  {alg:'(8 - 2) / (1 + 2)',rpn:'8 2 - 1 2 + /'}
+];
+function tokenizeAlg(text){
+  const s=text.replace(/*/g,'*').replace(/÷/g,'/').replace(/−/g,'-').replace(/\s+/g,'');
+  const tokens=s.match(/\d+(?:\.\d+)?|[()+\-*/]/g);
+  return tokens&&tokens.join('')===s?tokens:null;
+}
+function infixToRpn(text){
+  const tokens=tokenizeAlg(text);if(!tokens)return null;
+  const out=[],ops=[],prec={'+':1,'-':1,'*':2,'/':2};let needValue=true;
+  for(const t of tokens){
+    if(/^\d/.test(t)){if(!needValue)return null;out.push(t);needValue=false;continue}
+    if(t==='('){if(!needValue)return null;ops.push(t);continue}
+    if(t===')'){
+      if(needValue)return null;let ok=false;
+      while(ops.length){const op=ops.pop();if(op==='('){ok=true;break}out.push(op)}
+      if(!ok)return null;needValue=false;continue;
+    }
+    if(needValue)return null;
+    while(ops.length&&ops.at(-1)!=='('&&prec[ops.at(-1)]>=prec[t])out.push(ops.pop());
+    ops.push(t);needValue=true;
+  }
+  if(needValue)return null;
+  while(ops.length){const op=ops.pop();if(op==='(')return null;out.push(op)}
+  return out.join(' ');
+}
+function rpnTokens(rpn){return rpn.trim().split(/\s+/).filter(Boolean)}
+function clearSourceTokens(){
+  for(const tok of sourceTokens){
+    if(tok.parent)tok.parent.remove(tok);
+  }
+  sourceTokens=[];
+}
+function buildSourceTokens(rpn){
+  clearSourceTokens();
+  const toks=rpnTokens(rpn);
+  const spacing=Math.min(1.35,7.0/Math.max(1,toks.length-1));
+  const start=-spacing*(toks.length-1)/2;
+  sourceTokens=toks.map((t,i)=>{
+    const tok=boxToken(t,['+','-','*','/'].includes(t)?0xff8f70:0xffd166);
+    tok.position.set(start+i*spacing,.85,0);conveyor.add(tok);return tok;
+  });
+}
 const conveyor=new THREE.Group();conveyor.position.set(-5.2,0,2.6);scene.add(conveyor);
 const belt=roundedPlatform(8.2,2.0,0xb7cdd2);belt.position.y=.18;conveyor.add(belt);
 for(let i=0;i<9;i++){const r=new THREE.Mesh(new THREE.CylinderGeometry(.11,.11,1.75,18),new THREE.MeshStandardMaterial({color:0x789aa2,metalness:.35,roughness:.45}));r.rotation.z=Math.PI/2;r.position.set(-3.6+i*.9,.32,0);conveyor.add(r)}
-const sourceTokens=['3','4','+','5','×'].map((t,i)=>{const tok=boxToken(t,['+','×'].includes(t)?0xff8f70:0xffd166);tok.position.set(-3.1+i*1.35,.85,0);conveyor.add(tok);return tok;});
+let sourceTokens=[];
 
 function makeRobot(){
   const g=new THREE.Group();
@@ -251,7 +328,7 @@ function makeCalculator(){
 }
 const calc=makeCalculator();calc.position.set(6.4,0,-2.25);scene.add(calc);
 
-const stackTokens=[];
+let stackTokens=[];
 function stackPos(index){return new THREE.Vector3(2.4,.85+index,-1.55)}
 function worldOf(obj){const v=new THREE.Vector3();obj.getWorldPosition(v);return v}
 function setSpriteText(sprite,value){
@@ -453,7 +530,7 @@ async function approachAndInspect(source,t){
   await tweenRot(robot.userData.head,{x:0,y:-.18,z:0},220);
   await tweenRot(robot.userData.head,{x:0,y:0,z:0},180);
   lesson('Анализ токена',`Робот держит «${t}» и решает: число это или операция?`);
-  await robotSay(['+','−','-','×','*','÷','/'].includes(t)?'Хм… операция! 🧠':'Ага, число! 🧠');
+  await robotSay(['+','-','*','/'].includes(t)?'Хм… операция! 🧠':'Ага, число! 🧠');
   await checkpoint();
 }
 async function processNumber(source,value){
@@ -505,7 +582,7 @@ async function processOp(source,op){
   await checkpoint();
 
   const a=Number(y.userData.text),b=Number(x.userData.text);
-  const sym=op==='×'?'*':op==='÷'?'/':op;
+  const sym=op;
   const result=sym==='+'?a+b:sym==='-'?a-b:sym==='*'?a*b:a/b;
   lesson('Вычисление',`Калькулятор выполняет ${a} ${op} ${b}. Машина думает…`);
   await calculatorWork();
@@ -543,8 +620,47 @@ async function runToken(i){
   const src=sourceTokens[i],t=src.userData.text;
   await checkpoint();
   await approachAndInspect(src,t);
-  if(['+','−','-','×','*','÷','/'].includes(t))await processOp(src,t);else await processNumber(src,t);
+  if(['+','-','*','/'].includes(t))await processOp(src,t);else await processNumber(src,t);
 }
+
+function resetScene(rpn,algText){
+  playing=false;paused=false;stepMode=false;releaseStep();currentIndex=0;hideBubbles();
+  for(const tok of stackTokens){if(tok.parent)tok.parent.remove(tok)}
+  stackTokens=[];updateStackLabels();
+  buildSourceTokens(rpn);
+  robot.position.copy(ROBOT_HOME);robot.rotation.set(0,0,0);
+  robot.userData.walking=false;
+  setScreen('готов');
+  lesson('Готово к демонстрации',`Alg: ${algText}   ⇔   RPN: ${rpn}`);
+  document.getElementById('play').textContent='▶ Play';
+}
+const exampleListEl=document.getElementById('exampleList');
+const algInputEl=document.getElementById('algInput');
+const customRpnEl=document.getElementById('customRpn');
+const showCustomEl=document.getElementById('showCustom');
+function selectExample(index){
+  const ex=EXAMPLES[index];
+  algInputEl.value=ex.alg;customRpnEl.textContent='RPN: '+ex.rpn;
+  [...exampleListEl.children].forEach((b,i)=>b.classList.toggle('active',i===index));
+  resetScene(ex.rpn,ex.alg);
+}
+EXAMPLES.forEach((ex,i)=>{
+  const b=document.createElement('button');b.className='example-btn';
+  b.innerHTML=`<b>Alg</b><span>${ex.alg}</span><b>RPN</b><span>${ex.rpn}</span>`;
+  b.onclick=()=>selectExample(i);exampleListEl.appendChild(b);
+});
+function updateCustomPreview(){
+  const r=infixToRpn(algInputEl.value);
+  customRpnEl.textContent=r?'RPN: '+r:'RPN: ошибка в выражении';
+  return r;
+}
+algInputEl.addEventListener('input',updateCustomPreview);
+algInputEl.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();showCustomEl.click()}});
+showCustomEl.onclick=()=>{
+  const r=updateCustomPreview();if(!r)return;
+  [...exampleListEl.children].forEach(b=>b.classList.remove('active'));
+  resetScene(r,algInputEl.value);
+};
 
 async function run(){
   if(playing)return;playing=true;
@@ -554,8 +670,9 @@ async function run(){
     await runToken(currentIndex);
   }
   if(currentIndex>=sourceTokens.length){
-    lesson('Готово!','В стеке остался один результат: 35. Так выражение 3 4 + 5 × означает (3 + 4) × 5.');
-    setScreen('35');
+    const finalValue=stackTokens.length?stackTokens.at(-1).userData.text:'?';
+    lesson('Готово!',`В стеке остался результат: ${finalValue}. Алгебраическая и обратнопольская записи описывают одно и то же вычисление.`);
+    setScreen(finalValue);
   }
   playing=false;paused=false;stepMode=false;document.getElementById('play').textContent='▶ Play';
 }
@@ -580,7 +697,7 @@ document.getElementById('step').onclick=async()=>{
   }
   releaseStep();
 };
-document.getElementById('reset').onclick=()=>location.reload();
+document.getElementById('reset').onclick=()=>{const r=infixToRpn(algInputEl.value)||EXAMPLES[0].rpn;resetScene(r,algInputEl.value||EXAMPLES[0].alg)};
 
 function resize(){
   camera.aspect=innerWidth/innerHeight;
@@ -629,6 +746,7 @@ function animate(){
   scene.traverse(o=>{if(o.userData?.isToken)faceViewer(o)});
   renderer.render(scene,camera);
 }
+selectExample(3);
 updateStackLabels();
 animate();
 </script>
