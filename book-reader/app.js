@@ -3,8 +3,9 @@ import { listBooks, putBook, getBook, deleteBook, getProgress, putProgress,
 import { describeBook, openBookFile, isBookFile, formatSize, percent } from './books.js';
 import { makeBackup, restoreBackup } from './backup.js';
 
-// Book documents may only render inside the reader; never run this UI inside a book.
-if (window.top !== window.self) throw new Error('Reader UI cannot run inside a book.');
+// Telegram Web may embed the app in an HTTPS frame. Only book blob documents
+// are forbidden from running the UI themselves.
+if (window.location.protocol === 'blob:') throw new Error('Reader UI cannot run inside a book.');
 const $ = selector => document.querySelector(selector);
 const el = (tag, className, text) => {
     const node = document.createElement(tag);
