@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' blob:; img-src 'self' blob: data:; font-src 'self' blob: data:; connect-src 'self' blob: data:; frame-src blob:; media-src blob: data:; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta name="theme-color" content="#f5f1e8">
+  <meta name="description" content="Личная библиотека EPUB и FB2: книги, иллюстрации и продолжение чтения с сохранённого места.">
+  <title>Полка — личная библиотека</title>
+  <link rel="icon" href="./icon.svg" type="image/svg+xml">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="stylesheet" href="./style.css">
+  <script type="module" src="./app.js"></script>
+</head>
+<body>
+  <section id="library" class="library">
+    <header class="masthead">
+      <a class="brand" href="./" aria-label="Полка — библиотека"><span class="brand-icon" aria-hidden="true">▥</span> полка<span class="brand-dot">.</span></a>
+      <span class="local-badge"><span aria-hidden="true">●</span> Личная библиотека</span>
+    </header>
+    <main>
+      <div class="intro">
+        <div><p class="eyebrow">ВАШЕ МЕСТО ДЛЯ ЧТЕНИЯ</p><h1>Книги под рукой.</h1><p class="lead">Открывайте любимое. Продолжайте с того места,<br class="desktop-break"> где остановились.</p></div>
+        <button id="import" class="primary"><span aria-hidden="true">＋</span> Добавить книги</button>
+      </div>
+      <input id="files" type="file" accept=".epub,.fb2,.fb2.zip,.fbz" multiple hidden>
+      <section id="continue" class="continue" hidden aria-label="Продолжить чтение"></section>
+      <div class="shelf-heading"><h2>Моя библиотека <span id="count">0</span></h2><label class="search"><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="Название или автор" aria-label="Поиск по библиотеке"></label></div>
+      <section id="books" class="books" aria-label="Книги"></section>
+      <section id="empty" class="empty">
+        <div class="empty-books" aria-hidden="true"><i></i><i></i><i></i></div>
+        <h2>Начните с одной книги</h2><p>Добавьте EPUB или FB2 — с обложкой,<br>иллюстрациями и оглавлением.</p>
+        <button id="demo" class="text-button">Попробовать на небольшой книге <span aria-hidden="true">→</span></button>
+        <p class="drop-hint">Можно перетащить файлы в это окно</p>
+      </section>
+      <p id="no-results" class="empty" hidden>Таких книг на полке пока нет.</p>
+      <footer class="library-footer"><p>Книги и место чтения сохраняются в этом браузере.<br>Для переноса на другое устройство сохраните резервную копию.</p><div><button id="export" class="text-button">Сохранить копию</button><button id="restore" class="text-button">Восстановить</button></div></footer>
+      <input id="backup-file" type="file" accept=".zip" hidden>
+      <p id="offline-state" class="small-status" role="status"></p>
+    </main>
+  </section>
+  <section id="reader" class="reader" hidden aria-label="Читалка">
+    <header class="reader-header"><button id="back" class="icon-button" aria-label="Вернуться в библиотеку">← <span>На полку</span></button><div class="reading-title"><strong id="reading-title"></strong><span id="reading-author"></span></div><button id="toc-button" class="icon-button" aria-label="Оглавление">☰</button><button id="settings-button" class="icon-button" aria-label="Настройки чтения">Aa</button></header>
+    <div id="viewport" class="viewport"></div>
+    <footer class="reader-footer"><div class="location-line"><span id="chapter"></span><span id="save-state" role="status">Место сохраняется автоматически</span></div><div class="navigation"><button id="prev" class="icon-button" aria-label="Предыдущая страница">←</button><input id="progress" type="range" min="0" max="1" step="0.001" value="0" aria-label="Положение в книге"><output id="percent">0%</output><button id="next" class="icon-button" aria-label="Следующая страница">→</button></div></footer>
+  </section>
+  <dialog id="toc-dialog"><header><h2>Оглавление</h2><button class="icon-button" data-close aria-label="Закрыть оглавление">✕</button></header><button id="return-position" class="text-button" hidden>← Вернуться к тексту</button><nav id="toc" aria-label="Главы книги"></nav></dialog>
+  <dialog id="settings-dialog"><header><h2>Как вам удобно</h2><button class="icon-button" data-close aria-label="Закрыть настройки">✕</button></header><label class="setting">Размер текста <output id="font-label">20</output><input id="font-size" type="range" min="14" max="32" value="20"></label><label class="setting">Шрифт<select id="font-family"><option value="serif">Книжный</option><option value="sans">Без засечек</option></select></label><label class="setting">Режим чтения<select id="flow"><option value="paginated">Страницы</option><option value="scrolled">Прокрутка</option></select></label><fieldset><legend>Цвет страницы</legend><div class="themes"><button data-theme="paper" class="theme-paper" aria-label="Светлая тема">А</button><button data-theme="sepia" class="theme-sepia" aria-label="Сепия">А</button><button data-theme="dark" class="theme-dark" aria-label="Тёмная тема">А</button></div></fieldset><p class="hint">Место чтения сохраняется и при изменении настроек.</p></dialog>
+  <dialog id="help-dialog"><header><h2 id="help-title"></h2><button class="icon-button" data-close aria-label="Закрыть">✕</button></header><p id="help-message"></p><div class="dialog-actions"><button id="help-cancel" class="text-button">Отмена</button><button id="help-confirm" class="primary">Удалить</button></div></dialog>
+  <div id="busy" class="busy" hidden role="status" aria-live="polite"><span class="spinner"></span><span id="busy-text">Открываем книгу…</span></div>
+  <div id="toast" class="toast" hidden role="status" aria-live="polite"></div>
+  <noscript>Для чтения книг включите JavaScript в браузере.</noscript>
+</body>
+</html>

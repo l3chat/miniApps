@@ -10,3 +10,5 @@ Open [index.html](index.html) to see the app list.
 
 
 - [Markdown → Rich Message](markdown-rich-message/index.html): landing page for the Telegram Markdown & Media Converter bot.
+
+- [Полка — EPUB & FB2 Reader](book-reader/index.html): local-first ebook library with automatic resume, illustrations, offline reading and ZIP backup. [Details](book-reader/README.md).

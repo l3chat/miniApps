@@ -6,3 +6,7 @@ package.json
 package-lock.json
 client-script.js
 zoom-sum-game/tests/
+book-reader/tests/
+book-reader/package.json
+book-reader/package-lock.json
+book-reader/node_modules/
