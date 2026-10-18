@@ -1,0 +1,4 @@
+html[data-telegram] .reader{height:var(--host-viewport-height,100dvh)}
+html[data-telegram] .reader-header{padding-top:max(8px,env(safe-area-inset-top),var(--host-safe-top,0px));padding-left:max(12px,env(safe-area-inset-left),var(--host-safe-left,0px));padding-right:max(12px,env(safe-area-inset-right),var(--host-safe-right,0px))}
+html[data-telegram] .reader-footer{padding-bottom:max(8px,env(safe-area-inset-bottom),var(--host-safe-bottom,0px))}
+html[data-telegram] .library{padding-top:var(--host-safe-top,0px);padding-bottom:var(--host-safe-bottom,0px)}

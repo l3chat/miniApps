@@ -2,6 +2,7 @@ import { listBooks, putBook, getBook, deleteBook, getProgress, putProgress,
     journalProgress, readSettings, writeSettings } from './storage.js';
 import { describeBook, openBookFile, isBookFile, formatSize, percent } from './books.js';
 import { makeBackup, restoreBackup } from './backup.js';
+import { connectTelegram } from './telegram.js';
 
 // Telegram Web may embed the app in an HTTPS frame. Only book blob documents
 // are forbidden from running the UI themselves.
@@ -20,6 +21,15 @@ if (!['paginated', 'scrolled'].includes(settings.flow)) settings.flow = 'paginat
 if (!['paper', 'sepia', 'dark'].includes(settings.theme)) settings.theme = 'paper';
 let books = [], positions = new Map(), coverURLs = [], view, current, canSave = false;
 let busy = false, pending, saveTimer, toastTimer, saveChain = Promise.resolve(), returnCFI;
+const telegram = connectTelegram({
+    onBack: async () => {
+        const dialog = document.querySelector('dialog[open]');
+        if (dialog) dialog.close();
+        else await closeReader();
+    },
+    onDeactivate: () => saveOnLeave(),
+    onSettings: () => { if (view && !busy && !document.querySelector('dialog[open]')) $('#settings-dialog').showModal(); },
+});
 
 function notify(message, error = false) {
     clearTimeout(toastTimer);
@@ -199,6 +209,7 @@ function applySettings() {
         view.renderer.setStyles?.(bookCSS());
     }
     writeSettings(settings);
+    telegram.setAppearance(current ? { paper: '#fffcf6', sepia: '#eee2c8', dark: '#222724' }[settings.theme] : '#f5f1e8');
 }
 function keyboard(event) {
     if (busy || !view || document.querySelector('dialog[open]') || /INPUT|SELECT|TEXTAREA|BUTTON/.test(event.target?.tagName)) return;
@@ -249,6 +260,7 @@ async function read(id) {
             $('#reading-title').textContent = record.title; $('#reading-author').textContent = record.author;
             document.title = `${record.title} — Полка`;
             $('#library').hidden = true; $('#reader').hidden = false;
+            telegram.setReading(true);
             view = document.createElement('foliate-view'); $('#viewport').append(view);
             view.addEventListener('relocate', event => onRelocate(event.detail));
             view.addEventListener('load', event => connectDocument(event.detail.doc));
@@ -279,6 +291,7 @@ async function read(id) {
             try { view?.close(); } catch { /* May be only partly initialized. */ }
             view?.remove(); view = null; book?.destroy?.(); current = null;
             $('#reader').hidden = true; $('#library').hidden = false;
+            telegram.setReading(false); telegram.setAppearance('#f5f1e8');
             document.title = 'Полка — личная библиотека';
             throw new Error(`Не удалось открыть «${record.title}». ${error.message}`);
         }
@@ -290,6 +303,7 @@ async function closeReader() {
     const book = view.book;
     view.close(); view.remove(); view = null; book.destroy?.(); current = null;
     $('#reader').hidden = true; $('#library').hidden = false;
+    telegram.setReading(false); telegram.setAppearance('#f5f1e8');
     document.title = 'Полка — личная библиотека';
     await refresh(); $('#import').focus();
 }
@@ -361,6 +375,7 @@ window.addEventListener('beforeunload', saveOnLeave);
 window.addEventListener('pageshow', () => { if (!view) action(refresh)(); });
 
 applySettings();
+telegram.ready();
 try {
     await refresh();
     if ('serviceWorker' in navigator) {

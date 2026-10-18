@@ -1,9 +1,11 @@
 // Increment with each application release. Scope is only /book-reader/.
-const CACHE = 'polka-shell-v2';
+const CACHE = 'polka-shell-v3';
 const ASSETS = [
     "./",
     "./index.html",
     "./style.css",
+    "./telegram.css",
+    "./telegram.js",
     "./app.js",
     "./storage.js",
     "./books.js",
@@ -12,6 +14,7 @@ const ASSETS = [
     "./manifest.webmanifest",
     "./demo.fb2",
     "./vendor/fflate.js",
+    "./vendor/telegram-web-app.js",
     "./vendor/foliate/epub.js",
     "./vendor/foliate/epubcfi.js",
     "./vendor/foliate/fb2.js",
