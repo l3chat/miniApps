@@ -1,5 +1,5 @@
 // Increment with each application release. Scope is only /book-reader/.
-const CACHE = 'polka-shell-v3';
+const CACHE = 'polka-shell-v4';
 const ASSETS = [
     "./",
     "./index.html",

@@ -319,6 +319,12 @@ $('#next').addEventListener('click', action(() => view?.next()));
 $('#progress').addEventListener('change', action(event => view?.goToFraction(Number(event.target.value))));
 $('#toc-button').addEventListener('click', () => $('#toc-dialog').showModal());
 $('#settings-button').addEventListener('click', () => $('#settings-dialog').showModal());
+const showHelp = () => {
+    if (busy || document.querySelector('dialog[open]')) return;
+    $('#guide-dialog').showModal();
+};
+$('#help-button').addEventListener('click', showHelp);
+$('#reader-help-button').addEventListener('click', showHelp);
 document.querySelectorAll('[data-close]').forEach(button => button.addEventListener('click', () => button.closest('dialog').close()));
 $('#return-position').addEventListener('click', action(async () => {
     if (!returnCFI) return;
