@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#101115"><title>Календарь в уме · Сенситивная математика</title>
+<style>
+:root{color-scheme:dark;--bg:#101115;--panel:#17191e;--line:#34363d;--ink:#f2f1e9;--muted:#b1b2b8;--accent:#c8ff57;--red:#ff9a92;--mono:'JetBrains Mono','IBM Plex Mono',ui-monospace,monospace;font-family:Inter,system-ui,sans-serif;color:var(--ink);background:var(--bg)}
+*{box-sizing:border-box}body{margin:0}button,a,select{font:inherit}button,select{color:inherit}button{cursor:pointer}button:disabled{cursor:default}a{color:var(--accent)}button:focus-visible,a:focus-visible,select:focus-visible,summary:focus-visible{outline:3px solid var(--accent);outline-offset:3px}[hidden]{display:none!important}
+header,main,footer{width:min(1100px,94%);margin:auto}header{min-height:72px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:12px}.brand{font-weight:630;display:flex;gap:12px;align-items:center}.brand i{width:29px;height:29px;border:2px solid var(--accent);border-radius:6px;display:grid;place-items:center;font:700 15px var(--mono);color:var(--accent);font-style:normal}.plain{background:transparent;border:1px solid var(--line);border-radius:8px;padding:9px 13px;font-size:14px}.plain:hover{border-color:#999}.header-actions{display:flex;gap:8px}
+main{padding:28px 0 16px}h1{font-size:clamp(2rem,5vw,3.4rem);letter-spacing:-.055em;margin:0 0 20px;font-weight:640}.layout{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(250px,.84fr);gap:16px}.card{background:var(--panel);border:1px solid var(--line);border-radius:17px;padding:22px}.exercise{padding:0;overflow:hidden}.cardhead{display:flex;justify-content:space-between;align-items:center;gap:12px;color:var(--muted);font:14px var(--mono)}.exercise>.cardhead{padding:18px 22px 0}.clock{font-variant-numeric:tabular-nums}
+.stage{position:relative;display:grid;place-items:center;padding:14px 0 7px;background:radial-gradient(ellipse at center,rgba(200,255,87,.045),transparent 65%)}.dial{width:clamp(175px,23vw,245px);aspect-ratio:1;border-radius:50%;padding:3px;background:conic-gradient(var(--accent) var(--fill,100%),#44464c 0);display:grid}.disc{position:relative;padding:12px;border-radius:50%;display:grid;background:var(--panel)}.ticks{position:absolute;inset:8px;border-radius:50%;background:repeating-conic-gradient(from -0.4deg,#6a6b69 0deg .8deg,transparent .9deg 6deg);mask:radial-gradient(farthest-side,transparent calc(100% - 5px),#000 0)}.date{align-self:center;display:grid;text-align:center}.date strong{font:650 clamp(55px,7.4vw,88px)/.97 var(--mono);color:var(--accent);letter-spacing:-.08em;padding-right:.08em}.date b{font-size:clamp(18px,2.6vw,26px);margin-top:5px}.date small{font:15px var(--mono);color:var(--muted);margin-top:4px}.prompt{text-align:center;margin:7px 12px 12px;font-size:1.12rem}.anchor{text-align:center;font-size:14px;color:var(--muted);margin:0 14px 16px}.choices{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:0 18px 18px}.choice{min-height:55px;border-radius:9px;border:1px solid #41434a;background:#22242a;font-weight:550;font-size:16px}.choice small{display:block;font:12px var(--mono);color:var(--muted);margin-top:3px}.choice:hover:enabled{border-color:var(--accent)}.choice.correct{background:#334524;color:#dcffa2;border-color:var(--accent)}.choice.wrong{background:#422722;color:var(--red);border-color:var(--red)}.controls{border-top:1px solid var(--line);display:flex;align-items:center;gap:10px;justify-content:space-between;flex-wrap:wrap;padding:14px 18px}.feedback{font-weight:620}.go{background:var(--accent);border:0;color:#171c0a;font-weight:700;padding:11px 18px;border-radius:9px}.side{display:flex;flex-direction:column;gap:16px}.side h2,dialog h2{margin:0 0 16px;font-size:20px;letter-spacing:-.035em}.metrics{display:grid;grid-template-columns:1fr 1fr;gap:18px 12px}.metrics b{display:block;font:600 27px var(--mono);color:var(--ink)}.metrics span,.sub{font-size:14px;color:var(--muted)}.history{list-style:none;padding:0;margin:0}.history li{display:flex;justify-content:space-between;gap:8px;border-top:1px solid var(--line);padding:11px 0;font-size:14px}.history li:last-child{padding-bottom:0}.ok{color:var(--accent)}.bad{color:var(--red)}.lesson{padding:15px 18px;border-top:1px solid var(--line)}.lesson p{line-height:1.5;margin:12px 0 2px}.paused .date{visibility:hidden}.paused .disc:after{content:'Пауза';position:absolute;inset:0;display:grid;place-items:center;color:var(--accent);font-size:22px}.paused .anchor{visibility:hidden}footer{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:0 0 22px;color:var(--muted);font:13px var(--mono)}footer a{color:var(--muted)}
+dialog{width:min(425px,94vw);color:var(--ink);background:var(--panel);border:1px solid #50535a;border-radius:16px;padding:24px}dialog::backdrop{background:#000a}dialog label{display:grid;gap:6px;margin:14px 0;font-size:15px}select{border:1px solid var(--line);background:#24262d;border-radius:6px;padding:11px}.modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:22px}
+@media(max-width:760px){.layout{grid-template-columns:1fr}.side{display:grid;grid-template-columns:1fr 1fr}.card{padding:16px}.exercise{padding:0}.choices{grid-template-columns:repeat(4,minmax(0,1fr))}.choice{font-size:14px}main{padding-top:18px}header{min-height:58px}.brand{font-size:14px}.dial{width:175px}}
+@media(max-width:530px){.side{grid-template-columns:1fr}.metrics{grid-template-columns:repeat(4,1fr);gap:5px}.metrics b{font-size:21px}.metrics span{font-size:12px}.choices{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;padding:0 12px 12px}.choice{min-height:40px}.choice small{display:none}.choice:last-child{grid-column:1/-1}.cardhead{font-size:13px}.brand{gap:6px}.plain{padding:8px}.header-actions{gap:4px}h1{margin-bottom:13px}.stage{padding-top:10px}.exercise>.cardhead{padding:13px 12px 0}.anchor{margin-bottom:10px}.controls{padding:10px 12px}.card{border-radius:12px}footer{font-size:12px;flex-wrap:wrap}}
+@media(min-width:761px) and (max-width:960px){.choices{grid-template-columns:repeat(3,minmax(0,1fr))}}
+</style></head>
+<body>
+<header><div class="brand"><i aria-hidden="true">7</i><span>Сенситивная математика</span></div><div class="header-actions"><button id="settings" class="plain">Настройки</button></div></header>
+<main><h1>Календарь в уме</h1><div class="layout"><section class="card exercise" id="exercise" aria-label="Задание">
+<div class="cardhead"><span id="round"></span><span class="clock" id="clock"></span></div>
+<div class="stage"><div class="dial" id="dial"><div class="disc"><div class="ticks"></div><div class="date" id="date"><strong id="day"></strong><b id="month"></b><small id="year"></small></div></div></div></div>
+<p class="prompt">Какой это день недели?</p><p class="anchor" id="anchor"></p>
+<div class="choices" id="choices"></div>
+<div class="controls"><span id="feedback" class="feedback" role="status"></span><button class="plain" id="pause">Пауза</button><button class="go" id="next" hidden>Следующая дата</button></div>
+<div class="lesson" id="lesson" hidden><b>Как посчитать по методу Конвея</b><p id="explanation"></p></div>
+</section><aside class="side"><section class="card"><h2>Эта тренировка</h2><div class="metrics"><div><b id="score">0/0</b><span>Верно</span></div><div><b id="streak">0</b><span>Серия</span></div><div><b id="accuracy">—</b><span>Точность</span></div><div><b id="avg">—</b><span>Ср. время</span></div></div></section>
+<section class="card"><h2>Последние ответы</h2><p class="sub" id="empty">Здесь появятся решённые даты.</p><ul id="history" class="history"></ul></section></aside></div></main>
+<footer><span>Григорианский календарь</span><a id="download" href="./index.html" download="calendar-trainer.html">Скачать для офлайн-занятий</a></footer>
+<dialog id="config"><form id="form"><h2>Настройки тренировки</h2>
+<label>Даты<select id="range"><option value="month">Этот месяц</option><option value="year">Этот год</option><option value="all">Разные годы · 1800–2199</option></select></label>
+<label>Подсказка перед ответом<select id="hint"><option value="conway">Опорный день года по Конвею</option><option value="off">Без подсказки</option></select></label>
+<label>Время на одну дату<select id="limit"><option value="0">Без ограничения</option><option value="15">15 секунд</option><option value="20">20 секунд</option><option value="30">30 секунд</option></select></label>
+<p class="sub">Новая серия начнётся с нулевого счёта.</p><div class="modal-actions"><button type="button" id="cancel" class="plain">Отмена</button><button class="go">Начать серию</button></div></form></dialog>
+<script>
+'use strict';
+const $=id=>document.getElementById(id);
+const weekdays=['воскресенье','понедельник','вторник','среда','четверг','пятница','суббота'];
+const short=['Вс','Пн','Вт','Ср','Чт','Пт','Сб'];
+const months=['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
+const lengthOf=(y,m)=>new Date(Date.UTC(y,m+1,0)).getUTCDate();
+const mod=n=>((n%7)+7)%7;
+const compact=n=>mod(n+3)-3;
+const sign=n=>n>0?'+'+n:String(n).replace('-','−');
+const fmtDate=q=>q.d+' '+months[q.m]+' '+q.y;
+const anchorDate=(y,m)=>[lengthOf(y,1)===29?4:3,lengthOf(y,1),14,4,9,6,11,8,5,10,7,12][m];
+function conwayDate({y,m,d}){
+ const yearInCentury=y%100;
+ const centuryAnchor=[2,0,5,3][Math.floor(y/100)%4];
+ const shift=yearInCentury+Math.floor(yearInCentury/4);
+ const yearAnchor=mod(centuryAnchor+shift);
+ const monthAnchor=anchorDate(y,m);
+ return {yearInCentury,centuryAnchor,shift,yearAnchor,monthAnchor,answer:mod(yearAnchor+d-monthAnchor)};
+}
+function tail(d,base,w,last){
+ const delta=d-base, jump=compact(delta), weeks=(delta-jump)/7, near=base+weeks*7;
+ if(near<1||near>last) return 'Разность чисел месяца '+d+' − '+base+' = '+delta+'. После отбрасывания полных недель сдвиг '+sign(jump)+' дн.';
+ return (weeks?'Ближайшая опора — '+near+'-е ('+weekdays[w]+'), от '+base+'-го до неё целое число недель. ':'')+(jump?'До '+d+'-го сдвиг '+sign(jump)+' дн.':d+'-е само приходится на опорный день.');
+}
+function explain(q){
+ const {y,m,d}=q;
+ const {yearInCentury,centuryAnchor,shift,yearAnchor,monthAnchor,answer}=conwayDate(q);
+ return [
+  'Опора '+(y-yearInCentury)+' года — '+weekdays[centuryAnchor]+'.',
+  'Берём последние две цифры года ('+yearInCentury+') и прибавляем их целую четверть. Получаем '+yearInCentury+' + '+Math.floor(yearInCentury/4)+' = '+shift+'.',
+  'После отбрасывания полных недель сдвиг равен '+sign(compact(shift))+' дн. Опорный день года — '+weekdays[yearAnchor]+'.',
+  'Опорная дата месяца — '+monthAnchor+' '+months[m]+'.',
+  tail(d,monthAnchor,yearAnchor,lengthOf(y,m)),
+  'Ответ — '+weekdays[answer]+'.'
+ ].join(' ');
+}
+const state={q:null,locked:false,paused:false,elapsed:0,since:0,answered:0,right:0,streak:0,time:0,history:[]};
+let prefs={range:'year',hint:'conway',limit:0};
+try{const p=JSON.parse(localStorage.getItem('calendarPractice.v1'));if(p&&['month','year','all'].includes(p.range)&&[0,15,20,30].includes(p.limit))prefs={range:p.range,limit:p.limit,hint:p.hint==='off'?'off':'conway'};}catch{}
+const clockTime=()=>state.elapsed+(state.paused||state.locked?0:performance.now()-state.since);
+const rand=n=>Math.floor(Math.random()*n);
+function draw(){
+ const now=new Date();let q;
+ do{
+  const y=prefs.range==='all'?1800+rand(400):now.getFullYear();
+  const m=prefs.range==='month'?now.getMonth():rand(12);q={y,m,d:1+rand(lengthOf(y,m))};
+ }while(state.q&&fmtDate(q)===fmtDate(state.q));
+ state.q=q;state.locked=false;state.paused=false;state.elapsed=0;state.since=performance.now();
+ const t=conwayDate(q);$('exercise').classList.remove('paused');$('day').textContent=q.d;$('month').textContent=months[q.m];$('year').textContent=q.y;
+ $('anchor').textContent=prefs.hint==='off'?'Без подсказки':'Опорный день года — '+weekdays[t.yearAnchor];
+ $('feedback').textContent='';$('next').hidden=true;$('lesson').hidden=true;$('pause').hidden=false;$('pause').textContent='Пауза';
+ $('round').textContent='Задание '+String(state.answered+1).padStart(2,'0');
+ for(const b of $('choices').children){b.disabled=false;b.className='choice';}refreshClock();
+}
+function refreshClock(){
+ if(state.locked)return;
+ const remaining=Math.max(0,prefs.limit-clockTime()/1000);
+ $('clock').textContent=prefs.limit?Math.ceil(remaining)+' с':'Без таймера';
+ $('dial').style.setProperty('--fill',(prefs.limit?remaining/prefs.limit*100:100)+'%');
+ if(!state.paused&&prefs.limit&&remaining<=0)finish(null);
+}
+function stats(){
+ $('score').textContent=state.right+'/'+state.answered;$('streak').textContent=state.streak;
+ $('accuracy').textContent=state.answered?Math.round(100*state.right/state.answered)+'%':'—';
+ $('avg').textContent=state.answered?(state.time/state.answered).toLocaleString('ru',{maximumFractionDigits:1})+' с':'—';
+ $('empty').hidden=!!state.history.length;$('history').replaceChildren();
+ for(const h of state.history){const li=document.createElement('li'),label=document.createElement('span'),result=document.createElement('span');
+ label.textContent=fmtDate(h.q);result.textContent=(h.ok?'✓ ':h.pick===null?'Время · ':'✕ '+short[h.pick]+' · ')+short[h.answer];result.className=h.ok?'ok':'bad';li.append(label,result);$('history').append(li);}
+}
+function finish(pick){
+ if(state.locked||state.paused)return;
+ let seconds=clockTime()/1000;if(prefs.limit&&seconds>=prefs.limit){pick=null;seconds=prefs.limit;}
+ state.locked=true;const answer=conwayDate(state.q).answer,ok=pick===answer;
+ state.answered++;state.right+=Number(ok);state.streak=ok?state.streak+1:0;state.time+=seconds;
+ state.history.unshift({q:state.q,pick,answer,ok});state.history=state.history.slice(0,5);
+ for(const b of $('choices').children){b.disabled=true;if(+b.value===answer)b.classList.add('correct');else if(+b.value===pick)b.classList.add('wrong');}
+ $('feedback').textContent=(ok?'Верно':pick===null?'Время вышло':'Ошибка')+' · '+weekdays[answer];$('feedback').className='feedback '+(ok?'ok':'bad');
+ if(pick===null){$('clock').textContent='0 с';$('dial').style.setProperty('--fill','0%');}
+ $('pause').hidden=true;$('next').hidden=false;$('lesson').hidden=false;$('explanation').textContent=explain(state.q);stats();$('next').focus({preventScroll:true});
+}
+function toggle(){
+ if(state.locked)return;
+ if(!state.paused&&prefs.limit&&clockTime()>=prefs.limit*1000){finish(null);return;}
+ if(state.paused){state.since=performance.now();state.paused=false;}else{state.elapsed=clockTime();state.paused=true;}
+ $('exercise').classList.toggle('paused',state.paused);$('pause').textContent=state.paused?'Продолжить':'Пауза';for(const b of $('choices').children)b.disabled=state.paused;
+}
+for(let i=1;i<=7;i++){const idx=i%7,b=document.createElement('button'),s=document.createElement('small');b.className='choice';b.value=idx;b.textContent=weekdays[idx][0].toUpperCase()+weekdays[idx].slice(1);s.textContent=i;s.ariaHidden='true';b.append(s);b.onclick=()=>finish(idx);$('choices').append(b);}
+$('pause').onclick=toggle;$('next').onclick=draw;
+let resume=false;
+$('settings').onclick=()=>{resume=!state.paused&&!state.locked;if(resume)toggle();for(const id of ['range','hint','limit'])$(id).value=prefs[id];$('config').showModal();};
+$('cancel').onclick=()=>$('config').close();$('config').onclose=()=>{if(resume&&state.paused)toggle();resume=false;};
+$('form').onsubmit=e=>{e.preventDefault();resume=false;prefs={range:$('range').value,hint:$('hint').value,limit:+$('limit').value};try{localStorage.setItem('calendarPractice.v1',JSON.stringify(prefs));}catch{}
+ Object.assign(state,{answered:0,right:0,streak:0,time:0,history:[]});$('config').close();stats();draw();};
+document.addEventListener('keydown',e=>{if(e.repeat||e.ctrlKey||e.altKey||e.metaKey||$('config').open)return;if(/^[1-7]$/.test(e.key)){e.preventDefault();finish(+e.key%7);}});
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&!state.paused&&!state.locked)toggle();});
+if(location.protocol==='file:')$('download').hidden=true;
+draw();setInterval(refreshClock,150);
+</script></body></html>
