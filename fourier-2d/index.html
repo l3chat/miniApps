@@ -8,7 +8,7 @@
 :root{font-family:system-ui,-apple-system,Arial,sans-serif;color-scheme:dark;background:#091321;color:#e8f3fc}
 *{box-sizing:border-box}html,body{height:100%;margin:0}body{height:100vh;height:100dvh;padding:7px;overflow:hidden}
 main{height:100%;max-width:1700px;margin:auto;display:grid;grid-template-rows:auto minmax(0,1fr) auto auto;gap:6px;min-height:0}
-h1{font-size:clamp(17px,2.5vh,26px);line-height:1.1;color:#7ee5e8;margin:0}
+.topline{display:flex;align-items:center;justify-content:space-between;gap:10px;min-width:0}.topline h1{min-width:0}.lang-label{white-space:nowrap;font-size:12px;color:#bcd1e4}.lang-label select{font:inherit;background:#203a55;color:#f2f8fd;border:1px solid #55718e;padding:4px;border-radius:6px}h1{font-size:clamp(17px,2.5vh,26px);line-height:1.1;color:#7ee5e8;margin:0}
 h2{font-size:13px;line-height:1.2;margin:0 0 5px}
 .workspace{display:grid;grid-template-columns:minmax(0,1fr) 245px;gap:8px;min-height:0;min-width:0}
 .panels{min-height:0;min-width:0;display:flex;justify-content:center}
@@ -42,35 +42,41 @@ main{grid-template-rows:auto minmax(0,1fr) auto auto}
 </style>
 </head>
 <body><main>
-<h1>Фурье: нарисуй линию — собери её из вращений</h1>
+<div class="topline"><h1 data-i18n="title">Фурье: нарисуй линию — собери её из вращений</h1><label class="lang-label" for="language"><span data-i18n="language">Язык</span> <select id="language" aria-label="Language"><option value="ru">Русский</option><option value="en">English</option><option value="de">Deutsch</option><option value="fr">Français</option><option value="uk">Українська</option></select></label></div>
 
 <div class="workspace">
 <div class="panels">
-<div class="panel"><h2>Исходная линия · гармоники · восстановление</h2><canvas id="draw" class="square" width="600" height="600"></canvas><div class="legend">Голубая — исходная · зелёная — восстановленная · жёлтая точка — конец цепочки</div></div>
+<div class="panel"><h2 data-i18n="canvasTitle">Исходная линия · гармоники · восстановление</h2><canvas id="draw" class="square" width="600" height="600"></canvas><div class="legend" data-i18n="legend">Голубая — исходная · зелёная — восстановленная · жёлтая точка — конец цепочки</div></div>
 </div>
-<aside class="sidebar" aria-label="Элементы управления">
+<aside class="sidebar" aria-label="Controls">
 <div class="buttons">
-<button id="spiral">Спираль</button><button id="heart">Сердце</button><button id="clear">Очистить</button>
-<button id="play">⏸ Пауза</button><button id="restart">↻ Заново</button>
-<label class="inline"><input type="checkbox" id="loop" checked> Повторять</label>
-<label class="inline"><input type="checkbox" id="dots"> Отсчёты</label>
+<button id="spiral" data-i18n="spiral">Спираль</button><button id="heart" data-i18n="heart">Сердце</button><button id="clear" data-i18n="clear">Очистить</button>
+<button id="play" data-i18n="pause">⏸ Пауза</button><button id="restart" data-i18n="restart">↻ Заново</button>
+<label class="inline"><input type="checkbox" id="loop" checked> <span data-i18n="loop">Повторять</span></label>
+<label class="inline"><input type="checkbox" id="dots"> <span data-i18n="dots">Отсчёты</span></label>
 </div>
 <div class="controls">
-<div class="control"><label for="samples">Дискретизация: <output id="nValue">128 отсчётов</output></label><input type="range" id="samples" min="5" max="9" value="7" step="1"></div>
-<div class="control"><label for="harmonics">Гармоники: <output id="kValue">12</output></label><input type="range" id="harmonics" min="0" max="64" value="12" step="1"></div>
-<div class="control"><label for="visible">Видимые колёса: <output id="vValue">24</output></label><input type="range" id="visible" min="0" max="128" value="24" step="1"></div>
+<div class="control"><label for="samples"><span data-i18n="sampling">Дискретизация</span>: <output id="nValue">128 отсчётов</output></label><input type="range" id="samples" min="5" max="9" value="7" step="1"></div>
+<div class="control"><label for="harmonics"><span data-i18n="harmonics">Гармоники</span>: <output id="kValue">12</output></label><input type="range" id="harmonics" min="0" max="64" value="12" step="1"></div>
+<div class="control"><label for="visible"><span data-i18n="wheels">Видимые колёса</span>: <output id="vValue">24</output></label><input type="range" id="visible" min="0" max="128" value="24" step="1"></div>
 </div>
-<label class="duration-label" for="duration">Период: <output id="durValue">8 с</output><input id="duration" type="range" min="2" max="20" value="8" step="1"></label>
+<label class="duration-label" for="duration"><span data-i18n="period">Период</span>: <output id="durValue">8 с</output><input id="duration" type="range" min="2" max="20" value="8" step="1"></label>
 </aside>
 </div>
 <p id="status"></p>
-<details><summary>Как это работает · математическая модель</summary><p class="note">Математическая модель: z(t) = x(t) + iy(t) = Σ cₖe^(2πikt), где k принимает как положительные, так и отрицательные значения. Частоты +k и −k вращаются в разные стороны; каждая гармоника изображается окружностью радиуса |cₖ|. Постоянный коэффициент c₀ задаёт положение центра всей цепочки. Бегунок «Гармоники» оставляет частоты от −K до +K, где K не превосходит 64 и предела Найквиста (на предельной частоте используется только один коэффициент). Бегунок «Отображаемые колёса» регулирует только число видимых окружностей, не изменяя сумму Фурье и точность восстановленной линии. Исходный рисунок параметризуется временем движения пальца, а не длиной дуги. При замыкании периода конец линии математически соединяется с началом, поэтому у разомкнутых линий возможны колебания Гиббса.</p></details>
+<details><summary data-i18n="helpTitle">Как это работает · математическая модель</summary><p class="note" data-i18n="helpBody">Математическая модель: z(t) = x(t) + iy(t) = Σ cₖe^(2πikt), где k принимает как положительные, так и отрицательные значения. Частоты +k и −k вращаются в разные стороны; каждая гармоника изображается окружностью радиуса |cₖ|. Постоянный коэффициент c₀ задаёт положение центра всей цепочки. Бегунок «Гармоники» оставляет частоты от −K до +K, где K не превосходит 64 и предела Найквиста (на предельной частоте используется только один коэффициент). Бегунок «Отображаемые колёса» регулирует только число видимых окружностей, не изменяя сумму Фурье и точность восстановленной линии. Исходный рисунок параметризуется временем движения пальца, а не длиной дуги. При замыкании периода конец линии математически соединяется с началом, поэтому у разомкнутых линий возможны колебания Гиббса.</p></details>
 </main>
 <script>
 "use strict";
 const $=id=>document.getElementById(id),T=2*Math.PI,S=600;
 const draw=$('draw');
 const dc=draw.getContext('2d');
+const translations={"ru":{"title":"Фурье: нарисуй линию — собери её из вращений","language":"Язык","canvasTitle":"Исходная линия · гармоники · восстановление","legend":"Голубая — исходная · зелёная — восстановленная · жёлтая точка — конец цепочки","spiral":"Спираль","heart":"Сердце","clear":"Очистить","pause":"⏸ Пауза","resume":"▶ Продолжить","restart":"↻ Заново","loop":"Повторять","dots":"Отсчёты","sampling":"Дискретизация","harmonics":"Гармоники","wheels":"Видимые колёса","period":"Период","samples":"отсчётов","of":"из","seconds":"с","points":"Точек исходной линии","progress":"Прогресс","empty":"Нарисуйте кривую или выберите пример.","helpTitle":"Как это работает · математическая модель","helpBody":"Математическая модель: z(t) = x(t) + iy(t) = Σ cₖe^(2πikt), где k может быть положительным и отрицательным. Гармоники +k и −k вращаются в противоположных направлениях, радиус колеса равен |cₖ|. Коэффициент c₀ задаёт центр. Бегунок гармоник выбирает частоты от −K до +K, где K ≤ 64 и K не превышает предела Найквиста. Бегунок видимых колёс меняет только число нарисованных окружностей, не влияя на результат. Параметр t отражает время движения пера, а не длину дуги. Периодическое продолжение разомкнутой линии может давать колебания Гиббса."},"en":{"title":"Fourier: draw a line, build it from rotations","language":"Language","canvasTitle":"Original path · harmonics · reconstruction","legend":"Cyan: original · green: reconstructed · yellow dot: chain endpoint","spiral":"Spiral","heart":"Heart","clear":"Clear","pause":"⏸ Pause","resume":"▶ Resume","restart":"↻ Restart","loop":"Loop","dots":"Samples","sampling":"Sampling","harmonics":"Harmonics","wheels":"Visible wheels","period":"Period","samples":"samples","of":"of","seconds":"s","points":"Original points","progress":"Progress","empty":"Draw a curve or choose an example.","helpTitle":"How it works · mathematical model","helpBody":"Mathematical model: z(t) = x(t) + iy(t) = Σ cₖe^(2πikt), where k can be positive or negative. Harmonics +k and −k rotate in opposite directions; each wheel has radius |cₖ|. Coefficient c₀ sets the center. The harmonic slider selects frequencies −K to +K, with K ≤ 64 and no higher than the Nyquist limit. The visible-wheels slider changes only the number of displayed circles, not the reconstructed curve. Parameter t follows pen movement time, not arc length. Periodic continuation of an open curve may cause Gibbs oscillations."},"de":{"title":"Fourier: Zeichne eine Linie aus Kreisbewegungen","language":"Sprache","canvasTitle":"Originalkurve · Harmonische · Rekonstruktion","legend":"Türkis: Original · Grün: Rekonstruktion · Gelber Punkt: Kettenende","spiral":"Spirale","heart":"Herz","clear":"Löschen","pause":"⏸ Pause","resume":"▶ Weiter","restart":"↻ Neustart","loop":"Wiederholen","dots":"Abtastpunkte","sampling":"Abtastung","harmonics":"Harmonische","wheels":"Sichtbare Kreise","period":"Periode","samples":"Abtastwerte","of":"von","seconds":"s","points":"Originalpunkte","progress":"Fortschritt","empty":"Zeichne eine Kurve oder wähle ein Beispiel.","helpTitle":"Funktionsweise · mathematisches Modell","helpBody":"Mathematisches Modell: z(t) = x(t) + iy(t) = Σ cₖe^(2πikt), wobei k positiv oder negativ sein kann. Die Harmonischen +k und −k drehen sich in entgegengesetzte Richtungen; jeder Kreis hat den Radius |cₖ|. Der Koeffizient c₀ bestimmt das Zentrum. Der Regler für Harmonische wählt Frequenzen von −K bis +K, mit K ≤ 64 und höchstens der Nyquist-Grenze. Der Regler für sichtbare Kreise ändert nur die Darstellung, nicht die Rekonstruktion. Parameter t entspricht der Zeit der Stiftbewegung, nicht der Bogenlänge. Bei offenen Kurven kann die periodische Fortsetzung Gibbs-Schwingungen verursachen."},"fr":{"title":"Fourier : dessinez une courbe avec des rotations","language":"Langue","canvasTitle":"Tracé initial · harmoniques · reconstruction","legend":"Cyan : original · vert : reconstruit · point jaune : extrémité de la chaîne","spiral":"Spirale","heart":"Cœur","clear":"Effacer","pause":"⏸ Pause","resume":"▶ Reprendre","restart":"↻ Recommencer","loop":"Boucle","dots":"Échantillons","sampling":"Échantillonnage","harmonics":"Harmoniques","wheels":"Cercles visibles","period":"Période","samples":"échantillons","of":"sur","seconds":"s","points":"Points initiaux","progress":"Progression","empty":"Dessinez une courbe ou choisissez un exemple.","helpTitle":"Fonctionnement · modèle mathématique","helpBody":"Modèle mathématique : z(t) = x(t) + iy(t) = Σ cₖe^(2πikt), où k peut être positif ou négatif. Les harmoniques +k et −k tournent dans des sens opposés ; le rayon de chaque cercle est |cₖ|. Le coefficient c₀ fixe le centre. Le curseur des harmoniques choisit les fréquences de −K à +K, avec K ≤ 64 et dans la limite de Nyquist. Le curseur des cercles visibles n'agit que sur l'affichage, sans changer la reconstruction. Le paramètre t représente le temps du tracé et non la longueur d'arc. Le prolongement périodique d'une courbe ouverte peut produire des oscillations de Gibbs."},"uk":{"title":"Фур'є: намалюй лінію — склади її з обертань","language":"Мова","canvasTitle":"Початкова лінія · гармоніки · відновлення","legend":"Блакитна — початкова · зелена — відновлена · жовта точка — кінець ланцюжка","spiral":"Спіраль","heart":"Серце","clear":"Очистити","pause":"⏸ Пауза","resume":"▶ Продовжити","restart":"↻ Спочатку","loop":"Повторювати","dots":"Відліки","sampling":"Дискретизація","harmonics":"Гармоніки","wheels":"Видимі кола","period":"Період","samples":"відліків","of":"з","seconds":"с","points":"Точок початкової лінії","progress":"Прогрес","empty":"Намалюйте криву або виберіть приклад.","helpTitle":"Як це працює · математична модель","helpBody":"Математична модель: z(t) = x(t) + iy(t) = Σ cₖe^(2πikt), де k може бути додатним або від'ємним. Гармоніки +k і −k обертаються у протилежні боки; радіус кожного кола дорівнює |cₖ|. Коефіцієнт c₀ задає центр. Повзунок гармонік вибирає частоти від −K до +K, де K ≤ 64 і не перевищує межі Найквіста. Повзунок видимих кіл змінює лише їх відображення, не впливаючи на відновлення. Параметр t відповідає часу руху пера, а не довжині дуги. Періодичне продовження незамкненої кривої може спричиняти коливання Гіббса."}};
+let currentLang='ru';
+function tr(key){return translations[currentLang][key]||translations.ru[key]||key}
+function syncPlay(){const b=$('play');b.textContent=tr(playing?'pause':'resume')}
+function applyLanguage(lang){currentLang=translations[lang]?lang:'en';document.documentElement.lang=currentLang;$('language').value=currentLang;document.querySelectorAll('[data-i18n]').forEach(el=>{const key=el.dataset.i18n;el.textContent=tr(key)});document.title=tr('title');syncPlay();updateSliders();$('durValue').textContent=period+' '+tr('seconds');fitCanvas()}
+$('language').addEventListener('change',e=>applyLanguage(e.target.value));
 let raw=[],painting=false,n=128,K=12,visible=24,coeff=new Map(),sampled=[],terms=[],trail=[],phase=0,playing=true,lastTime=0,period=8,needsCompute=true,needsPath=true;
 function xy(e){let r=draw.getBoundingClientRect();return{x:Math.max(0,Math.min(S,(e.clientX-r.left)*S/r.width)),y:Math.max(0,Math.min(S,(e.clientY-r.top)*S/r.height)),t:performance.now()}}
 draw.addEventListener('pointerdown',e=>{e.preventDefault();draw.setPointerCapture(e.pointerId);painting=true;raw=[xy(e)];phase=0;needsCompute=true});
@@ -90,19 +96,19 @@ function strokeTrail(c,until,color){if(!trail.length)return;const last=Math.floo
 function render(){drawOriginal();if(!coeff.size)return;const p=chain(phase);
 for(let s of p.steps.slice(0,visible)){if(s.r<.35)continue;dc.beginPath();dc.arc(s.x,s.y,s.r,0,T);dc.strokeStyle=s.k>0?'rgba(111,219,240,.45)':'rgba(255,189,119,.45)';dc.lineWidth=1.2;dc.stroke();dc.beginPath();dc.moveTo(s.x,s.y);dc.lineTo(s.nx,s.ny);dc.strokeStyle=s.k>0?'rgba(112,231,239,.85)':'rgba(255,199,133,.85)';dc.lineWidth=1.4;dc.stroke()}
 strokeTrail(dc,phase,'#7bedbd');dc.fillStyle='#ffca75';dc.beginPath();dc.arc(p.x,p.y,5.5,0,T);dc.fill()}
-function updateSliders(){n=2**Number($('samples').value);$('nValue').textContent=n+' отсчётов';$('harmonics').max=String(Math.min(64,n/2));K=Math.min(Number($('harmonics').value),64,n/2);$('harmonics').value=K;$('kValue').textContent=K+' (±k)';const count=2*K-(K===n/2?1:0);$('visible').max=String(count);visible=Math.min(Number($('visible').value),count);$('visible').value=visible;$('vValue').textContent=visible+' из '+count}
+function updateSliders(){n=2**Number($('samples').value);$('nValue').textContent=n+' '+tr('samples');$('harmonics').max=String(Math.min(64,n/2));K=Math.min(Number($('harmonics').value),64,n/2);$('harmonics').value=K;$('kValue').textContent=K+' (±k)';const count=2*K-(K===n/2?1:0);$('visible').max=String(count);visible=Math.min(Number($('visible').value),count);$('visible').value=visible;$('vValue').textContent=visible+' '+tr('of')+' '+count}
 $('samples').addEventListener('input',()=>{updateSliders();needsCompute=true;phase=0});
 $('harmonics').addEventListener('input',()=>{updateSliders();needsPath=true;phase=0});
 $('visible').addEventListener('input',()=>{updateSliders()});
-$('duration').addEventListener('input',e=>{period=Number(e.target.value);$('durValue').textContent=period+' с'});
+$('duration').addEventListener('input',e=>{period=Number(e.target.value);$('durValue').textContent=period+' '+tr('seconds')});
 $('dots').addEventListener('change',drawOriginal);
 
-$('play').addEventListener('click',()=>{playing=!playing;$('play').textContent=playing?'⏸ Пауза':'▶ Продолжить'});
-$('restart').addEventListener('click',()=>{phase=0;playing=true;$('play').textContent='⏸ Пауза'});
+$('play').addEventListener('click',()=>{playing=!playing;$('play').textContent=playing?tr('pause'):tr('resume')});
+$('restart').addEventListener('click',()=>{phase=0;playing=true;$('play').textContent=tr('pause')});
 $('clear').addEventListener('click',()=>{raw=[];phase=0;needsCompute=true});
 function example(type){raw=[];const count=720;for(let j=0;j<count;j++){let t=j/(count-1),theta=T*t,x,y;if(type==='heart'){let xx=16*Math.sin(theta)**3,yy=13*Math.cos(theta)-5*Math.cos(2*theta)-2*Math.cos(3*theta)-Math.cos(4*theta);x=300+xx*11.5;y=290-yy*11.5}else{let r=20+220*t;x=300+r*Math.cos(3*T*t);y=300+r*Math.sin(3*T*t)}raw.push({x,y,t:j*12})}phase=0;needsCompute=true}
 $('spiral').addEventListener('click',()=>example('spiral'));$('heart').addEventListener('click',()=>example('heart'));
-function animate(now){let dt=lastTime?Math.min(60,now-lastTime):0;lastTime=now;if(needsCompute)analyze();if(needsPath)makeTrail();if(playing&&raw.length&&!painting){phase+=dt/(period*1000);if(phase>=1){if($('loop').checked)phase%=1;else{phase=1;playing=false;$('play').textContent='▶ Продолжить'}}}render();$('status').textContent=raw.length?'Точек исходной линии: '+raw.length+' · Отсчётов: '+n+' · Гармоники: −'+K+'…+'+K+' · Колёс видно: '+visible+' из '+terms.length+' · Прогресс: '+Math.round(phase*100)+'%':'Нарисуйте кривую или выберите пример.';requestAnimationFrame(animate)}
+function animate(now){let dt=lastTime?Math.min(60,now-lastTime):0;lastTime=now;if(needsCompute)analyze();if(needsPath)makeTrail();if(playing&&raw.length&&!painting){phase+=dt/(period*1000);if(phase>=1){if($('loop').checked)phase%=1;else{phase=1;playing=false;syncPlay()}}}render();$('status').textContent=raw.length?tr('points')+': '+raw.length+' · '+tr('sampling')+': '+n+' · '+tr('harmonics')+': −'+K+'…+'+K+' · '+tr('wheels')+': '+visible+' '+tr('of')+' '+terms.length+' · '+tr('progress')+': '+Math.round(phase*100)+'%':tr('empty');requestAnimationFrame(animate)}
 function fitCanvas(){
  const panel=draw.parentElement,header=panel.querySelector('h2'),legend=panel.querySelector('.legend');
  const styles=getComputedStyle(panel);
@@ -113,6 +119,6 @@ function fitCanvas(){
 }
 new ResizeObserver(fitCanvas).observe(draw.parentElement);
 window.addEventListener('resize',fitCanvas);
-updateSliders();example('heart');fitCanvas();requestAnimationFrame(animate);
+updateSliders();example('heart');applyLanguage((navigator.language||'en').toLowerCase().split('-')[0]);fitCanvas();requestAnimationFrame(animate);
 </script>
 </body></html>
