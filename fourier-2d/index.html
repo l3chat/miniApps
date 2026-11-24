@@ -136,14 +136,44 @@ const examplePaths={"house":"M90 250 L250 95 L410 250 L370 250 L370 410 L130 410
 function selectExample(name){
  if(!name||!examplePaths[name])return;
  const path=document.createElementNS('http://www.w3.org/2000/svg','path');
- path.setAttribute('d',examplePaths[name]);
- const length=path.getTotalLength();if(!(length>0))return;
+ const d=examplePaths[name].trim();
+
+ // Measure the existing contour before adding the closing segment.
+ // Its mean drawing speed is the reference speed for the final segment.
+ path.setAttribute('d',d);
+ const originalLength=path.getTotalLength();
+ if(!(originalLength>0))return;
+ const closedD=/[zZ]\s*$/.test(d)?d:d+' Z';
+ path.setAttribute('d',closedD);
+ const closedLength=path.getTotalLength();
+ if(!(closedLength>0))return;
+
+ // Sample the entire closed contour at equal arc-length intervals.
+ // Therefore the closing segment is drawn at the same mean speed
+ // as the rest of the figure, rather than being jumped over instantly.
  const count=960,points=[];
- for(let j=0;j<count;j++){const p=path.getPointAtLength(length*j/(count-1));points.push({x:p.x,y:p.y})}
+ for(let j=0;j<count;j++){
+  const p=path.getPointAtLength(closedLength*j/(count-1));
+  points.push({x:p.x,y:p.y});
+ }
+ // Make the endpoint exactly equal to the starting point despite
+ // possible browser floating-point differences in SVG path sampling.
+ points[count-1]={...points[0]};
+
  let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
  for(const p of points){minX=Math.min(minX,p.x);maxX=Math.max(maxX,p.x);minY=Math.min(minY,p.y);maxY=Math.max(maxY,p.y)}
  const scale=470/Math.max(maxX-minX,maxY-minY,1),cx=(minX+maxX)/2,cy=(minY+maxY)/2;
- raw=points.map((p,j)=>({x:300+(p.x-cx)*scale,y:300+(p.y-cy)*scale,t:j*9}));
+
+ // Previously 959 samples took 959*9 ms along the original path.
+ // Preserve its average speed; extend duration in proportion to the
+ // added closing length (zero extra time when the path was closed).
+ const originalDuration=(count-1)*9;
+ const closedDuration=originalDuration*closedLength/originalLength;
+ raw=points.map((p,j)=>({
+  x:300+(p.x-cx)*scale,
+  y:300+(p.y-cy)*scale,
+  t:closedDuration*j/(count-1)
+ }));
  phase=0;playing=true;syncPlay();needsCompute=true;
 }
 $('example').addEventListener('change',e=>{if(e.target.value)selectExample(e.target.value)});
