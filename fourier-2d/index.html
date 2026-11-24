@@ -6,54 +6,62 @@
 <title>Фурье — рисование эпициклами</title>
 <style>
 :root{font-family:system-ui,-apple-system,Arial,sans-serif;color-scheme:dark;background:#091321;color:#e8f3fc}
-*{box-sizing:border-box}html,body{height:100%;margin:0}body{height:100vh;height:100dvh;padding:8px;overflow:hidden}
-main{height:100%;max-width:1450px;margin:auto;display:grid;grid-template-rows:auto auto minmax(0,1fr) auto auto auto auto auto;gap:6px;min-height:0}
-h1{font-size:clamp(17px,2.5vh,26px);line-height:1.1;color:#7ee5e8;margin:1px 0}h2{font-size:13px;line-height:1.15;margin:0 0 4px}
-.panels{min-height:0;min-width:0;display:grid;grid-template-columns:minmax(0,1fr);max-width:none;margin:0}
-.panel,.controls,.bottom-panel{background:#132238;border:1px solid #324a63;border-radius:12px;padding:7px;min-width:0;min-height:0}
-.panel{display:flex;flex-direction:column;align-items:stretch;overflow:hidden}
+*{box-sizing:border-box}html,body{height:100%;margin:0}body{height:100vh;height:100dvh;padding:7px;overflow:hidden}
+main{height:100%;max-width:1700px;margin:auto;display:grid;grid-template-rows:auto minmax(0,1fr) auto auto;gap:6px;min-height:0}
+h1{font-size:clamp(17px,2.5vh,26px);line-height:1.1;color:#7ee5e8;margin:0}
+h2{font-size:13px;line-height:1.2;margin:0 0 5px}
+.workspace{display:grid;grid-template-columns:minmax(0,1fr) 245px;gap:8px;min-height:0;min-width:0}
+.panels{min-height:0;min-width:0;display:flex;justify-content:center}
+.panel,.sidebar{background:#132238;border:1px solid #324a63;border-radius:12px;padding:8px;min-width:0;min-height:0}
+.panel{flex:1;display:flex;flex-direction:column;align-items:stretch;overflow:hidden}
 canvas.square{display:block;background:#06101c;border-radius:8px;touch-action:none;cursor:crosshair;align-self:center;flex:none}
-.controls{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;padding:7px}
-.control{min-width:0}.control label{font-size:12px;display:block;margin:0 0 1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.control output{font-weight:700;color:#80e7e7}
+.sidebar{display:flex;flex-direction:column;gap:10px;overflow-y:auto;scrollbar-width:thin}
+.controls{display:grid;grid-template-columns:1fr;gap:14px}.control{min-width:0}
+.control label{font-size:13px;display:block;margin-bottom:4px}.control output{font-weight:700;color:#80e7e7}
 input[type=range]{width:100%;margin:0;accent-color:#76dfdf;cursor:pointer}
-button{background:#24415a;color:#effbff;border:1px solid #507189;border-radius:7px;padding:5px 9px;cursor:pointer;font-size:12px;line-height:1.3}
-button:hover{background:#32627d}
-.buttons{display:flex;align-items:center;flex-wrap:wrap;gap:5px;margin:0;min-height:0}
-.bottom{display:grid;grid-template-columns:1fr 1fr;gap:7px;min-height:0}
-.bottom canvas{display:block;width:100%;height:clamp(45px,9vh,95px);background:#06101c;border-radius:6px}
+button{background:#24415a;color:#effbff;border:1px solid #507189;border-radius:7px;padding:7px 9px;cursor:pointer;font-size:12px;line-height:1.3}
+button:hover{background:#32627d}.buttons{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin:0}
 .note{font-size:12px;color:#acc3d4}#status{font-size:11px;color:#98e5de;margin:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 label.inline{display:inline-flex;align-items:center;gap:5px;color:#dcecf8;font-size:12px}
-.legend{font-size:11px;color:#aec9d9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:4px}
-.legend b{color:#ffc66d}.accent{color:#8aebea}
+.legend{font-size:11px;color:#aec9d9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:5px}
 details{font-size:11px;color:#aec6d7;position:relative;min-height:0}
-details summary{cursor:pointer;width:max-content}details[open] .note{position:absolute;z-index:10;bottom:100%;left:0;right:0;max-height:35vh;overflow:auto;background:#182b42;border:1px solid #4c6880;border-radius:9px;padding:10px;margin:0;line-height:1.5}
-#duration{width:110px!important}
-@media(max-height:740px){.bottom canvas{height:55px}.legend{font-size:10px}.bottom-panel{padding:4px}h2{font-size:12px}.controls{padding:4px}button{padding:3px 7px}}
-@media(max-height:570px){.bottom{display:none}#status{display:none}main{grid-template-rows:auto auto minmax(0,1fr) auto auto auto auto}details{font-size:10px}}
-@media(max-width:600px){body{padding:5px}main{gap:4px}.panel{padding:5px}.controls{gap:4px;padding:5px}.control label{font-size:10px}.buttons{gap:3px}button{font-size:11px;padding:4px 6px}.legend{display:none}.bottom canvas{height:55px}#duration{width:75px!important}}
+details summary{cursor:pointer;width:max-content}
+details[open] .note{position:absolute;z-index:10;bottom:100%;left:0;right:0;max-height:35vh;overflow:auto;background:#182b42;border:1px solid #4c6880;border-radius:9px;padding:10px;margin:0;line-height:1.5}
+#duration{width:100%!important}.duration-label{display:block;font-size:12px}
+@media(orientation:portrait){
+main{grid-template-rows:auto minmax(0,1fr) auto auto}
+.workspace{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) auto}
+.sidebar{overflow:visible;padding:6px;gap:7px}
+.sidebar>.buttons{justify-content:center}
+.controls{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.control label{font-size:11px}
+.duration-label{display:flex;align-items:center;gap:8px}#duration{width:100px!important}
+}
+@media(max-width:600px){body{padding:5px}main{gap:4px}.workspace{gap:5px}.panel{padding:5px}h2{font-size:12px}.sidebar{padding:5px;gap:5px}.controls{gap:5px}.control label{font-size:10px}button{font-size:11px;padding:5px 7px}.legend{display:none}}
+@media(orientation:landscape) and (max-height:520px){.sidebar{gap:5px}button{padding:4px 6px}.controls{gap:8px}.legend{display:none}}
 </style>
 </head>
 <body><main>
 <h1>Фурье: нарисуй линию — собери её из вращений</h1>
 
+<div class="workspace">
+<div class="panels">
+<div class="panel"><h2>Исходная линия · гармоники · восстановление</h2><canvas id="draw" class="square" width="600" height="600"></canvas><div class="legend">Голубая — исходная · зелёная — восстановленная · жёлтая точка — конец цепочки</div></div>
+</div>
+<aside class="sidebar" aria-label="Элементы управления">
 <div class="buttons">
-<button id="spiral">Пример: спираль</button><button id="heart">Пример: сердце</button><button id="clear">Очистить</button>
+<button id="spiral">Спираль</button><button id="heart">Сердце</button><button id="clear">Очистить</button>
 <button id="play">⏸ Пауза</button><button id="restart">↻ Заново</button>
 <label class="inline"><input type="checkbox" id="loop" checked> Повторять</label>
 <label class="inline"><input type="checkbox" id="dots"> Отсчёты</label>
 </div>
-<div class="panels">
-<div class="panel"><h2>Исходная линия + вращающиеся гармоники + восстановление</h2><canvas id="draw" class="square" width="600" height="600"></canvas><div class="legend">Голубая — исходная · зелёная — восстановленная · жёлтая точка — конец цепочки · окружности — гармоники</div></div>
-</div>
 <div class="controls">
 <div class="control"><label for="samples">Дискретизация: <output id="nValue">128 отсчётов</output></label><input type="range" id="samples" min="5" max="9" value="7" step="1"></div>
 <div class="control"><label for="harmonics">Гармоники: <output id="kValue">12</output></label><input type="range" id="harmonics" min="0" max="64" value="12" step="1"></div>
-<div class="control"><label for="visible">Отображаемые колёса: <output id="vValue">24</output></label><input type="range" id="visible" min="0" max="128" value="24" step="1"></div>
+<div class="control"><label for="visible">Видимые колёса: <output id="vValue">24</output></label><input type="range" id="visible" min="0" max="128" value="24" step="1"></div>
 </div>
-<div class="buttons"><label class="inline" for="duration">Период анимации <input id="duration" type="range" min="2" max="20" value="8" step="1" style="width:135px"><output id="durValue">8 с</output></label></div>
-<div class="bottom">
-<div class="bottom-panel"><h2>x(t) и y(t)</h2><canvas id="signals" width="700" height="200"></canvas></div>
-<div class="bottom-panel"><h2>Амплитуды комплексных гармоник |cₖ|</h2><canvas id="bars" width="700" height="200"></canvas></div>
+<label class="duration-label" for="duration">Период: <output id="durValue">8 с</output><input id="duration" type="range" min="2" max="20" value="8" step="1"></label>
+</aside>
 </div>
 <p id="status"></p>
 <details><summary>Как это работает · математическая модель</summary><p class="note">Математическая модель: z(t) = x(t) + iy(t) = Σ cₖe^(2πikt), где k принимает как положительные, так и отрицательные значения. Частоты +k и −k вращаются в разные стороны; каждая гармоника изображается окружностью радиуса |cₖ|. Постоянный коэффициент c₀ задаёт положение центра всей цепочки. Бегунок «Гармоники» оставляет частоты от −K до +K, где K не превосходит 64 и предела Найквиста (на предельной частоте используется только один коэффициент). Бегунок «Отображаемые колёса» регулирует только число видимых окружностей, не изменяя сумму Фурье и точность восстановленной линии. Исходный рисунок параметризуется временем движения пальца, а не длиной дуги. При замыкании периода конец линии математически соединяется с началом, поэтому у разомкнутых линий возможны колебания Гиббса.</p></details>
@@ -61,8 +69,8 @@ details summary{cursor:pointer;width:max-content}details[open] .note{position:ab
 <script>
 "use strict";
 const $=id=>document.getElementById(id),T=2*Math.PI,S=600;
-const draw=$('draw'),signals=$('signals'),bars=$('bars');
-const dc=draw.getContext('2d'),sc=signals.getContext('2d'),bc=bars.getContext('2d');
+const draw=$('draw');
+const dc=draw.getContext('2d');
 let raw=[],painting=false,n=128,K=12,visible=24,coeff=new Map(),sampled=[],terms=[],trail=[],phase=0,playing=true,lastTime=0,period=8,needsCompute=true,needsPath=true;
 function xy(e){let r=draw.getBoundingClientRect();return{x:Math.max(0,Math.min(S,(e.clientX-r.left)*S/r.width)),y:Math.max(0,Math.min(S,(e.clientY-r.top)*S/r.height)),t:performance.now()}}
 draw.addEventListener('pointerdown',e=>{e.preventDefault();draw.setPointerCapture(e.pointerId);painting=true;raw=[xy(e)];phase=0;needsCompute=true});
@@ -72,18 +80,16 @@ draw.addEventListener('pointerup',endDraw);draw.addEventListener('pointercancel'
 draw.addEventListener('lostpointercapture',()=>{painting=false;needsCompute=true});
 function sample(){sampled=[];if(!raw.length)return;const first=raw[0].t, span=Math.max(.001,raw[raw.length-1].t-first);let at=0;for(let j=0;j<n;j++){const time=first+span*j/n;while(at<raw.length-2&&raw[at+1].t<time)at++;const a=raw[at],b=raw[Math.min(at+1,raw.length-1)],p=Math.max(0,Math.min(1,(time-a.t)/Math.max(.001,b.t-a.t)));sampled.push({x:a.x+(b.x-a.x)*p,y:a.y+(b.y-a.y)*p})}}
 function Fourier(k){let re=0,im=0;for(let j=0;j<n;j++){let angle=T*k*j/n,c=Math.cos(angle),s=Math.sin(angle),z=sampled[j];re+=z.x*c+z.y*s;im+=z.y*c-z.x*s}return {k,re:re/n,im:im/n}}
-function analyze(){sample();coeff=new Map();if(sampled.length){for(let k=-Math.floor(n/2)+1;k<=Math.floor(n/2);k++)coeff.set(k,Fourier(k))}needsCompute=false;needsPath=true;drawOriginal();drawSignals();drawBars()}
+function analyze(){sample();coeff=new Map();if(sampled.length){for(let k=-Math.floor(n/2)+1;k<=Math.floor(n/2);k++)coeff.set(k,Fourier(k))}needsCompute=false;needsPath=true;drawOriginal()}
 function makeTerms(){terms=[];if(!coeff.size)return;for(let k=1;k<=K;k++){const plus=coeff.get(k),minus=coeff.get(-k);if(plus)terms.push(plus);if(minus)terms.push(minus)}}
 function chain(t){let c=coeff.get(0),x=c.re,y=c.im;let steps=[];for(let term of terms){let ang=T*term.k*t,cs=Math.cos(ang),sn=Math.sin(ang),dx=term.re*cs-term.im*sn,dy=term.re*sn+term.im*cs;let nx=x+dx,ny=y+dy;steps.push({x,y,nx,ny,r:Math.hypot(term.re,term.im),k:term.k});x=nx;y=ny}return {x,y,steps}}
-function makeTrail(){makeTerms();trail=[];if(coeff.size){const count=1300;for(let j=0;j<=count;j++){const p=chain(j/count);trail.push({x:p.x,y:p.y})}}needsPath=false;drawBars()}
+function makeTrail(){makeTerms();trail=[];if(coeff.size){const count=1300;for(let j=0;j<=count;j++){const p=chain(j/count);trail.push({x:p.x,y:p.y})}}needsPath=false}
 function background(c,w,h){c.fillStyle='#06101c';c.fillRect(0,0,w,h);c.strokeStyle='#15263a';c.lineWidth=1;for(let j=1;j<10;j++){let a=j*w/10,b=j*h/10;c.beginPath();c.moveTo(a,0);c.lineTo(a,h);c.moveTo(0,b);c.lineTo(w,b);c.stroke()}}
 function drawOriginal(){background(dc,S,S);if(!raw.length)return;dc.beginPath();raw.forEach((p,i)=>{if(i)dc.lineTo(p.x,p.y);else dc.moveTo(p.x,p.y)});dc.strokeStyle='#81e6ee';dc.lineWidth=3;dc.lineCap='round';dc.lineJoin='round';dc.stroke();dc.fillStyle='#ffd17e';dc.beginPath();dc.arc(raw[0].x,raw[0].y,5,0,T);dc.fill();if($('dots').checked){dc.fillStyle='#ffd17e';for(let p of sampled){dc.beginPath();dc.arc(p.x,p.y,2.2,0,T);dc.fill()}}}
 function strokeTrail(c,until,color){if(!trail.length)return;const last=Math.floor((trail.length-1)*until);c.strokeStyle=color;c.lineWidth=3;c.lineCap='round';c.lineJoin='round';c.beginPath();for(let j=0;j<=last;j++){let p=trail[j];if(j===0)c.moveTo(p.x,p.y);else c.lineTo(p.x,p.y)}if(last<trail.length-1){let a=trail[last],b=trail[last+1],f=(trail.length-1)*until-last;c.lineTo(a.x+(b.x-a.x)*f,a.y+(b.y-a.y)*f)}c.stroke()}
 function render(){drawOriginal();if(!coeff.size)return;const p=chain(phase);
 for(let s of p.steps.slice(0,visible)){if(s.r<.35)continue;dc.beginPath();dc.arc(s.x,s.y,s.r,0,T);dc.strokeStyle=s.k>0?'rgba(111,219,240,.45)':'rgba(255,189,119,.45)';dc.lineWidth=1.2;dc.stroke();dc.beginPath();dc.moveTo(s.x,s.y);dc.lineTo(s.nx,s.ny);dc.strokeStyle=s.k>0?'rgba(112,231,239,.85)':'rgba(255,199,133,.85)';dc.lineWidth=1.4;dc.stroke()}
 strokeTrail(dc,phase,'#7bedbd');dc.fillStyle='#ffca75';dc.beginPath();dc.arc(p.x,p.y,5.5,0,T);dc.fill()}
-function drawSignals(){const w=signals.width,h=signals.height;background(sc,w,h);if(!sampled.length)return;const x0=coeff.get(0).re,y0=coeff.get(0).im;let max=1;for(let p of sampled)max=Math.max(max,Math.abs(p.x-x0),Math.abs(p.y-y0));for(let [key,center,color] of [['x',x0,'#80e4ee'],['y',y0,'#ffbf81']]){sc.beginPath();sampled.forEach((p,i)=>{let x=i/(sampled.length-1)*w,y=h/2-(p[key]-center)*h*.42/max;if(!i)sc.moveTo(x,y);else sc.lineTo(x,y)});sc.strokeStyle=color;sc.lineWidth=2;sc.stroke()}sc.fillStyle='#80e4ee';sc.font='15px sans-serif';sc.fillText('x(t)',10,20);sc.fillStyle='#ffbf81';sc.fillText('y(t)',75,20)}
-function drawBars(){const w=bars.width,h=bars.height;background(bc,w,h);if(!coeff.size)return;let max=1,cap=Math.min(32,Math.floor(n/2));for(let k=-cap;k<=cap;k++){let q=coeff.get(k);if(q)max=Math.max(max,Math.hypot(q.re,q.im))}let bwidth=w/(2*cap+1);for(let k=-cap;k<=cap;k++){let q=coeff.get(k);if(!q)continue;let height=(h-30)*Math.hypot(q.re,q.im)/max,px=(k+cap)*bwidth;bc.fillStyle=k===0?'#ece6d2':k>0?'#80e4ee':'#ffbf81';bc.globalAlpha=(Math.abs(k)<=K||k===0)?1:.2;bc.fillRect(px+1,h-10-height,Math.max(1,bwidth-2),height)}bc.globalAlpha=1;bc.font='13px sans-serif';bc.fillStyle='#b8cddd';bc.fillText('−'+cap,4,h-1);bc.fillText('0',w/2-4,h-1);bc.fillText('+'+cap,w-35,h-1)}
 function updateSliders(){n=2**Number($('samples').value);$('nValue').textContent=n+' отсчётов';$('harmonics').max=String(Math.min(64,n/2));K=Math.min(Number($('harmonics').value),64,n/2);$('harmonics').value=K;$('kValue').textContent=K+' (±k)';const count=2*K-(K===n/2?1:0);$('visible').max=String(count);visible=Math.min(Number($('visible').value),count);$('visible').value=visible;$('vValue').textContent=visible+' из '+count}
 $('samples').addEventListener('input',()=>{updateSliders();needsCompute=true;phase=0});
 $('harmonics').addEventListener('input',()=>{updateSliders();needsPath=true;phase=0});
