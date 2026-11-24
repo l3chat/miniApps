@@ -7,7 +7,7 @@
 <style>
 :root{font-family:system-ui,-apple-system,Arial,sans-serif;color-scheme:dark;background:#091321;color:#e8f3fc}
 *{box-sizing:border-box}html,body{height:100%;margin:0}body{height:100vh;height:100dvh;padding:8px;overflow:hidden}
-main{height:100%;max-width:1450px;margin:auto;display:grid;grid-template-rows:auto auto minmax(0,1fr) auto auto auto auto;gap:6px;min-height:0}
+main{height:100%;max-width:1450px;margin:auto;display:grid;grid-template-rows:auto auto minmax(0,1fr) auto auto auto auto auto;gap:6px;min-height:0}
 h1{font-size:clamp(17px,2.5vh,26px);line-height:1.1;color:#7ee5e8;margin:1px 0}h2{font-size:13px;line-height:1.15;margin:0 0 4px}
 .panels{min-height:0;min-width:0;display:grid;grid-template-columns:minmax(0,1fr);max-width:none;margin:0}
 .panel,.controls,.bottom-panel{background:#132238;border:1px solid #324a63;border-radius:12px;padding:7px;min-width:0;min-height:0}
@@ -29,7 +29,7 @@ details{font-size:11px;color:#aec6d7;position:relative;min-height:0}
 details summary{cursor:pointer;width:max-content}details[open] .note{position:absolute;z-index:10;bottom:100%;left:0;right:0;max-height:35vh;overflow:auto;background:#182b42;border:1px solid #4c6880;border-radius:9px;padding:10px;margin:0;line-height:1.5}
 #duration{width:110px!important}
 @media(max-height:740px){.bottom canvas{height:55px}.legend{font-size:10px}.bottom-panel{padding:4px}h2{font-size:12px}.controls{padding:4px}button{padding:3px 7px}}
-@media(max-height:570px){.bottom{display:none}#status{display:none}main{grid-template-rows:auto auto minmax(0,1fr) auto auto auto}details{font-size:10px}}
+@media(max-height:570px){.bottom{display:none}#status{display:none}main{grid-template-rows:auto auto minmax(0,1fr) auto auto auto auto}details{font-size:10px}}
 @media(max-width:600px){body{padding:5px}main{gap:4px}.panel{padding:5px}.controls{gap:4px;padding:5px}.control label{font-size:10px}.buttons{gap:3px}button{font-size:11px;padding:4px 6px}.legend{display:none}.bottom canvas{height:55px}#duration{width:75px!important}}
 </style>
 </head>
@@ -102,7 +102,7 @@ function fitCanvas(){
  const styles=getComputedStyle(panel);
  const availableH=panel.clientHeight-header.offsetHeight-(legend?legend.offsetHeight:0)-parseFloat(styles.paddingTop)-parseFloat(styles.paddingBottom)-12;
  const availableW=panel.clientWidth-parseFloat(styles.paddingLeft)-parseFloat(styles.paddingRight)-2;
- const size=Math.max(60,Math.floor(Math.min(availableH,availableW)));
+ const size=Math.max(10,Math.floor(Math.min(availableH,availableW)));
  draw.style.width=size+'px';draw.style.height=size+'px';
 }
 new ResizeObserver(fitCanvas).observe(draw.parentElement);
