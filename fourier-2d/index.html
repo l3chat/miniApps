@@ -313,6 +313,35 @@ function applyExamplePreset(name){
 function selectExample(name){
  if(!name||!examplePaths[name])return;
  applyExamplePreset(name);
+ const photo=window.fourierPhotoPoints?.[name];
+ if(photo&&photo.length>1){
+  // The generated photographic traces contain thousands of vertices.
+  // Resampling the polyline directly is linear-time and avoids repeatedly
+  // asking the browser to parse and measure a very long SVG path.
+  const lengths=[0];
+  for(let i=1;i<photo.length;i++){
+   const a=photo[i-1],b=photo[i];
+   lengths.push(lengths[i-1]+Math.hypot(b.x-a.x,b.y-a.y));
+  }
+  const total=lengths[lengths.length-1];
+  if(!(total>0))return;
+  const count=4400,points=[];
+  let index=1;
+  for(let j=0;j<count;j++){
+   const target=total*j/(count-1);
+   while(index<lengths.length-1&&lengths[index]<target)index++;
+   const a=photo[index-1],b=photo[index],span=lengths[index]-lengths[index-1];
+   const f=span>0?(target-lengths[index-1])/span:0;
+   points.push({x:a.x+(b.x-a.x)*f,y:a.y+(b.y-a.y)*f});
+  }
+  points[count-1]={...points[0]};
+  let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
+  for(const p of points){minX=Math.min(minX,p.x);maxX=Math.max(maxX,p.x);minY=Math.min(minY,p.y);maxY=Math.max(maxY,p.y)}
+  const scale=470/Math.max(maxX-minX,maxY-minY,1),cx=(minX+maxX)/2,cy=(minY+maxY)/2;
+  raw=points.map((p,j)=>({x:300+(p.x-cx)*scale,y:300+(p.y-cy)*scale,t:j*9}));
+  phase=0;playing=true;syncPlay();needsCompute=true;
+  return;
+ }
  const path=document.createElementNS('http://www.w3.org/2000/svg','path');
  const d=examplePaths[name].trim();
 
