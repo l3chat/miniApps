@@ -149,7 +149,14 @@ strokeTrail(dc,phase,'#7bedbd');
 const origin=originalAt(phase);if(origin){dc.fillStyle='#ff6eae';dc.beginPath();dc.arc(origin.x,origin.y,6.2,0,T);dc.fill();dc.strokeStyle='#fff';dc.lineWidth=1;dc.stroke()}
 dc.fillStyle='#ffca75';dc.beginPath();dc.arc(p.x,p.y,5.5,0,T);dc.fill()}
 const SPEEDS=[.25,.5,1,2,4,8];
-function clampInput(id,min,max,fallback){const el=$(id);let v=Number(el.value);if(!Number.isFinite(v)||el.value.trim()==='')v=fallback;v=Math.max(min,Math.min(max,Math.round(v)));el.value=String(v);return v}
+function clampInput(id,min,max,fallback){
+ const el=$(id);let v=Number(el.value);
+ if(!Number.isFinite(v)||el.value.trim()==='')v=fallback;
+ v=Math.max(min,Math.min(max,Math.round(v)));
+ // Keep the caret and partially typed formatting during live input.
+ if(!(document.activeElement===el&&el.dataset.liveEditing==='1'))el.value=String(v);
+ return v;
+}
 function refreshInputs(autoRaiseSamples=false){
  n=clampInput('samples',16,2048,n);
  // Positive and negative frequencies are counted separately.
@@ -178,10 +185,28 @@ function refreshInputs(autoRaiseSamples=false){
 }
 function frequencyLabel(index){const k=Math.ceil(index/2);return index%2===1?'+'+k:'−'+k}
 function formatSpeed(){return SPEEDS[Number($('speed').value)].toString().replace('.',',').replace(',',currentLang==='en'?'.':',')+'×'}
-$('samples').addEventListener('change',()=>{const previous=n;refreshInputs();if(n!==previous){needsCompute=true;phase=0}});
-$('harmonics').addEventListener('change',()=>{const oldN=n,previous=H;refreshInputs(true);if(H!==previous||n!==oldN){needsPath=true;phase=0}});
-$('visible').addEventListener('change',refreshInputs);
-$('highlight').addEventListener('change',refreshInputs);
+// React to each valid keystroke. An empty or partially typed number is
+// left untouched until it becomes valid; no Enter or blur is required.
+for(const id of ['samples','harmonics','visible','highlight']){
+ const el=$(id);
+ el.addEventListener('input',()=>{
+  if(el.value.trim()==='')return;
+  const value=Number(el.value),min=Number(el.min),max=Number(el.max);
+  if(!Number.isInteger(value)||value<min||value>max)return;
+  const oldN=n,oldH=H;
+  el.dataset.liveEditing='1';
+  try{refreshInputs(id==='harmonics')}finally{delete el.dataset.liveEditing}
+  if(n!==oldN){needsCompute=true;phase=0}
+  else if(H!==oldH){needsPath=true;phase=0}
+ });
+ // Normalize incomplete entries only when editing ends.
+ el.addEventListener('change',()=>{
+  const oldN=n,oldH=H;
+  refreshInputs(id==='harmonics');
+  if(n!==oldN){needsCompute=true;phase=0}
+  else if(H!==oldH){needsPath=true;phase=0}
+ });
+}
 $('speed').addEventListener('input',()=>{speed=SPEEDS[Number($('speed').value)];$('speedValue').textContent=formatSpeed()});
 $('dots').addEventListener('change',drawOriginal);
 $('hideCircles').addEventListener('change',render);
