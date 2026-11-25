@@ -53,11 +53,11 @@ main{grid-template-rows:auto minmax(0,1fr) auto auto}
 </div>
 <aside class="sidebar" aria-label="Controls">
 <div class="buttons">
-<label class="example-label" for="example"><span data-i18n="examples">Примеры</span><select id="example"><option value="" data-i18n="custom">Свой рисунок</option><option value="house" data-shape="house">house</option><option value="cup" data-shape="cup">cup</option><option value="key" data-shape="key">key</option><option value="bulb" data-shape="bulb">bulb</option><option value="umbrella" data-shape="umbrella">umbrella</option><option value="apple" data-shape="apple">apple</option><option value="fish" data-shape="fish">fish</option><option value="cat" data-shape="cat">cat</option><option value="bird" data-shape="bird">bird</option><option value="dragonfly" data-shape="dragonfly">dragonfly</option><option value="tree" data-shape="tree">tree</option><option value="car" data-shape="car">car</option><option value="bicycle" data-shape="bicycle">bicycle</option><option value="rocket" data-shape="rocket">rocket</option><option value="flower" data-shape="flower">flower</option><option value="bottle" data-shape="bottle">bottle</option><option value="airplane" data-shape="airplane">airplane</option><option value="shoe" data-shape="shoe">shoe</option><option value="guitar" data-shape="guitar">guitar</option><option value="clock" data-shape="clock">clock</option><option value="teapot" data-shape="teapot">teapot</option></select></label><button id="clear" data-i18n="clear">Очистить</button>
+<label class="example-label" for="example"><span data-i18n="examples">Примеры</span><select id="example"><option value="dragonfly" data-shape="dragonfly">dragonfly</option><option value="house" data-shape="house">house</option><option value="cup" data-shape="cup">cup</option><option value="key" data-shape="key">key</option><option value="bulb" data-shape="bulb">bulb</option><option value="umbrella" data-shape="umbrella">umbrella</option><option value="apple" data-shape="apple">apple</option><option value="fish" data-shape="fish">fish</option><option value="cat" data-shape="cat">cat</option><option value="bird" data-shape="bird">bird</option><option value="tree" data-shape="tree">tree</option><option value="car" data-shape="car">car</option><option value="bicycle" data-shape="bicycle">bicycle</option><option value="rocket" data-shape="rocket">rocket</option><option value="flower" data-shape="flower">flower</option><option value="bottle" data-shape="bottle">bottle</option><option value="airplane" data-shape="airplane">airplane</option><option value="shoe" data-shape="shoe">shoe</option><option value="guitar" data-shape="guitar">guitar</option><option value="clock" data-shape="clock">clock</option><option value="teapot" data-shape="teapot">teapot</option><option value="" data-i18n="custom">Свой рисунок</option></select></label><button id="clear" data-i18n="clear">Очистить</button>
 <button id="play" data-i18n="pause">⏸ Пауза</button><button id="restart" data-i18n="restart">↻ Заново</button>
 <label class="inline"><input type="checkbox" id="loop" checked> <span data-i18n="loop">Повторять</span></label>
 <label class="inline"><input type="checkbox" id="dots"> <span data-i18n="dots">Отсчёты</span></label>
-<label class="inline"><input type="checkbox" id="hideCircles"> <span data-i18n="hideCircles">Скрыть окружности</span></label>
+<label class="inline"><input type="checkbox" id="hideCircles" checked> <span data-i18n="hideCircles">Скрыть окружности</span></label>
 </div>
 <div class="controls">
 <div class="control"><label for="samples"><span data-i18n="sampling">Дискретизация</span>: <output id="nValue">128 отсчётов</output></label><input type="number" id="samples" min="16" max="2048" value="128" step="1" inputmode="numeric"></div>
@@ -297,8 +297,19 @@ function makeDragonflyPath(){
  return points.map((p,i)=>(i?'L':'M')+p.x+' '+p.y).join(' ')+' Z';
 }
 examplePaths.dragonfly=makeDragonflyPath();
+// Presets: samples, signed harmonics, visible circles, highlight, speed step.
+const examplePresets={"dragonfly":[2048,900,50,0,4],"house":[256,64,16,0,2],"cup":[512,110,24,0,2],"key":[768,180,30,0,2],"bulb":[512,130,26,0,2],"umbrella":[512,140,28,0,2],"apple":[384,100,20,0,2],"fish":[768,190,32,0,2],"cat":[768,180,30,0,2],"bird":[768,190,30,0,2],"tree":[512,130,24,0,2],"car":[768,210,35,0,2],"bicycle":[1024,300,45,0,3],"rocket":[512,150,28,0,2],"flower":[1024,280,40,0,3],"bottle":[512,110,22,0,2],"airplane":[512,140,28,0,2],"shoe":[768,160,30,0,2],"guitar":[1024,260,40,0,3],"clock":[512,100,20,0,2],"teapot":[768,200,32,0,2]};
+function applyExamplePreset(name){
+ const p=examplePresets[name];if(!p)return;
+ const [samples,harmonics,wheels,focus,speedStep]=p;
+ $('samples').value=samples;$('harmonics').value=harmonics;
+ $('visible').value=wheels;$('highlight').value=focus;
+ $('speed').value=speedStep;speed=SPEEDS[speedStep];
+ refreshInputs();needsCompute=true;needsPath=true;
+}
 function selectExample(name){
  if(!name||!examplePaths[name])return;
+ applyExamplePreset(name);
  const path=document.createElementNS('http://www.w3.org/2000/svg','path');
  const d=examplePaths[name].trim();
 
@@ -352,6 +363,6 @@ function fitCanvas(){
 }
 new ResizeObserver(fitCanvas).observe(draw.parentElement);
 window.addEventListener('resize',fitCanvas);
-refreshInputs();$('example').value='house';selectExample('house');applyLanguage((navigator.language||'en').toLowerCase().split('-')[0]);fitCanvas();requestAnimationFrame(animate);
+refreshInputs();$('example').value='dragonfly';selectExample('dragonfly');applyLanguage((navigator.language||'en').toLowerCase().split('-')[0]);fitCanvas();requestAnimationFrame(animate);
 </script>
 </body></html>
