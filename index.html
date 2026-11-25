@@ -92,6 +92,9 @@
         line-height: 1.45;
       }
 
+      .catalog-header { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap; }
+      .catalog-language { display:flex; align-items:center; gap:8px; color:var(--muted); font-size:0.85rem; }
+      .catalog-language select { font:inherit; padding:7px; border:1px solid var(--line); border-radius:6px; background:var(--panel); color:var(--ink); }
       @media (max-width: 600px) {
         h1 {
           font-size: 2.2rem;
@@ -102,14 +105,13 @@
   <body>
     <main>
       <header>
-        <h1>Mini Apps</h1>
-        <p>A small collection of browser-based tools.</p>
+        <div class="catalog-header"><div><h1>Mini Apps</h1><p>A small collection of browser-based tools.</p></div><label for="catalog-language" class="catalog-language">Language <select id="catalog-language" aria-label="Catalog language"><option value="ru">Русский</option><option value="en">English</option><option value="de">Deutsch</option><option value="fr">Français</option><option value="uk">Українська</option></select></label></div>
       </header>
 
       <ul class="app-list">
         <li class="app-card">
-          <a href="fourier-2d/index.html">Fourier Epicycles · Лаборатория Фурье</a>
-          <span>Draw a path and reconstruct it using signed Fourier harmonics, rotating epicycles, original-time playback, and highlighted wheels. RU / EN / DE / FR / UA.</span>
+          <a href="fourier-2d/index.html" id="fourier-title">Fourier Epicycles Lab</a>
+          <span id="fourier-description">Draw a path and reconstruct it using signed Fourier harmonics and rotating epicycles.</span>
         </li>
         <li class="app-card">
           <a href="book-reader/index.html">Полка · EPUB &amp; FB2 Reader</a>
@@ -149,5 +151,27 @@
         </li>
       </ul>
     </main>
+
+    <script>
+      // The catalog entry uses the visitor's browser language by default.
+      const fourierLocales = {
+        ru: { title: 'Лаборатория Фурье — эпициклы', description: 'Нарисуйте линию и восстановите её с помощью гармоник Фурье и вращающихся колёс.' },
+        en: { title: 'Fourier Epicycles Lab', description: 'Draw a path and reconstruct it with Fourier harmonics and rotating epicycles.' },
+        de: { title: 'Fourier-Labor — Epizyklen', description: 'Zeichne eine Linie und rekonstruiere sie mit Fourier-Harmonischen und rotierenden Kreisen.' },
+        fr: { title: 'Laboratoire de Fourier — épicycles', description: 'Dessinez une courbe et reconstruisez-la avec les harmoniques de Fourier et des cercles tournants.' },
+        uk: { title: 'Лабораторія Фур’є — епіцикли', description: 'Намалюйте лінію та відновіть її за допомогою гармонік Фур’є й обертових кіл.' }
+      };
+      const languageControl = document.getElementById('catalog-language');
+      function setCatalogLanguage(lang) {
+        const language = Object.hasOwn(fourierLocales, lang) ? lang : 'en';
+        const entry = fourierLocales[language];
+        languageControl.value = language;
+        document.getElementById('fourier-title').textContent = entry.title;
+        document.getElementById('fourier-description').textContent = entry.description;
+        document.documentElement.lang = language;
+      }
+      languageControl.addEventListener('change', event => setCatalogLanguage(event.target.value));
+      setCatalogLanguage((navigator.language || 'en').toLowerCase().split('-')[0]);
+    </script>
   </body>
 </html>
